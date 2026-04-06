@@ -1,0 +1,590 @@
+"use client";
+
+import { use, useState } from "react";
+import Link from "next/link";
+import {
+  ArrowLeft,
+  Wrench,
+  MapPin,
+  Calendar,
+  Clock,
+  User,
+  DollarSign,
+  FileText,
+  CheckCircle2,
+  CircleDot,
+  Circle,
+  PauseCircle,
+  PlayCircle,
+  LinkIcon,
+  MessageSquare,
+  RefreshCw,
+} from "lucide-react";
+import { Button } from "@/components/ui/Button";
+import { Badge, StatusBadge } from "@/components/ui/Badge";
+import { PriorityBadge } from "@/components/ui/PriorityBadge";
+import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/Card";
+import { ProgressBar } from "@/components/ui/ProgressBar";
+import dynamic from "next/dynamic";
+
+const AssignWorkOrderModal = dynamic(() => import("@/components/modals/work-orders/AssignWorkOrderModal").then(m => ({ default: m.AssignWorkOrderModal })), { ssr: false });
+const CompleteWorkOrderModal = dynamic(() => import("@/components/modals/work-orders/CompleteWorkOrderModal").then(m => ({ default: m.CompleteWorkOrderModal })), { ssr: false });
+const CloseWorkOrderModal = dynamic(() => import("@/components/modals/work-orders/CloseWorkOrderModal").then(m => ({ default: m.CloseWorkOrderModal })), { ssr: false });
+const AddWorkOrderNoteModal = dynamic(() => import("@/components/modals/work-orders/AddWorkOrderNoteModal").then(m => ({ default: m.AddWorkOrderNoteModal })), { ssr: false });
+const DeleteWorkOrderModal = dynamic(() => import("@/components/modals/work-orders/DeleteWorkOrderModal").then(m => ({ default: m.DeleteWorkOrderModal })), { ssr: false });
+
+/* ═══════════════════════════════════════════════════════════════
+   MOCK DATA
+   ═══════════════════════════════════════════════════════════════ */
+
+const WORK_ORDER = {
+  id: "wo-2026-0047",
+  woNumber: "WO-2026-0047",
+  title: "Replace broken gate latch — North Perimeter Gate 3",
+  description:
+    "The latch mechanism on North Perimeter Gate 3 has failed and no longer secures the gate. The gate can be pushed open without resistance, creating a security vulnerability. The latch housing appears corroded and the spring mechanism is broken. Full latch assembly replacement is required. Gate must remain monitored by personnel until the repair is completed.",
+  category: "security",
+  priority: "high" as const,
+  status: "in_progress",
+  location: "North Perimeter",
+  specificLocation: "Gate 3",
+  assignedTo: {
+    name: "Sarah Martinez",
+    initials: "SM",
+    role: "Maintenance Technician",
+    note: "Latch assembly ordered from supplier — expected delivery AM Apr 5. Will install same day if parts arrive on schedule.",
+  },
+  estimatedCost: 450.0,
+  actualCost: null as number | null,
+  scheduledDate: "Apr 4, 2026",
+  dueDate: "Apr 6, 2026",
+  completedAt: null as string | null,
+  createdBy: "Lt. Nguyen",
+  createdAt: "Apr 4, 2026 9:15 AM",
+  linkedCase: {
+    id: "CASE-2026-000012",
+    title: "Unauthorized access — North Perimeter breach",
+  },
+};
+
+const STATUS_STEPS = [
+  { key: "open", label: "Open" },
+  { key: "assigned", label: "Assigned" },
+  { key: "in_progress", label: "In Progress" },
+  { key: "completed", label: "Completed" },
+];
+
+const NOTES = [
+  {
+    id: "n1",
+    author: "Lt. Nguyen",
+    timestamp: "Apr 4, 2026 9:15 AM",
+    content:
+      "Work order created following security assessment. Gate 3 latch failure identified during morning patrol. Immediate monitoring required.",
+  },
+  {
+    id: "n2",
+    author: "Sarah Martinez",
+    timestamp: "Apr 4, 2026 10:42 AM",
+    content:
+      "Inspected the gate on-site. The entire latch assembly needs replacing — corrosion has compromised the housing and the internal spring is snapped. Ordered replacement part (Kaba Mas X-10 gate latch assembly) from Henderson Supply. ETA tomorrow morning.",
+  },
+  {
+    id: "n3",
+    author: "Lt. Nguyen",
+    timestamp: "Apr 4, 2026 11:00 AM",
+    content:
+      "Confirmed with dispatch — Gate 3 will have a posted officer until repair is complete. Added to evening briefing notes.",
+  },
+];
+
+/* ═══════════════════════════════════════════════════════════════
+   HELPERS
+   ═══════════════════════════════════════════════════════════════ */
+
+const categoryTone: Record<string, "info" | "warning" | "critical" | "default" | "success" | "attention"> = {
+  security: "critical",
+  maintenance: "default",
+  electrical: "warning",
+  plumbing: "info",
+  landscaping: "success",
+  general: "default",
+};
+
+function getStatusStepIndex(status: string): number {
+  const map: Record<string, number> = {
+    open: 0,
+    assigned: 1,
+    in_progress: 2,
+    completed: 3,
+  };
+  return map[status] ?? 0;
+}
+
+function DetailRow({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <div>
+      <label className="block text-[11px] font-medium text-[var(--text-tertiary)] uppercase tracking-wider mb-1">
+        {label}
+      </label>
+      <div className="text-[13px] text-[var(--text-primary)]">{children}</div>
+    </div>
+  );
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   PAGE COMPONENT
+   ═══════════════════════════════════════════════════════════════ */
+
+export default function WorkOrderDetailPage({
+  params,
+}: {
+  params: Promise<{ id: string }>;
+}) {
+  const { id } = use(params);
+  const wo = WORK_ORDER;
+  const currentStepIndex = getStatusStepIndex(wo.status);
+  const progressPercent = Math.round(((currentStepIndex + 1) / STATUS_STEPS.length) * 100);
+
+  const [showAssignModal, setShowAssignModal] = useState(false);
+  const [showCompleteModal, setShowCompleteModal] = useState(false);
+  const [showCloseModal, setShowCloseModal] = useState(false);
+  const [showNoteModal, setShowNoteModal] = useState(false);
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
+
+  return (
+    <div className="space-y-5 max-w-3xl pb-24">
+      {/* ── Header ── */}
+      <div className="flex items-start gap-3">
+        <Link
+          href="/work-orders"
+          className="inline-flex items-center justify-center h-8 w-8 rounded-lg hover:bg-[var(--surface-hover)] transition-colors mt-0.5"
+        >
+          <ArrowLeft className="h-4 w-4 text-[var(--text-secondary)]" />
+        </Link>
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-2 flex-wrap">
+            <span className="text-[13px] font-medium text-[var(--text-tertiary)]">
+              {wo.woNumber}
+            </span>
+            <PriorityBadge priority={wo.priority} />
+            <Badge tone={categoryTone[wo.category] ?? "default"}>
+              {wo.category.charAt(0).toUpperCase() + wo.category.slice(1)}
+            </Badge>
+            <StatusBadge status={wo.status} dot />
+          </div>
+          <h1 className="text-lg font-semibold text-[var(--text-primary)] mt-1 leading-snug">
+            {wo.title}
+          </h1>
+          <p className="text-[12px] text-[var(--text-tertiary)] mt-1">
+            Created by {wo.createdBy} on {wo.createdAt}
+          </p>
+        </div>
+      </div>
+
+      {/* ── Status Timeline ── */}
+      <Card>
+        <CardHeader>
+          <CardTitle>Status Timeline</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="flex items-center gap-0 mb-3">
+            {STATUS_STEPS.map((step, i) => {
+              const isCompleted = i <= currentStepIndex;
+              const isCurrent = i === currentStepIndex;
+              return (
+                <div key={step.key} className="flex items-center flex-1 last:flex-none">
+                  <div className="flex flex-col items-center gap-1.5">
+                    <div
+                      className="flex items-center justify-center h-7 w-7 rounded-full border-2 transition-colors"
+                      style={{
+                        borderColor: isCompleted
+                          ? "var(--action-primary)"
+                          : "var(--border-default)",
+                        backgroundColor: isCompleted
+                          ? "var(--action-primary)"
+                          : "transparent",
+                      }}
+                    >
+                      {isCompleted ? (
+                        <CheckCircle2 className="h-4 w-4 text-white" />
+                      ) : (
+                        <Circle className="h-3 w-3 text-[var(--text-tertiary)]" />
+                      )}
+                    </div>
+                    <span
+                      className="text-[11px] font-medium whitespace-nowrap"
+                      style={{
+                        color: isCurrent
+                          ? "var(--action-primary)"
+                          : isCompleted
+                            ? "var(--text-primary)"
+                            : "var(--text-tertiary)",
+                      }}
+                    >
+                      {step.label}
+                    </span>
+                  </div>
+                  {i < STATUS_STEPS.length - 1 && (
+                    <div
+                      className="flex-1 h-0.5 mx-2 rounded-full"
+                      style={{
+                        backgroundColor:
+                          i < currentStepIndex
+                            ? "var(--action-primary)"
+                            : "var(--border-default)",
+                      }}
+                    />
+                  )}
+                </div>
+              );
+            })}
+          </div>
+          <ProgressBar value={progressPercent} label="Overall Progress" size="sm" />
+        </CardContent>
+      </Card>
+
+      {/* ── Details Card ── */}
+      <Card>
+        <CardHeader>
+          <CardTitle>
+            <div className="flex items-center gap-1.5">
+              <FileText className="h-3.5 w-3.5 text-[var(--text-tertiary)]" />
+              Details
+            </div>
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <p className="text-[13px] text-[var(--text-secondary)] leading-relaxed mb-4">
+            {wo.description}
+          </p>
+          <div className="grid grid-cols-2 gap-4">
+            <DetailRow label="Location">
+              <Link
+                href="/settings/locations"
+                className="text-[var(--action-primary)] hover:underline inline-flex items-center gap-1"
+              >
+                <MapPin className="h-3 w-3" />
+                {wo.location}, {wo.specificLocation}
+              </Link>
+            </DetailRow>
+            <DetailRow label="Category">
+              <Badge tone={categoryTone[wo.category] ?? "default"}>
+                {wo.category.charAt(0).toUpperCase() + wo.category.slice(1)}
+              </Badge>
+            </DetailRow>
+            <DetailRow label="Priority">
+              <PriorityBadge priority={wo.priority} />
+            </DetailRow>
+            <DetailRow label="Status">
+              <StatusBadge status={wo.status} dot />
+            </DetailRow>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* ── Assignment Card ── */}
+      <Card>
+        <CardHeader>
+          <CardTitle>
+            <div className="flex items-center gap-1.5">
+              <User className="h-3.5 w-3.5 text-[var(--text-tertiary)]" />
+              Assignment
+            </div>
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="flex items-start gap-3">
+            {/* Avatar */}
+            <div
+              className="flex items-center justify-center h-9 w-9 rounded-full shrink-0 text-[12px] font-semibold"
+              style={{
+                backgroundColor: "var(--action-primary)",
+                color: "white",
+              }}
+            >
+              {wo.assignedTo.initials}
+            </div>
+            <div className="flex-1 min-w-0">
+              <p className="text-[13px] font-medium text-[var(--text-primary)]">
+                {wo.assignedTo.name}
+              </p>
+              <p className="text-[12px] text-[var(--text-tertiary)]">
+                {wo.assignedTo.role}
+              </p>
+            </div>
+            <Button variant="outline" size="sm" onClick={() => setShowAssignModal(true)}>
+              <RefreshCw className="h-3 w-3" />
+              Reassign
+            </Button>
+          </div>
+          {wo.assignedTo.note && (
+            <div
+              className="mt-3 rounded-lg p-3 text-[13px] text-[var(--text-secondary)] leading-relaxed"
+              style={{ backgroundColor: "var(--surface-secondary)" }}
+            >
+              <span className="text-[11px] font-medium text-[var(--text-tertiary)] uppercase tracking-wider block mb-1">
+                Assignee Note
+              </span>
+              {wo.assignedTo.note}
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* ── Schedule Card ── */}
+      <Card>
+        <CardHeader>
+          <CardTitle>
+            <div className="flex items-center gap-1.5">
+              <Calendar className="h-3.5 w-3.5 text-[var(--text-tertiary)]" />
+              Schedule
+            </div>
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="grid grid-cols-3 gap-4">
+            <DetailRow label="Scheduled Date">
+              <span className="inline-flex items-center gap-1">
+                <Calendar className="h-3 w-3 text-[var(--text-tertiary)]" />
+                {wo.scheduledDate}
+              </span>
+            </DetailRow>
+            <DetailRow label="Due Date">
+              <span className="inline-flex items-center gap-1 text-[var(--status-warning, #d97706)] font-medium">
+                <Clock className="h-3 w-3" />
+                {wo.dueDate}
+              </span>
+            </DetailRow>
+            <DetailRow label="Completed At">
+              {wo.completedAt ? (
+                <span className="inline-flex items-center gap-1 text-[var(--status-success, #059669)]">
+                  <CheckCircle2 className="h-3 w-3" />
+                  {wo.completedAt}
+                </span>
+              ) : (
+                <span className="text-[var(--text-tertiary)]">--</span>
+              )}
+            </DetailRow>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* ── Costs Card ── */}
+      <Card>
+        <CardHeader>
+          <CardTitle>
+            <div className="flex items-center gap-1.5">
+              <DollarSign className="h-3.5 w-3.5 text-[var(--text-tertiary)]" />
+              Costs
+            </div>
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="grid grid-cols-3 gap-4">
+            <DetailRow label="Estimated Cost">
+              <span className="font-medium">${wo.estimatedCost.toFixed(2)}</span>
+            </DetailRow>
+            <DetailRow label="Actual Cost">
+              {wo.actualCost !== null ? (
+                <span className="font-medium">${wo.actualCost.toFixed(2)}</span>
+              ) : (
+                <span className="text-[var(--text-tertiary)]">Pending</span>
+              )}
+            </DetailRow>
+            <DetailRow label="Variance">
+              {wo.actualCost !== null ? (
+                (() => {
+                  const variance = wo.actualCost - wo.estimatedCost;
+                  const isOver = variance > 0;
+                  return (
+                    <span
+                      className="font-medium"
+                      style={{
+                        color: isOver
+                          ? "var(--status-critical, #dc2626)"
+                          : "var(--status-success, #059669)",
+                      }}
+                    >
+                      {isOver ? "+" : ""}${variance.toFixed(2)}
+                    </span>
+                  );
+                })()
+              ) : (
+                <span className="text-[var(--text-tertiary)]">--</span>
+              )}
+            </DetailRow>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* ── Case Link Card ── */}
+      {wo.linkedCase && (
+        <Card>
+          <CardHeader>
+            <CardTitle>
+              <div className="flex items-center gap-1.5">
+                <LinkIcon className="h-3.5 w-3.5 text-[var(--text-tertiary)]" />
+                Linked Case
+              </div>
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <Link
+              href={`/cases/${wo.linkedCase.id}`}
+              className="flex items-center gap-3 p-3 rounded-lg border border-[var(--border-default)] hover:border-[var(--border-hover)] hover:bg-[var(--surface-hover)] transition-colors group"
+            >
+              <div
+                className="flex items-center justify-center h-8 w-8 rounded-lg shrink-0"
+                style={{ backgroundColor: "var(--status-info-surface, #eff6ff)" }}
+              >
+                <FileText className="h-4 w-4" style={{ color: "var(--status-info, #2563eb)" }} />
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="text-[13px] font-medium text-[var(--action-primary)] group-hover:underline">
+                  {wo.linkedCase.id}
+                </p>
+                <p className="text-[12px] text-[var(--text-secondary)] truncate">
+                  {wo.linkedCase.title}
+                </p>
+              </div>
+            </Link>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* ── Notes Section ── */}
+      <Card>
+        <CardHeader>
+          <CardTitle>
+            <div className="flex items-center justify-between w-full">
+              <div className="flex items-center gap-1.5">
+                <MessageSquare className="h-3.5 w-3.5 text-[var(--text-tertiary)]" />
+                Notes
+                <Badge tone="default">{NOTES.length}</Badge>
+              </div>
+              <Button variant="outline" size="sm" onClick={() => setShowNoteModal(true)}>
+                <MessageSquare className="h-3 w-3" />
+                Add Note
+              </Button>
+            </div>
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="space-y-0">
+            {NOTES.map((note, i) => (
+              <div
+                key={note.id}
+                className="flex items-start gap-3 py-3 border-b border-[var(--border-default)] last:border-0 first:pt-0"
+              >
+                <div
+                  className="flex items-center justify-center h-7 w-7 rounded-full shrink-0 text-[10px] font-semibold mt-0.5"
+                  style={{
+                    backgroundColor: "var(--surface-secondary)",
+                    color: "var(--text-secondary)",
+                  }}
+                >
+                  {note.author
+                    .split(" ")
+                    .map((w) => w[0])
+                    .join("")
+                    .slice(0, 2)
+                    .toUpperCase()}
+                </div>
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2 mb-1">
+                    <span className="text-[13px] font-medium text-[var(--text-primary)]">
+                      {note.author}
+                    </span>
+                    <span className="text-[11px] text-[var(--text-tertiary)]">
+                      {note.timestamp}
+                    </span>
+                  </div>
+                  <p className="text-[13px] text-[var(--text-secondary)] leading-relaxed">
+                    {note.content}
+                  </p>
+                </div>
+              </div>
+            ))}
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* ── Sticky Action Footer ── */}
+      <div
+        className="fixed bottom-0 left-0 right-0 z-40 border-t px-6 py-3"
+        style={{
+          backgroundColor: "var(--surface-primary)",
+          borderColor: "var(--border-default)",
+        }}
+      >
+        <div className="max-w-3xl mx-auto flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <CircleDot className="h-3.5 w-3.5 text-[var(--text-tertiary)]" />
+            <span className="text-[13px] text-[var(--text-secondary)]">
+              Status: <StatusBadge status={wo.status} dot />
+            </span>
+          </div>
+          <div className="flex items-center gap-2">
+            <Button variant="outline" size="md">
+              <PauseCircle className="h-3.5 w-3.5" />
+              Pause
+            </Button>
+            <Button variant="secondary" size="md">
+              <PlayCircle className="h-3.5 w-3.5" />
+              Mark Follow-up
+            </Button>
+            <Button variant="default" size="md" onClick={() => setShowCompleteModal(true)}>
+              <CheckCircle2 className="h-3.5 w-3.5" />
+              Complete Work
+            </Button>
+          </div>
+        </div>
+      </div>
+
+      {/* ── Modals ── */}
+      <AssignWorkOrderModal
+        open={showAssignModal}
+        onClose={() => setShowAssignModal(false)}
+        onSubmit={async (data) => {
+          console.log("Assign work order:", data);
+          setShowAssignModal(false);
+        }}
+        currentAssignee={wo.assignedTo.name}
+      />
+      <CompleteWorkOrderModal
+        open={showCompleteModal}
+        onClose={() => setShowCompleteModal(false)}
+        onSubmit={async (data) => {
+          console.log("Complete work order:", data);
+          setShowCompleteModal(false);
+        }}
+        estimatedCost={wo.estimatedCost}
+      />
+      <CloseWorkOrderModal
+        open={showCloseModal}
+        onClose={() => setShowCloseModal(false)}
+        onConfirm={async (reason) => {
+          console.log("Close work order:", reason);
+          setShowCloseModal(false);
+        }}
+      />
+      <AddWorkOrderNoteModal
+        open={showNoteModal}
+        onClose={() => setShowNoteModal(false)}
+        onSubmit={async (data) => {
+          console.log("Add note:", data);
+          setShowNoteModal(false);
+        }}
+      />
+      <DeleteWorkOrderModal
+        open={showDeleteModal}
+        onClose={() => setShowDeleteModal(false)}
+        onConfirm={async () => {
+          console.log("Delete work order:", id);
+          setShowDeleteModal(false);
+        }}
+      />
+    </div>
+  );
+}
