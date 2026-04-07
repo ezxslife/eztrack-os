@@ -20,6 +20,7 @@ import { Tabs } from "@/components/ui/Tabs";
 import { Loader2, AlertCircle } from "lucide-react";
 import dynamic from "next/dynamic";
 import { fetchPatronById, updatePatron, updatePatronFlag, deletePatron, type PatronDetail as PatronDetailType } from "@/lib/queries/patrons";
+import { getSupabaseBrowser } from "@/lib/supabase-browser";
 import { useToast } from "@/components/ui/Toast";
 
 const EditPatronModal = dynamic(() => import("@/components/modals/patrons/EditPatronModal").then(m => ({ default: m.EditPatronModal })), { ssr: false });
@@ -42,98 +43,9 @@ const FLAG_CONFIG: Record<
   none: { label: "None", tone: "default", color: "#6b7280" },
 };
 
-/* ── Mock patron data ── */
-interface PatronDetail {
-  id: string;
-  firstName: string;
-  lastName: string;
-  dob: string;
-  gender: string;
-  phone: string;
-  email: string;
-  height: string;
-  hair: string;
-  eyes: string;
-  build: string;
-  distinguishing: string;
-  idType: string;
-  idNumber: string;
-  idState: string;
-  idVerified: boolean;
-  flag: PatronFlag;
-  flagReason: string;
-  flagSetBy: string;
-  flagDate: string;
-  flagExpiry: string;
-  photo?: string;
-}
+/* ── Local PatronDetail shape (mapped from Supabase data) ── */
 
-const MOCK_PATRONS: Record<string, PatronDetail> = {
-  "1": {
-    id: "1", firstName: "Marcus", lastName: "Johnson", dob: "1988-03-15", gender: "Male",
-    phone: "(555) 234-8901", email: "m.johnson@email.com", height: "6'1\"", hair: "Black",
-    eyes: "Brown", build: "Athletic", distinguishing: "Tattoo on left forearm",
-    idType: "Driver's License", idNumber: "D1234567", idState: "California", idVerified: true,
-    flag: "banned", flagReason: "Repeat disruptive behavior", flagSetBy: "Lt. Nguyen",
-    flagDate: "Apr 3, 2026", flagExpiry: "Permanent",
-  },
-  "2": {
-    id: "2", firstName: "Sarah", lastName: "Chen", dob: "1995-07-22", gender: "Female",
-    phone: "(555) 876-5432", email: "s.chen@email.com", height: "5'4\"", hair: "Black",
-    eyes: "Brown", build: "Slim", distinguishing: "None",
-    idType: "Passport", idNumber: "P9876543", idState: "N/A", idVerified: true,
-    flag: "vip", flagReason: "Artist performer", flagSetBy: "Event Coordinator",
-    flagDate: "Apr 1, 2026", flagExpiry: "Apr 7, 2026",
-  },
-  "3": {
-    id: "3", firstName: "Jake", lastName: "Williams", dob: "1992-11-08", gender: "Male",
-    phone: "(555) 345-6789", email: "j.williams@email.com", height: "5'10\"", hair: "Brown",
-    eyes: "Blue", build: "Medium", distinguishing: "Scar above right eyebrow",
-    idType: "Driver's License", idNumber: "W7654321", idState: "Oregon", idVerified: true,
-    flag: "watch", flagReason: "Previous noise complaint", flagSetBy: "Officer Rivera",
-    flagDate: "Apr 4, 2026", flagExpiry: "Apr 6, 2026",
-  },
-  "4": {
-    id: "4", firstName: "Maria", lastName: "Rodriguez", dob: "1985-01-30", gender: "Female",
-    phone: "(555) 567-1234", email: "m.rodriguez@email.com", height: "5'6\"", hair: "Brown",
-    eyes: "Brown", build: "Medium", distinguishing: "None",
-    idType: "Driver's License", idNumber: "R1122334", idState: "Texas", idVerified: true,
-    flag: "none", flagReason: "", flagSetBy: "-", flagDate: "-", flagExpiry: "-",
-  },
-  "5": {
-    id: "5", firstName: "Tyler", lastName: "Brooks", dob: "1999-06-12", gender: "Male",
-    phone: "(555) 432-9876", email: "t.brooks@email.com", height: "5'9\"", hair: "Blonde",
-    eyes: "Green", build: "Slim", distinguishing: "Ear piercing, left",
-    idType: "State ID", idNumber: "B5566778", idState: "Nevada", idVerified: false,
-    flag: "warning", flagReason: "ID mismatch flagged", flagSetBy: "Officer Martinez",
-    flagDate: "Apr 5, 2026", flagExpiry: "Pending review",
-  },
-  "6": {
-    id: "6", firstName: "Aisha", lastName: "Patel", dob: "1990-09-18", gender: "Female",
-    phone: "(555) 654-3210", email: "a.patel@email.com", height: "5'5\"", hair: "Black",
-    eyes: "Dark Brown", build: "Slim", distinguishing: "None",
-    idType: "Driver's License", idNumber: "P4455667", idState: "New York", idVerified: true,
-    flag: "vip", flagReason: "Sponsor guest", flagSetBy: "Event Coordinator",
-    flagDate: "Apr 2, 2026", flagExpiry: "Apr 7, 2026",
-  },
-  "7": {
-    id: "7", firstName: "David", lastName: "Kim", dob: "1993-04-25", gender: "Male",
-    phone: "(555) 789-0123", email: "d.kim@email.com", height: "5'8\"", hair: "Black",
-    eyes: "Brown", build: "Medium", distinguishing: "Glasses",
-    idType: "Driver's License", idNumber: "K8899001", idState: "Washington", idVerified: true,
-    flag: "none", flagReason: "", flagSetBy: "-", flagDate: "-", flagExpiry: "-",
-  },
-  "8": {
-    id: "8", firstName: "Lisa", lastName: "Thompson", dob: "1987-12-03", gender: "Female",
-    phone: "(555) 210-5678", email: "l.thompson@email.com", height: "5'7\"", hair: "Red",
-    eyes: "Green", build: "Medium", distinguishing: "Tattoo on right wrist",
-    idType: "Driver's License", idNumber: "T3344556", idState: "Colorado", idVerified: true,
-    flag: "banned", flagReason: "Drug violation, ejected", flagSetBy: "Sgt. Patel",
-    flagDate: "Apr 5, 2026", flagExpiry: "Permanent",
-  },
-};
-
-/* ── Mock entry history ── */
+/* ── Entry & Incident types ── */
 interface EntryRecord {
   dateTime: string;
   gate: string;
@@ -142,33 +54,16 @@ interface EntryRecord {
   officer: string;
 }
 
-const MOCK_ENTRIES: Record<string, EntryRecord[]> = {
-  "1": [
-    { dateTime: "Apr 5, 2026 8:30 AM", gate: "North Gate", method: "ID Scan", outcome: "Denied", officer: "Officer Rivera" },
-    { dateTime: "Apr 4, 2026 7:15 PM", gate: "Main Gate", method: "ID Scan", outcome: "Flagged", officer: "Officer Martinez" },
-    { dateTime: "Apr 4, 2026 2:00 PM", gate: "South Gate", method: "Manual", outcome: "Allowed", officer: "Sgt. Patel" },
-    { dateTime: "Apr 3, 2026 6:45 PM", gate: "Main Gate", method: "ID Scan", outcome: "Allowed", officer: "Officer Davis" },
-    { dateTime: "Apr 3, 2026 11:00 AM", gate: "VIP Gate", method: "ID Scan", outcome: "Denied", officer: "Lt. Nguyen" },
-  ],
-};
-
-/* ── Mock incidents ── */
+/* ── Incident link type ── */
 interface IncidentLink {
+  id?: string;
   number: string;
   type: string;
   date: string;
   status: string;
 }
 
-const MOCK_INCIDENTS: Record<string, IncidentLink[]> = {
-  "1": [
-    { number: "INC-0042", type: "Disturbance", date: "Apr 4, 2026", status: "closed" },
-    { number: "INC-0051", type: "Trespass", date: "Apr 5, 2026", status: "open" },
-  ],
-  "8": [
-    { number: "INC-0048", type: "Drug Violation", date: "Apr 5, 2026", status: "in_progress" },
-  ],
-};
+/* Mock data removed — entries and incidents now fetched from Supabase */
 
 /* ── Tab config ── */
 const TAB_LIST = [
@@ -231,6 +126,8 @@ export default function PatronDetailPage({
   const [showBanModal, setShowBanModal] = useState(false);
   const [showNoteModal, setShowNoteModal] = useState(false);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [entries, setEntries] = useState<EntryRecord[]>([]);
+  const [linkedIncidents, setLinkedIncidents] = useState<IncidentLink[]>([]);
 
   const loadPatron = useCallback(async () => {
     try {
@@ -238,6 +135,51 @@ export default function PatronDetailPage({
       setError(null);
       const data = await fetchPatronById(id);
       setPatronData(data);
+
+      // Fetch patron entries from patron_entries table
+      const supabase = getSupabaseBrowser();
+      const { data: entryData } = await supabase
+        .from("patron_entries")
+        .select("id, entry_type, entry_time, notes, location:locations(name)")
+        .eq("patron_id", id)
+        .order("entry_time", { ascending: false })
+        .limit(50);
+
+      if (entryData) {
+        setEntries(
+          entryData.map((e: any) => ({
+            dateTime: new Date(e.entry_time).toLocaleString("en-US", {
+              month: "short", day: "numeric", year: "numeric", hour: "numeric", minute: "2-digit",
+            }),
+            gate: e.location?.name ?? "-",
+            method: e.entry_type ?? "encounter",
+            outcome: e.entry_type === "entry" ? "Allowed" : e.entry_type === "exit" ? "Exit" : "Encounter",
+            officer: "-",
+          }))
+        );
+      }
+
+      // Fetch linked incidents via incident_participants (person_id references patron)
+      const { data: incData } = await supabase
+        .from("incident_participants")
+        .select("incident:incidents(id, record_number, incident_type, status, created_at)")
+        .eq("person_id", id);
+
+      if (incData) {
+        setLinkedIncidents(
+          incData
+            .filter((r: any) => r.incident)
+            .map((r: any) => ({
+              id: r.incident.id,
+              number: r.incident.record_number ?? "-",
+              type: r.incident.incident_type ?? "-",
+              date: r.incident.created_at
+                ? new Date(r.incident.created_at).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })
+                : "-",
+              status: r.incident.status ?? "open",
+            }))
+        );
+      }
     } catch (err: any) {
       setError(err.message || "Failed to load patron");
     } finally {
@@ -288,17 +230,8 @@ export default function PatronDetailPage({
     flagExpiry: "",
   };
 
-  // Entry history and incidents remain on mock — no dedicated patron entry/incident tables yet
-
   const cfg = FLAG_CONFIG[patron.flag];
-  const entries = MOCK_ENTRIES[id] ?? [
-    { dateTime: "Apr 5, 2026 10:00 AM", gate: "Main Gate", method: "ID Scan", outcome: "Allowed", officer: "Officer Rivera" },
-    { dateTime: "Apr 4, 2026 3:30 PM", gate: "South Gate", method: "Manual", outcome: "Allowed", officer: "Sgt. Patel" },
-    { dateTime: "Apr 3, 2026 9:00 AM", gate: "North Gate", method: "ID Scan", outcome: "Allowed", officer: "Officer Davis" },
-    { dateTime: "Apr 2, 2026 5:15 PM", gate: "Main Gate", method: "ID Scan", outcome: "Allowed", officer: "Officer Martinez" },
-    { dateTime: "Apr 1, 2026 11:45 AM", gate: "VIP Gate", method: "Manual", outcome: "Allowed", officer: "Lt. Nguyen" },
-  ];
-  const incidents = MOCK_INCIDENTS[id] ?? [];
+  // entries and linkedIncidents are now fetched from Supabase in loadPatron
 
   return (
     <div className="space-y-5 animate-fade-in">
@@ -445,24 +378,26 @@ export default function PatronDetailPage({
 
       {activeTab === "incidents" && (
         <div>
-          {incidents.length > 0 ? (
+          {linkedIncidents.length > 0 ? (
             <div className="space-y-2">
-              {incidents.map((inc) => (
-                <div key={inc.number} className="surface-card p-4 flex items-center justify-between">
-                  <div className="flex items-center gap-3">
-                    <div className="w-8 h-8 rounded-lg bg-[var(--surface-secondary)] flex items-center justify-center">
-                      <FileText size={14} className="text-[var(--text-tertiary)]" />
+              {linkedIncidents.map((inc) => (
+                <Link key={inc.id || inc.number} href={`/incidents/${inc.id}`}>
+                  <div className="surface-card p-4 flex items-center justify-between hover:border-[var(--border-hover)] transition-all cursor-pointer">
+                    <div className="flex items-center gap-3">
+                      <div className="w-8 h-8 rounded-lg bg-[var(--surface-secondary)] flex items-center justify-center">
+                        <FileText size={14} className="text-[var(--text-tertiary)]" />
+                      </div>
+                      <div>
+                        <p className="text-[13px] font-medium text-[var(--text-primary)]">{inc.number}</p>
+                        <p className="text-[11px] text-[var(--text-tertiary)]">{inc.type}</p>
+                      </div>
                     </div>
-                    <div>
-                      <p className="text-[13px] font-medium text-[var(--text-primary)]">{inc.number}</p>
-                      <p className="text-[11px] text-[var(--text-tertiary)]">{inc.type}</p>
+                    <div className="flex items-center gap-3">
+                      <span className="text-[12px] text-[var(--text-tertiary)]">{inc.date}</span>
+                      <StatusBadge status={inc.status} dot />
                     </div>
                   </div>
-                  <div className="flex items-center gap-3">
-                    <span className="text-[12px] text-[var(--text-tertiary)]">{inc.date}</span>
-                    <StatusBadge status={inc.status} dot />
-                  </div>
-                </div>
+                </Link>
               ))}
             </div>
           ) : (

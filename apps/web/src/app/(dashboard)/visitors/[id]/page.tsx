@@ -1,6 +1,6 @@
 "use client";
 
-import { use, useState } from "react";
+import { use, useState, useEffect } from "react";
 import { useToast } from "@/components/ui/Toast";
 import Link from "next/link";
 import {
@@ -11,7 +11,6 @@ import {
   UserPlus,
   XCircle,
   Clock,
-  MapPin,
   Users,
   Car,
   StickyNote,
@@ -20,6 +19,7 @@ import {
 import { Button } from "@/components/ui/Button";
 import { Badge, StatusBadge } from "@/components/ui/Badge";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/Card";
+import { Skeleton } from "@/components/ui/Skeleton";
 import {
   SignInVisitorModal,
   SignOutVisitorModal,
@@ -27,6 +27,7 @@ import {
   EditVisitModal,
   CancelVisitModal,
 } from "@/components/modals/visitors";
+import { fetchVisitorById, updateVisitorStatus, type VisitorDetail } from "@/lib/queries/visitors";
 
 /* ── Purpose Badge ── */
 const PURPOSE_CONFIG: Record<string, { label: string; tone: "info" | "warning" | "success" | "critical" | "attention" }> = {
@@ -37,64 +38,74 @@ const PURPOSE_CONFIG: Record<string, { label: string; tone: "info" | "warning" |
   performer: { label: "Performer", tone: "success" },
 };
 
-/* ── Mock Data ── */
-const MOCK_VISIT = {
-  id: "1",
-  visitNumber: "VIS-2026-0034",
-  purpose: "vip_guest",
-  status: "signed_in",
-  host: "Sarah Chen, Event Director",
-  hostEmail: "s.chen@eztrack.io",
-  hostPhone: "(555) 234-5678",
-  location: "VIP Lounge — Main Stage",
-  building: "Main Arena Complex",
-  scheduledDate: "Apr 5, 2026",
-  scheduledTime: "10:00 AM — 6:00 PM",
-  createdAt: "Apr 3, 2026 9:14 AM",
-  createdBy: "Sarah Chen",
-  visitors: [
-    {
-      id: "v1",
-      name: "David Park",
-      organization: "Horizon Media Group",
-      signedInAt: "9:52 AM",
-      signedOutAt: null,
-      idType: "Driver License",
-      badgeNumber: "VB-0412",
-    },
-    {
-      id: "v2",
-      name: "Lisa Wang",
-      organization: "Horizon Media Group",
-      signedInAt: "9:55 AM",
-      signedOutAt: null,
-      idType: "Passport",
-      badgeNumber: "VB-0413",
-    },
-  ],
-  vehicle: {
-    make: "Tesla",
-    model: "Model X",
-    color: "Black",
-    plate: "7ABC123",
-    parkingSpot: "Reserved #12",
-    parkingLot: "VIP Lot A",
-  },
-  notes:
-    "Guests of the CEO for the annual sponsor preview. Reserved parking spot #12. Escort from main gate required. Dietary preference: vegetarian for lunch catering. Access level: VIP areas + backstage.",
-};
+/* ── Field helper ── */
+function FieldLabel({ children }: { children: React.ReactNode }) {
+  return (
+    <p className="text-[12px] text-[var(--text-tertiary)] uppercase tracking-wide font-medium mb-0.5">
+      {children}
+    </p>
+  );
+}
 
 export default function VisitorDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
-  const visit = MOCK_VISIT; // In production, fetch by id
-  const purposeConfig = PURPOSE_CONFIG[visit.purpose] ?? { label: visit.purpose, tone: "default" as const };
-
   const { toast } = useToast();
+
+  const [visitor, setVisitor] = useState<VisitorDetail | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [signInOpen, setSignInOpen] = useState(false);
   const [signOutOpen, setSignOutOpen] = useState(false);
   const [addVisitorOpen, setAddVisitorOpen] = useState(false);
   const [editOpen, setEditOpen] = useState(false);
   const [cancelOpen, setCancelOpen] = useState(false);
+
+  const loadVisitor = async () => {
+    try {
+      setLoading(true);
+      const data = await fetchVisitorById(id);
+      setVisitor(data);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to load visitor");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    loadVisitor();
+  }, [id]);
+
+  if (loading) {
+    return (
+      <div className="space-y-5 animate-fade-in">
+        <Skeleton className="h-8 w-48" />
+        <Skeleton className="h-16 w-full" />
+        <Skeleton className="h-48 w-full" />
+      </div>
+    );
+  }
+
+  if (error || !visitor) {
+    return (
+      <div className="flex flex-col items-center justify-center h-64 gap-3">
+        <Users size={32} className="text-[var(--text-tertiary)]" />
+        <p className="text-[var(--text-secondary)]">{error || "Visitor not found"}</p>
+        <Link href="/visitors">
+          <Button variant="secondary" size="sm">Back to Visitors</Button>
+        </Link>
+      </div>
+    );
+  }
+
+  const purposeConfig = PURPOSE_CONFIG[visitor.purpose] ?? { label: visitor.purpose, tone: "default" as const };
+  const displayName = `${visitor.firstName} ${visitor.lastName}`.trim();
+  const createdDate = new Date(visitor.createdAt).toLocaleString("en-US", {
+    month: "short", day: "numeric", year: "numeric", hour: "numeric", minute: "2-digit",
+  });
+  const scheduledDate = visitor.expectedDate
+    ? new Date(visitor.expectedDate).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })
+    : "-";
 
   return (
     <div className="space-y-5">
@@ -108,11 +119,11 @@ export default function VisitorDetailPage({ params }: { params: Promise<{ id: st
       </Link>
 
       {/* ── Header ── */}
-      <div className="flex items-start justify-between gap-4">
+      <div className="flex flex-col sm:flex-row items-start justify-between gap-4">
         <div className="space-y-1.5">
           <div className="flex items-center gap-2.5 flex-wrap">
             <h1 className="text-xl font-semibold text-[var(--text-primary)]">
-              {visit.visitNumber}
+              {displayName}
             </h1>
             <Badge tone={purposeConfig.tone}>
               <span className="inline-flex items-center gap-1">
@@ -120,36 +131,32 @@ export default function VisitorDetailPage({ params }: { params: Promise<{ id: st
                 {purposeConfig.label}
               </span>
             </Badge>
-            <StatusBadge status={visit.status} dot />
+            <StatusBadge status={visitor.status} dot />
           </div>
           <p className="text-[13px] text-[var(--text-tertiary)]">
-            Created {visit.createdAt} by {visit.createdBy}
+            Created {createdDate}
           </p>
         </div>
-        <div className="flex items-center gap-2 shrink-0">
-          {visit.status === "signed_in" && (
+        <div className="flex flex-wrap items-center gap-2 shrink-0">
+          {visitor.status === "signed_in" && (
             <Button size="md" variant="secondary" onClick={() => setSignOutOpen(true)}>
               <LogOut className="h-3.5 w-3.5" />
               Sign Out
             </Button>
           )}
-          {visit.status === "pending" && (
+          {(visitor.status === "pending" || visitor.status === "expected") && (
             <Button size="md" onClick={() => setSignInOpen(true)}>
               <LogIn className="h-3.5 w-3.5" />
               Sign In
             </Button>
           )}
-          <Button size="md" variant="secondary" onClick={() => setAddVisitorOpen(true)}>
-            <UserPlus className="h-3.5 w-3.5" />
-            Add Visitor
-          </Button>
           <Button size="md" variant="outline" onClick={() => setEditOpen(true)}>
             <Edit className="h-3.5 w-3.5" />
             Edit
           </Button>
           <Button size="md" variant="destructive" onClick={() => setCancelOpen(true)}>
             <XCircle className="h-3.5 w-3.5" />
-            Cancel Visit
+            Cancel
           </Button>
         </div>
       </div>
@@ -171,102 +178,88 @@ export default function VisitorDetailPage({ params }: { params: Promise<{ id: st
             <CardContent>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-y-4 gap-x-6">
                 <div>
-                  <p className="text-[12px] text-[var(--text-tertiary)] uppercase tracking-wide font-medium mb-0.5">
-                    Scheduled Date
-                  </p>
-                  <p className="text-[13px] text-[var(--text-primary)]">{visit.scheduledDate}</p>
+                  <FieldLabel>Scheduled Date</FieldLabel>
+                  <p className="text-[13px] text-[var(--text-primary)]">{scheduledDate}</p>
                 </div>
                 <div>
-                  <p className="text-[12px] text-[var(--text-tertiary)] uppercase tracking-wide font-medium mb-0.5">
-                    Scheduled Time
-                  </p>
-                  <p className="text-[13px] text-[var(--text-primary)]">{visit.scheduledTime}</p>
+                  <FieldLabel>Scheduled Time</FieldLabel>
+                  <p className="text-[13px] text-[var(--text-primary)]">{visitor.expectedTime ?? "-"}</p>
                 </div>
                 <div>
-                  <p className="text-[12px] text-[var(--text-tertiary)] uppercase tracking-wide font-medium mb-0.5">
-                    Host
-                  </p>
-                  <p className="text-[13px] text-[var(--text-primary)]">{visit.host}</p>
-                  <p className="text-[12px] text-[var(--text-tertiary)]">
-                    {visit.hostEmail} &middot; {visit.hostPhone}
+                  <FieldLabel>Host</FieldLabel>
+                  <p className="text-[13px] text-[var(--text-primary)]">{visitor.hostName ?? "-"}</p>
+                  {visitor.hostDepartment && (
+                    <p className="text-[12px] text-[var(--text-tertiary)]">{visitor.hostDepartment}</p>
+                  )}
+                </div>
+                <div>
+                  <FieldLabel>Company</FieldLabel>
+                  <p className="text-[13px] text-[var(--text-primary)]">{visitor.company ?? "-"}</p>
+                </div>
+                <div>
+                  <FieldLabel>Email</FieldLabel>
+                  {visitor.email ? (
+                    <a href={`mailto:${visitor.email}`} className="text-[13px] text-[var(--action-primary)] hover:underline">
+                      {visitor.email}
+                    </a>
+                  ) : (
+                    <p className="text-[13px] text-[var(--text-primary)]">-</p>
+                  )}
+                </div>
+                <div>
+                  <FieldLabel>Phone</FieldLabel>
+                  {visitor.phone ? (
+                    <a href={`tel:${visitor.phone}`} className="text-[13px] text-[var(--action-primary)] hover:underline">
+                      {visitor.phone}
+                    </a>
+                  ) : (
+                    <p className="text-[13px] text-[var(--text-primary)]">-</p>
+                  )}
+                </div>
+                <div>
+                  <FieldLabel>Checked In</FieldLabel>
+                  <p className="text-[13px] text-[var(--text-primary)]">
+                    {visitor.checkedInAt
+                      ? new Date(visitor.checkedInAt).toLocaleString("en-US", { hour: "numeric", minute: "2-digit" })
+                      : "-"}
                   </p>
                 </div>
                 <div>
-                  <p className="text-[12px] text-[var(--text-tertiary)] uppercase tracking-wide font-medium mb-0.5">
-                    Location
+                  <FieldLabel>Checked Out</FieldLabel>
+                  <p className="text-[13px] text-[var(--text-primary)]">
+                    {visitor.checkedOutAt
+                      ? new Date(visitor.checkedOutAt).toLocaleString("en-US", { hour: "numeric", minute: "2-digit" })
+                      : "-"}
                   </p>
-                  <p className="text-[13px] text-[var(--text-primary)]">{visit.location}</p>
-                  <p className="text-[12px] text-[var(--text-tertiary)]">{visit.building}</p>
                 </div>
               </div>
             </CardContent>
           </Card>
 
-          {/* Visitor List */}
+          {/* ID Information */}
           <Card>
             <CardHeader>
               <CardTitle>
                 <span className="inline-flex items-center gap-1.5">
                   <Users className="h-4 w-4 text-[var(--text-tertiary)]" />
-                  Visitor List ({visit.visitors.length})
+                  Identification
                 </span>
               </CardTitle>
             </CardHeader>
-            <CardContent className="p-0">
-              <div className="overflow-x-auto">
-                <table className="w-full text-[13px]">
-                  <thead>
-                    <tr className="border-b border-[var(--border-default)] bg-[var(--surface-secondary)]">
-                      <th className="text-left px-4 py-2.5 font-medium text-[var(--text-secondary)]">Name</th>
-                      <th className="text-left px-4 py-2.5 font-medium text-[var(--text-secondary)]">Organization</th>
-                      <th className="text-left px-4 py-2.5 font-medium text-[var(--text-secondary)]">Signed In</th>
-                      <th className="text-left px-4 py-2.5 font-medium text-[var(--text-secondary)]">Signed Out</th>
-                      <th className="text-left px-4 py-2.5 font-medium text-[var(--text-secondary)]">ID Type</th>
-                      <th className="text-left px-4 py-2.5 font-medium text-[var(--text-secondary)]">Badge #</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {visit.visitors.map((visitor) => (
-                      <tr
-                        key={visitor.id}
-                        className="border-b border-[var(--border-default)] last:border-b-0 hover:bg-[var(--surface-hover)] transition-colors"
-                      >
-                        <td className="px-4 py-2.5 font-medium text-[var(--text-primary)]">
-                          {visitor.name}
-                        </td>
-                        <td className="px-4 py-2.5 text-[var(--text-secondary)]">
-                          {visitor.organization}
-                        </td>
-                        <td className="px-4 py-2.5">
-                          {visitor.signedInAt ? (
-                            <span className="inline-flex items-center gap-1 text-[var(--status-success, #059669)]">
-                              <LogIn className="h-3 w-3" />
-                              {visitor.signedInAt}
-                            </span>
-                          ) : (
-                            <span className="text-[var(--text-tertiary)]">--</span>
-                          )}
-                        </td>
-                        <td className="px-4 py-2.5">
-                          {visitor.signedOutAt ? (
-                            <span className="inline-flex items-center gap-1 text-[var(--text-secondary)]">
-                              <LogOut className="h-3 w-3" />
-                              {visitor.signedOutAt}
-                            </span>
-                          ) : (
-                            <span className="text-[var(--text-tertiary)]">--</span>
-                          )}
-                        </td>
-                        <td className="px-4 py-2.5 text-[var(--text-secondary)]">
-                          {visitor.idType}
-                        </td>
-                        <td className="px-4 py-2.5">
-                          <Badge tone="default">{visitor.badgeNumber}</Badge>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
+            <CardContent>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-y-4 gap-x-6">
+                <div>
+                  <FieldLabel>ID Type</FieldLabel>
+                  <p className="text-[13px] text-[var(--text-primary)]">{visitor.idType ?? "-"}</p>
+                </div>
+                <div>
+                  <FieldLabel>ID Number</FieldLabel>
+                  <p className="text-[13px] text-[var(--text-primary)]">{visitor.idNumber ?? "-"}</p>
+                </div>
+                <div>
+                  <FieldLabel>NDA Required</FieldLabel>
+                  <p className="text-[13px] text-[var(--text-primary)]">{visitor.ndaRequired ? "Yes" : "No"}</p>
+                </div>
               </div>
             </CardContent>
           </Card>
@@ -280,56 +273,40 @@ export default function VisitorDetailPage({ params }: { params: Promise<{ id: st
               <CardTitle>
                 <span className="inline-flex items-center gap-1.5">
                   <Car className="h-4 w-4 text-[var(--text-tertiary)]" />
-                  Vehicle / Parking
+                  Vehicle
                 </span>
               </CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="space-y-3">
-                <div>
-                  <p className="text-[12px] text-[var(--text-tertiary)] uppercase tracking-wide font-medium mb-0.5">
-                    Vehicle
-                  </p>
-                  <p className="text-[13px] text-[var(--text-primary)]">
-                    {visit.vehicle.color} {visit.vehicle.make} {visit.vehicle.model}
-                  </p>
+              {visitor.vehiclePlate ? (
+                <div className="space-y-3">
+                  <div>
+                    <FieldLabel>License Plate</FieldLabel>
+                    <p className="text-[13px] text-[var(--text-primary)] font-mono">{visitor.vehiclePlate}</p>
+                  </div>
                 </div>
-                <div>
-                  <p className="text-[12px] text-[var(--text-tertiary)] uppercase tracking-wide font-medium mb-0.5">
-                    License Plate
-                  </p>
-                  <p className="text-[13px] text-[var(--text-primary)] font-mono">
-                    {visit.vehicle.plate}
-                  </p>
-                </div>
-                <div>
-                  <p className="text-[12px] text-[var(--text-tertiary)] uppercase tracking-wide font-medium mb-0.5">
-                    Parking
-                  </p>
-                  <p className="text-[13px] text-[var(--text-primary)]">
-                    {visit.vehicle.parkingSpot}
-                  </p>
-                  <p className="text-[12px] text-[var(--text-tertiary)]">
-                    {visit.vehicle.parkingLot}
-                  </p>
-                </div>
-              </div>
+              ) : (
+                <p className="text-[13px] text-[var(--text-tertiary)] italic">No vehicle on record</p>
+              )}
             </CardContent>
           </Card>
 
-          {/* Notes */}
+          {/* Status Timeline */}
           <Card>
             <CardHeader>
               <CardTitle>
                 <span className="inline-flex items-center gap-1.5">
                   <StickyNote className="h-4 w-4 text-[var(--text-tertiary)]" />
-                  Notes
+                  Status
                 </span>
               </CardTitle>
             </CardHeader>
             <CardContent>
-              <p className="text-[13px] text-[var(--text-secondary)] leading-relaxed whitespace-pre-line">
-                {visit.notes}
+              <StatusBadge status={visitor.status} dot />
+              <p className="text-[12px] text-[var(--text-tertiary)] mt-2">
+                Last updated: {new Date(visitor.updatedAt).toLocaleString("en-US", {
+                  month: "short", day: "numeric", hour: "numeric", minute: "2-digit",
+                })}
               </p>
             </CardContent>
           </Card>
@@ -340,26 +317,30 @@ export default function VisitorDetailPage({ params }: { params: Promise<{ id: st
       <SignInVisitorModal
         open={signInOpen}
         onClose={() => setSignInOpen(false)}
-        onSubmit={async (data) => {
+        onSubmit={async () => {
+          await updateVisitorStatus(id, "signed_in");
           toast("Visitor signed in successfully", { variant: "success" });
           setSignInOpen(false);
+          loadVisitor();
         }}
-        visitorName={visit.visitors[0]?.name}
-        badgeNumber={visit.visitors[0]?.badgeNumber}
+        visitorName={displayName}
+        badgeNumber=""
       />
       <SignOutVisitorModal
         open={signOutOpen}
         onClose={() => setSignOutOpen(false)}
         onConfirm={async () => {
+          await updateVisitorStatus(id, "signed_out");
           toast("Visitor signed out successfully", { variant: "success" });
           setSignOutOpen(false);
+          loadVisitor();
         }}
-        visitorName={visit.visitors[0]?.name}
+        visitorName={displayName}
       />
       <AddVisitorToVisitModal
         open={addVisitorOpen}
         onClose={() => setAddVisitorOpen(false)}
-        onSubmit={async (data) => {
+        onSubmit={async () => {
           toast("Visitor added to visit successfully", { variant: "success" });
           setAddVisitorOpen(false);
         }}
@@ -367,32 +348,35 @@ export default function VisitorDetailPage({ params }: { params: Promise<{ id: st
       <EditVisitModal
         open={editOpen}
         onClose={() => setEditOpen(false)}
-        onSubmit={async (data) => {
+        onSubmit={async () => {
           toast("Visit updated successfully", { variant: "success" });
           setEditOpen(false);
+          loadVisitor();
         }}
         initialData={{
-          purpose: visit.purpose,
-          hostName: visit.host,
-          hostDepartment: "",
-          expectedDate: visit.scheduledDate,
-          expectedTime: visit.scheduledTime,
-          firstName: visit.visitors[0]?.name.split(" ")[0] ?? "",
-          lastName: visit.visitors[0]?.name.split(" ").slice(1).join(" ") ?? "",
-          company: visit.visitors[0]?.organization ?? "",
-          phone: "",
-          email: "",
-          idType: visit.visitors[0]?.idType ?? "",
-          idNumber: "",
-          vehiclePlate: visit.vehicle?.plate ?? "",
+          purpose: visitor.purpose,
+          hostName: visitor.hostName ?? "",
+          hostDepartment: visitor.hostDepartment ?? "",
+          expectedDate: visitor.expectedDate ?? "",
+          expectedTime: visitor.expectedTime ?? "",
+          firstName: visitor.firstName,
+          lastName: visitor.lastName,
+          company: visitor.company ?? "",
+          phone: visitor.phone ?? "",
+          email: visitor.email ?? "",
+          idType: visitor.idType ?? "",
+          idNumber: visitor.idNumber ?? "",
+          vehiclePlate: visitor.vehiclePlate ?? "",
         }}
       />
       <CancelVisitModal
         open={cancelOpen}
         onClose={() => setCancelOpen(false)}
-        onConfirm={async (reason) => {
+        onConfirm={async () => {
+          await updateVisitorStatus(id, "cancelled");
           toast("Visit cancelled successfully", { variant: "success" });
           setCancelOpen(false);
+          loadVisitor();
         }}
       />
     </div>

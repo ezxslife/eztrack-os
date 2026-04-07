@@ -27,6 +27,7 @@ import { DataGrid } from "@/components/ui/DataGrid";
 import { useToast } from "@/components/ui/Toast";
 import { getSupabaseBrowser } from "@/lib/supabase-browser";
 import { fetchReportData, exportCSV, type ReportResult } from "@/lib/queries/reports";
+import { exportReportPDF } from "@/lib/export-pdf";
 
 /* ── Report Metadata ── */
 interface ReportMeta {
@@ -170,11 +171,37 @@ export default function ReportViewerPage({ params }: { params: Promise<{ type: s
   };
 
   const handleExportPDF = () => {
-    toast("PDF export coming soon", { variant: "info" });
+    if (!reportData) {
+      toast("Generate the report first", { variant: "warning" });
+      return;
+    }
+    try {
+      exportReportPDF(reportData, {
+        title: meta.name,
+        dateRange: `${dateFrom} to ${dateTo}`,
+        orgName: "EZTrack",
+      });
+      toast("PDF ready — use your browser's Save as PDF option", { variant: "success" });
+    } catch (err) {
+      toast(err instanceof Error ? err.message : "PDF export failed", { variant: "error" });
+    }
   };
 
   const handlePrint = () => {
-    toast("Preparing print view...", { variant: "info" });
+    if (!reportData) {
+      toast("Generate the report first", { variant: "warning" });
+      return;
+    }
+    // Reuse the PDF export — browser print dialog lets user print or save as PDF
+    try {
+      exportReportPDF(reportData, {
+        title: meta.name,
+        dateRange: `${dateFrom} to ${dateTo}`,
+        orgName: "EZTrack",
+      });
+    } catch (err) {
+      toast(err instanceof Error ? err.message : "Print failed", { variant: "error" });
+    }
   };
 
   /* ── Extra filter selector based on report type ── */
