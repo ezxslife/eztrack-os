@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useEffect, useMemo, useCallback } from "react";
 import Link from "next/link";
 import {
   Bell,
@@ -15,9 +15,19 @@ import {
   ClipboardCheck,
   Settings,
   CheckCheck,
+  Loader2,
 } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { Badge } from "@/components/ui/Badge";
+import { useToast } from "@/components/ui/Toast";
+import { useRealtimeSubscription } from "@/hooks/useRealtimeSubscription";
+import { getSupabaseBrowser } from "@/lib/supabase-browser";
+import {
+  fetchNotifications,
+  markNotificationRead,
+  markAllNotificationsRead,
+  type NotificationRow,
+} from "@/lib/queries/notifications";
 
 /* ── Types ── */
 type NotificationType =
@@ -85,109 +95,36 @@ const typeFilterMap: Record<NotificationType, FilterTab> = {
   form_completed: "system",
 };
 
-/* ── Mock Data ── */
-const MOCK_NOTIFICATIONS: Notification[] = [
-  {
-    id: "n1",
-    type: "incident_created",
-    title: "New Incident: Disturbance at Gate B",
-    description: "A physical altercation was reported near Gate B entrance. Officers dispatched.",
-    timestamp: "2 min ago",
-    read: false,
-    href: "/incidents/101",
-    group: "today",
-  },
-  {
-    id: "n2",
-    type: "dispatch_alert",
-    title: "Dispatch: Medical Emergency - Main Stage",
-    description: "Patron collapsed near front barrier. EMT team en route, ETA 3 minutes.",
-    timestamp: "18 min ago",
-    read: false,
-    href: "/dispatch",
-    group: "today",
-  },
-  {
-    id: "n3",
-    type: "incident_assigned",
-    title: "Incident #098 assigned to you",
-    description: "Suspicious package report in Lot C has been assigned to your queue.",
-    timestamp: "45 min ago",
-    read: false,
-    href: "/incidents/98",
-    group: "today",
-  },
-  {
-    id: "n4",
-    type: "briefing_shared",
-    title: "Briefing: Evening Shift Handoff posted",
-    description: "Sgt. Patel shared the evening shift briefing. 3 priority items require acknowledgment.",
-    timestamp: "1 hr ago",
-    read: false,
-    href: "/briefings/1",
-    group: "today",
-  },
-  {
-    id: "n5",
-    type: "status_change",
-    title: "Incident #095 status changed to Resolved",
-    description: "The noise complaint at VIP Lounge has been resolved and closed by Lt. Nguyen.",
-    timestamp: "2 hr ago",
-    read: true,
-    href: "/incidents/95",
-    group: "today",
-  },
-  {
-    id: "n6",
-    type: "follow_up_required",
-    title: "Follow-up required: Incident #092",
-    description: "Witness statement still pending for the theft report at Merch Tent A.",
-    timestamp: "5 hr ago",
-    read: true,
-    href: "/incidents/92",
-    group: "yesterday",
-  },
-  {
-    id: "n7",
-    type: "case_update",
-    title: "Case #045 evidence uploaded",
-    description: "New surveillance footage added to the ongoing investigation for Case #045.",
-    timestamp: "8 hr ago",
-    read: true,
-    href: "/cases/45",
-    group: "yesterday",
-  },
-  {
-    id: "n8",
-    type: "system_alert",
-    title: "System: Radio channel reassignment",
-    description: "Channels 3 and 7 have been reassigned for evening operations effective 6 PM.",
-    timestamp: "1 day ago",
-    read: true,
-    href: "/settings/integrations",
-    group: "yesterday",
-  },
-  {
-    id: "n9",
-    type: "share_received",
-    title: "Report shared with you",
-    description: "Capt. Chen shared the weekly incident summary report for your review.",
-    timestamp: "2 days ago",
-    read: true,
-    href: "/reports/weekly",
-    group: "earlier",
-  },
-  {
-    id: "n10",
-    type: "form_completed",
-    title: "Daily log form submitted",
-    description: "Your daily activity log for April 2 has been submitted and confirmed.",
-    timestamp: "3 days ago",
-    read: true,
-    href: "/daily-log",
-    group: "earlier",
-  },
-];
+/* ── Helper: map DB row to UI Notification ── */
+function dbRowToNotification(row: NotificationRow): Notification {
+  const now = new Date();
+  const created = new Date(row.createdAt);
+  const diffMs = now.getTime() - created.getTime();
+  const diffMin = Math.floor(diffMs / 60000);
+  const diffHrs = Math.floor(diffMin / 60);
+  const diffDays = Math.floor(diffHrs / 24);
+
+  let timestamp = "Just now";
+  if (diffDays >= 2) timestamp = `${diffDays} days ago`;
+  else if (diffDays === 1) timestamp = "1 day ago";
+  else if (diffHrs >= 1) timestamp = `${diffHrs} hr ago`;
+  else if (diffMin >= 1) timestamp = `${diffMin} min ago`;
+
+  let group: "today" | "yesterday" | "earlier" = "today";
+  if (diffDays >= 2) group = "earlier";
+  else if (diffDays === 1) group = "yesterday";
+
+  return {
+    id: row.id,
+    type: (row.type as NotificationType) || "system_alert",
+    title: row.title || "Notification",
+    description: row.message || "",
+    timestamp,
+    read: row.read,
+    href: row.actionUrl || "#",
+    group,
+  };
+}
 
 /* ── Filter Tabs ── */
 const TABS: { value: FilterTab; label: string }[] = [
@@ -206,8 +143,56 @@ const GROUP_LABELS: Record<string, string> = {
 };
 
 export default function NotificationsPage() {
+  const { toast } = useToast();
   const [activeTab, setActiveTab] = useState<FilterTab>("all");
-  const [notifications, setNotifications] = useState(MOCK_NOTIFICATIONS);
+  const [notifications, setNotifications] = useState<Notification[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [currentUserId, setCurrentUserId] = useState<string | null>(null);
+
+  const loadNotifications = useCallback(async () => {
+    try {
+      setLoading(true);
+      setError(null);
+      const supabase = getSupabaseBrowser();
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) { setError("Not authenticated"); setLoading(false); return; }
+      setCurrentUserId(user.id);
+
+      const rows = await fetchNotifications(user.id);
+      setNotifications(rows.map(dbRowToNotification));
+    } catch (err: any) {
+      setError(err?.message || "Failed to load notifications");
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => { loadNotifications(); }, [loadNotifications]);
+
+  /* Realtime subscription for notifications table */
+  useRealtimeSubscription<Record<string, unknown>>({
+    table: "notifications",
+    filter: currentUserId ? `user_id=eq.${currentUserId}` : undefined,
+    enabled: !!currentUserId,
+    onInsert: useCallback(
+      (record: Record<string, unknown>) => {
+        const newNotif: Notification = {
+          id: (record.id as string) || `notif-${Date.now()}`,
+          type: ((record.type as string) || "system_alert") as NotificationType,
+          title: (record.title as string) || "New Notification",
+          description: (record.message as string) || "",
+          timestamp: "Just now",
+          read: false,
+          href: (record.action_url as string) || "#",
+          group: "today",
+        };
+        setNotifications((prev) => [newNotif, ...prev]);
+        toast(`New: ${newNotif.title}`, { variant: "info" });
+      },
+      [toast],
+    ),
+  });
 
   const unreadCount = useMemo(
     () => notifications.filter((n) => !n.read).length,
@@ -229,14 +214,26 @@ export default function NotificationsPage() {
     return groups;
   }, [filtered]);
 
-  const markAsRead = (id: string) => {
-    setNotifications((prev) =>
-      prev.map((n) => (n.id === id ? { ...n, read: true } : n))
-    );
+  const markAsRead = async (id: string) => {
+    try {
+      await markNotificationRead(id);
+      setNotifications((prev) =>
+        prev.map((n) => (n.id === id ? { ...n, read: true } : n))
+      );
+    } catch {
+      toast("Failed to mark as read", { variant: "error" });
+    }
   };
 
-  const markAllRead = () => {
-    setNotifications((prev) => prev.map((n) => ({ ...n, read: true })));
+  const markAllRead = async () => {
+    if (!currentUserId) return;
+    try {
+      await markAllNotificationsRead(currentUserId);
+      setNotifications((prev) => prev.map((n) => ({ ...n, read: true })));
+      toast("All notifications marked as read", { variant: "success" });
+    } catch {
+      toast("Failed to mark all as read", { variant: "error" });
+    }
   };
 
   return (
@@ -291,8 +288,20 @@ export default function NotificationsPage() {
         ))}
       </div>
 
+      {/* ── Loading / Error ── */}
+      {loading && (
+        <div className="flex items-center justify-center py-12">
+          <Loader2 size={24} className="animate-spin" style={{ color: "var(--text-tertiary)" }} />
+        </div>
+      )}
+      {error && !loading && (
+        <div className="text-center py-8 text-[13px]" style={{ color: "var(--status-critical)" }}>
+          {error}
+        </div>
+      )}
+
       {/* ── Notification List ── */}
-      <div className="space-y-5">
+      {!loading && !error && <div className="space-y-5">
         {(["today", "yesterday", "earlier"] as const).map((groupKey) => {
           const items = grouped[groupKey];
           if (!items || items.length === 0) return null;
@@ -374,7 +383,7 @@ export default function NotificationsPage() {
             No notifications match this filter
           </div>
         )}
-      </div>
+      </div>}
     </div>
   );
 }

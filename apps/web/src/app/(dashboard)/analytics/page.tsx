@@ -73,7 +73,7 @@ function HorizontalBarChart({ data }: { data: { label: string; value: number; co
 function DonutChart({ segments }: { segments: { label: string; percent: number; color: string }[] }) {
   let offset = 0;
   return (
-    <div className="flex items-center gap-6">
+    <div className="flex flex-col sm:flex-row items-center gap-3 sm:gap-6">
       <svg viewBox="0 0 36 36" className="h-28 w-28 shrink-0">
         {segments.map((seg, i) => {
           const currentOffset = offset;

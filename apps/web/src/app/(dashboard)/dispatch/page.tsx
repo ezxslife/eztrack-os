@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo, useEffect, useCallback } from "react";
+import React, { useState, useMemo, useEffect, useCallback } from "react";
 import {
   Plus,
   Radio,
@@ -197,7 +197,7 @@ function FilterChip({
 
 /* ─── Dispatch Card Component ─────────────────────────────────── */
 
-function DispatchCard({ dispatch, onClick }: { dispatch: DispatchItem; onClick?: () => void }) {
+const DispatchCard = React.memo(function DispatchCard({ dispatch, onClick }: { dispatch: DispatchItem; onClick?: () => void }) {
   const priority = PRIORITY_CONFIG[dispatch.priority];
   const isActive = ACTIVE_STATUSES.includes(dispatch.status);
   const isCleared = CLEARED_STATUSES.includes(dispatch.status);
@@ -316,7 +316,7 @@ function DispatchCard({ dispatch, onClick }: { dispatch: DispatchItem; onClick?:
       </div>
     </div>
   );
-}
+});
 
 /* ─── Active Status Pill ──────────────────────────────────────── */
 

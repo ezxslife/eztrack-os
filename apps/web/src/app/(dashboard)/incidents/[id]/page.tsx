@@ -1254,7 +1254,7 @@ function MediaTab({ onUploadMedia }: { onUploadMedia: () => void }) {
         </div>
       </div>
 
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         {MEDIA.map((m) => (
           <Card key={m.id} className="overflow-hidden group">
             {/* Thumbnail Placeholder */}
@@ -1695,7 +1695,7 @@ function SavingsLossesTab({ financials, totalLosses, totalSavings, onAddEntry }:
       </div>
 
       {/* Summary Cards */}
-      <div className="grid grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
         <Card>
           <CardContent className="p-4 text-center">
             <p className="text-[11px] font-medium text-[var(--text-tertiary)] uppercase tracking-wider">

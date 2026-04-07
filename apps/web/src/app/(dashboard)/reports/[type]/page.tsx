@@ -285,7 +285,7 @@ export default function ReportViewerPage({ params }: { params: Promise<{ type: s
       {generated && reportData && (
         <>
           {/* ── Summary Stats ── */}
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
             {reportData.stats.map((stat) => (
               <StatCard key={stat.label} label={stat.label} value={stat.value} sub={stat.sub} />
             ))}

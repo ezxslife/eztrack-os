@@ -22,7 +22,9 @@ import {
   CardContent,
   CardFooter,
 } from "@/components/ui/Card";
-import { fetchAnonReports, type AnonReportRow } from "@/lib/queries/anonymous-reports";
+import { fetchAnonReports, submitAnonReport, type AnonReportRow } from "@/lib/queries/anonymous-reports";
+import { useToast } from "@/components/ui/Toast";
+import { getSupabaseBrowser } from "@/lib/supabase-browser";
 import { formatDateTime } from "@/lib/utils/time";
 import { Loader2 } from "lucide-react";
 
@@ -139,16 +141,42 @@ export default function AnonymousReportsPage() {
 
   const canSubmit = category !== "" && description.length >= 20 && !submitting;
 
+  const { toast } = useToast();
+
   /* ── Handlers ── */
-  const handleSubmit = () => {
+  const handleSubmit = async () => {
     setSubmitting(true);
-    // Simulate submission
-    setTimeout(() => {
-      const code = `ANON-2026-${String(Math.floor(Math.random() * 9000) + 1000)}`;
+    try {
+      const supabase = getSupabaseBrowser();
+      const { data: { user } } = await supabase.auth.getUser();
+      // Get orgId from profile (or fallback)
+      let orgId = "unknown";
+      if (user) {
+        const { data: profile } = await supabase
+          .from("profiles")
+          .select("org_id")
+          .eq("id", user.id)
+          .single();
+        if (profile?.org_id) orgId = profile.org_id;
+      }
+
+      const result = await submitAnonReport({
+        orgId,
+        category,
+        reportText: description,
+      });
+
+      const code = result?.id
+        ? `ANON-${result.id.substring(0, 8).toUpperCase()}`
+        : `ANON-${Date.now()}`;
       setTrackingCode(code);
       setSubmitted(true);
+      loadReports(); // refresh admin table
+    } catch (err: any) {
+      toast(err?.message || "Failed to submit report", { variant: "error" });
+    } finally {
       setSubmitting(false);
-    }, 1200);
+    }
   };
 
   const handleResetForm = () => {

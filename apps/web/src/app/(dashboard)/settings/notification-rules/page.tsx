@@ -134,7 +134,7 @@ export default function NotificationRulesPage() {
       </div>
 
       {/* Channel summary */}
-      <div className="grid grid-cols-3 gap-3">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
         {channelConfig.map(({ key, label, icon: Icon }) => (
           <Card key={key}>
             <CardContent className="!py-3">

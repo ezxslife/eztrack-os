@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo, useCallback } from "react";
+import { useState, useEffect, useMemo, useCallback } from "react";
 import { Button } from "@/components/ui/Button";
 import { Card, CardContent } from "@/components/ui/Card";
 import { Badge } from "@/components/ui/Badge";
@@ -29,7 +29,15 @@ import {
   X,
   FileText,
   Activity,
+  Loader2,
 } from "lucide-react";
+import { getSupabaseBrowser } from "@/lib/supabase-browser";
+import {
+  fetchAlerts as fetchAlertsQuery,
+  acknowledgeAlert as acknowledgeAlertQuery,
+  resolveAlert as resolveAlertQuery,
+  type AlertRow,
+} from "@/lib/queries/alerts";
 
 /* ── Types ── */
 type Priority = "critical" | "high" | "medium" | "low";
@@ -65,294 +73,41 @@ interface AlertItem {
   responseNotes: string;
 }
 
-/* ── Mock data ── */
-const INITIAL_ALERTS: AlertItem[] = [
-  {
-    id: "ALR-001",
-    title: "Active shooter reported - Gate C",
-    description:
-      "Security team dispatched. All gates locked down. Law enforcement en route. Perimeter sweep initiated at sectors 4-7.",
-    priority: "critical",
-    status: "active",
-    module: "incident",
-    timestamp: "2026-04-05T14:58:00",
-    relativeTime: "2 min ago",
-    relatedLink: "/incidents/INC-2026-041",
-    relatedLabel: "INC-2026-041",
-    timeline: [
-      { action: "Alert created", timestamp: "2:58 PM", user: "System" },
-      { action: "Dispatch notified", timestamp: "2:58 PM", user: "System" },
-    ],
-    responseNotes: "All available units responding. Command post at Lot B.",
-  },
-  {
-    id: "ALR-002",
-    title: "Medical emergency - Main Stage",
-    description:
-      "Patron collapsed near stage left. EMS unit 3 dispatched. Possible heat exhaustion.",
-    priority: "critical",
-    status: "active",
-    module: "dispatch",
-    timestamp: "2026-04-05T14:55:00",
-    relativeTime: "5 min ago",
-    relatedLink: "/dispatch/DSP-2026-118",
-    relatedLabel: "DSP-2026-118",
-    timeline: [
-      { action: "Alert created", timestamp: "2:55 PM", user: "System" },
-      { action: "EMS dispatched", timestamp: "2:55 PM", user: "Dispatch Ops" },
-    ],
-    responseNotes: "EMS Unit 3 en route. AED requested.",
-  },
-  {
-    id: "ALR-003",
-    title: "Patron banned - attempting re-entry at Gate A",
-    description:
-      "Known banned individual Marcus T. flagged by facial recognition at Gate A turnstile.",
-    priority: "high",
-    status: "active",
-    module: "patron",
-    timestamp: "2026-04-05T14:50:00",
-    relativeTime: "10 min ago",
-    relatedLink: "/patrons/PAT-8821",
-    relatedLabel: "PAT-8821",
-    timeline: [
-      { action: "Facial recognition match", timestamp: "2:50 PM", user: "System" },
-      { action: "Gate A security notified", timestamp: "2:50 PM", user: "System" },
-    ],
-    responseNotes: "Gate supervisor responding.",
-  },
-  {
-    id: "ALR-004",
-    title: "Evidence chain of custody break - Case #C-2024-003",
-    description:
-      "Evidence bag E-4421 scanned out by unauthorized personnel. Chain of custody integrity compromised.",
-    priority: "high",
-    status: "acknowledged",
-    module: "case",
-    timestamp: "2026-04-05T14:45:00",
-    relativeTime: "15 min ago",
-    relatedLink: "/cases/C-2024-003",
-    relatedLabel: "C-2024-003",
-    timeline: [
-      { action: "Alert created", timestamp: "2:45 PM", user: "System" },
-      { action: "Acknowledged by J. Rivera", timestamp: "2:47 PM", user: "J. Rivera" },
-    ],
-    responseNotes: "Investigating scan log discrepancy. Supervisor notified.",
-  },
-  {
-    id: "ALR-005",
-    title: "Work order overdue - Generator maintenance",
-    description:
-      "Scheduled generator maintenance WO-3312 is 48 hours overdue. Backup power at risk.",
-    priority: "medium",
-    status: "active",
-    module: "work_order",
-    timestamp: "2026-04-05T14:30:00",
-    relativeTime: "30 min ago",
-    relatedLink: "/work-orders/WO-3312",
-    relatedLabel: "WO-3312",
-    timeline: [
-      { action: "Alert created", timestamp: "2:30 PM", user: "System" },
-    ],
+/* ── Helper: map DB row to UI AlertItem ── */
+function dbRowToAlertItem(row: AlertRow): AlertItem {
+  const now = new Date();
+  const created = new Date(row.createdAt);
+  const diffMs = now.getTime() - created.getTime();
+  const diffMin = Math.floor(diffMs / 60000);
+  let relativeTime = "Just now";
+  if (diffMin >= 60) {
+    const hrs = Math.floor(diffMin / 60);
+    relativeTime = `${hrs} hr ago`;
+  } else if (diffMin > 0) {
+    relativeTime = `${diffMin} min ago`;
+  }
+
+  const status: Status = row.acknowledgedAt
+    ? row.deletedAt
+      ? "resolved"
+      : "acknowledged"
+    : "active";
+
+  return {
+    id: row.id,
+    title: row.title || "Untitled Alert",
+    description: row.message || "",
+    priority: (row.severity as Priority) || "medium",
+    status,
+    module: (row.alertType as Module) || "incident",
+    timestamp: row.createdAt,
+    relativeTime,
+    relatedLink: "#",
+    relatedLabel: "",
+    timeline: [{ action: "Alert created", timestamp: created.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" }), user: "System" }],
     responseNotes: "",
-  },
-  {
-    id: "ALR-006",
-    title: "Visitor overstay - John Smith (4h past checkout)",
-    description:
-      "Visitor John Smith checked in at 8:00 AM with scheduled checkout at 10:00 AM. Still on premises.",
-    priority: "medium",
-    status: "active",
-    module: "visitor",
-    timestamp: "2026-04-05T14:15:00",
-    relativeTime: "45 min ago",
-    relatedLink: "/visitors/VIS-9923",
-    relatedLabel: "VIS-9923",
-    timeline: [
-      { action: "Overstay detected", timestamp: "2:15 PM", user: "System" },
-    ],
-    responseNotes: "",
-  },
-  {
-    id: "ALR-007",
-    title: "Shift change in 30 minutes",
-    description:
-      "Evening shift (Team Bravo) begins at 3:30 PM. 2 personnel have not confirmed availability.",
-    priority: "low",
-    status: "acknowledged",
-    module: "personnel",
-    timestamp: "2026-04-05T14:00:00",
-    relativeTime: "1 hr ago",
-    relatedLink: "/personnel/schedule",
-    relatedLabel: "Shift Schedule",
-    timeline: [
-      { action: "Alert created", timestamp: "2:00 PM", user: "System" },
-      { action: "Acknowledged by Shift Lead", timestamp: "2:05 PM", user: "M. Torres" },
-    ],
-    responseNotes: "Contacting unconfirmed personnel.",
-  },
-  {
-    id: "ALR-008",
-    title: "New anonymous report submitted",
-    description:
-      "Anonymous tip received regarding suspicious package near restroom block C. No photo attached.",
-    priority: "low",
-    status: "active",
-    module: "anonymous",
-    timestamp: "2026-04-05T13:55:00",
-    relativeTime: "1 hr ago",
-    relatedLink: "/anonymous-reports/AR-0087",
-    relatedLabel: "AR-0087",
-    timeline: [
-      { action: "Report received", timestamp: "1:55 PM", user: "System" },
-    ],
-    responseNotes: "",
-  },
-  {
-    id: "ALR-009",
-    title: "Fire alarm triggered - Building 2, Floor 3",
-    description:
-      "Smoke detector activation in server room 3B. No visible smoke reported by on-site staff.",
-    priority: "critical",
-    status: "acknowledged",
-    module: "incident",
-    timestamp: "2026-04-05T13:40:00",
-    relativeTime: "1.5 hr ago",
-    relatedLink: "/incidents/INC-2026-040",
-    relatedLabel: "INC-2026-040",
-    timeline: [
-      { action: "Alert created", timestamp: "1:40 PM", user: "System" },
-      { action: "Fire dept notified", timestamp: "1:41 PM", user: "System" },
-      { action: "Acknowledged by K. Park", timestamp: "1:43 PM", user: "K. Park" },
-    ],
-    responseNotes: "Likely false alarm - HVAC maintenance in progress. Fire dept confirmed.",
-  },
-  {
-    id: "ALR-010",
-    title: "Dispatch unit offline - Unit 7",
-    description:
-      "Dispatch Unit 7 has not reported status in 25 minutes. Last known location: Parking Lot D.",
-    priority: "high",
-    status: "active",
-    module: "dispatch",
-    timestamp: "2026-04-05T13:35:00",
-    relativeTime: "1.5 hr ago",
-    relatedLink: "/dispatch/units/U-007",
-    relatedLabel: "Unit 7",
-    timeline: [
-      { action: "Unit went offline", timestamp: "1:35 PM", user: "System" },
-    ],
-    responseNotes: "",
-  },
-  {
-    id: "ALR-011",
-    title: "Case deadline approaching - C-2024-007",
-    description:
-      "Evidence submission deadline for Case C-2024-007 is in 4 hours. 3 items still pending upload.",
-    priority: "medium",
-    status: "acknowledged",
-    module: "case",
-    timestamp: "2026-04-05T13:20:00",
-    relativeTime: "2 hr ago",
-    relatedLink: "/cases/C-2024-007",
-    relatedLabel: "C-2024-007",
-    timeline: [
-      { action: "Deadline warning", timestamp: "1:20 PM", user: "System" },
-      { action: "Acknowledged by R. Chen", timestamp: "1:25 PM", user: "R. Chen" },
-    ],
-    responseNotes: "Uploading remaining evidence now.",
-  },
-  {
-    id: "ALR-012",
-    title: "HVAC failure - Control Room A",
-    description:
-      "Temperature in Control Room A has risen to 88F. HVAC unit non-responsive. Equipment at risk.",
-    priority: "high",
-    status: "active",
-    module: "work_order",
-    timestamp: "2026-04-05T13:10:00",
-    relativeTime: "2 hr ago",
-    relatedLink: "/work-orders/WO-3318",
-    relatedLabel: "WO-3318",
-    timeline: [
-      { action: "Temperature threshold exceeded", timestamp: "1:10 PM", user: "System" },
-    ],
-    responseNotes: "",
-  },
-  {
-    id: "ALR-013",
-    title: "VIP visitor arrival - Gov. Williams",
-    description:
-      "Governor Williams motorcade ETA 20 minutes. Escort team and protocol checklist required.",
-    priority: "medium",
-    status: "resolved",
-    module: "visitor",
-    timestamp: "2026-04-05T12:30:00",
-    relativeTime: "2.5 hr ago",
-    relatedLink: "/visitors/VIS-9930",
-    relatedLabel: "VIS-9930",
-    timeline: [
-      { action: "Alert created", timestamp: "12:30 PM", user: "System" },
-      { action: "Acknowledged by Command", timestamp: "12:32 PM", user: "Command" },
-      { action: "Resolved - Arrival complete", timestamp: "12:55 PM", user: "S. Adams" },
-    ],
-    responseNotes: "Governor arrived safely. Protocol executed.",
-  },
-  {
-    id: "ALR-014",
-    title: "Personnel certification expired - D. Kim",
-    description:
-      "Officer D. Kim's firearms certification expired 3 days ago. Restricted from armed duty.",
-    priority: "low",
-    status: "active",
-    module: "personnel",
-    timestamp: "2026-04-05T12:00:00",
-    relativeTime: "3 hr ago",
-    relatedLink: "/personnel/PER-0442",
-    relatedLabel: "PER-0442",
-    timeline: [
-      { action: "Certification expiry detected", timestamp: "12:00 PM", user: "System" },
-    ],
-    responseNotes: "",
-  },
-  {
-    id: "ALR-015",
-    title: "Suspicious vehicle reported - Lot F",
-    description:
-      "Anonymous report of unattended vehicle with out-of-state plates idling in restricted area of Lot F.",
-    priority: "high",
-    status: "resolved",
-    module: "anonymous",
-    timestamp: "2026-04-05T11:30:00",
-    relativeTime: "3.5 hr ago",
-    relatedLink: "/anonymous-reports/AR-0085",
-    relatedLabel: "AR-0085",
-    timeline: [
-      { action: "Report received", timestamp: "11:30 AM", user: "System" },
-      { action: "Patrol dispatched", timestamp: "11:32 AM", user: "Dispatch Ops" },
-      { action: "Vehicle identified - authorized contractor", timestamp: "11:45 AM", user: "Officer L. Diaz" },
-      { action: "Resolved", timestamp: "11:50 AM", user: "Officer L. Diaz" },
-    ],
-    responseNotes: "Vehicle belongs to authorized HVAC contractor. Parking pass issued.",
-  },
-  {
-    id: "ALR-016",
-    title: "Crowd density warning - Section 12",
-    description:
-      "Crowd density in Section 12 has exceeded 85% capacity threshold. Recommend flow control.",
-    priority: "medium",
-    status: "active",
-    module: "incident",
-    timestamp: "2026-04-05T14:52:00",
-    relativeTime: "8 min ago",
-    relatedLink: "/incidents/INC-2026-042",
-    relatedLabel: "INC-2026-042",
-    timeline: [
-      { action: "Threshold exceeded", timestamp: "2:52 PM", user: "System" },
-    ],
-    responseNotes: "",
-  },
-];
+  };
+}
 
 /* ── Helpers ── */
 const priorityConfig: Record<Priority, { color: string; label: string; tone: "critical" | "warning" | "attention" | "success" }> = {
@@ -402,12 +157,46 @@ const moduleOptions = [
 /* ── Page ── */
 export default function AlertsPage() {
   const { toast } = useToast();
-  const [alerts, setAlerts] = useState<AlertItem[]>(INITIAL_ALERTS);
+  const [alerts, setAlerts] = useState<AlertItem[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState("all");
   const [priorityFilter, setPriorityFilter] = useState("all");
   const [moduleFilter, setModuleFilter] = useState("all");
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedAlertId, setSelectedAlertId] = useState<string | null>(null);
+  const [currentUserId, setCurrentUserId] = useState<string | null>(null);
+  const [currentOrgId, setCurrentOrgId] = useState<string | null>(null);
+
+  /* Fetch user + org, then load alerts */
+  const loadAlerts = useCallback(async () => {
+    try {
+      setLoading(true);
+      setError(null);
+      const supabase = getSupabaseBrowser();
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) { setError("Not authenticated"); setLoading(false); return; }
+      setCurrentUserId(user.id);
+
+      const { data: profile } = await supabase
+        .from("profiles")
+        .select("org_id")
+        .eq("id", user.id)
+        .single();
+      const orgId = profile?.org_id;
+      if (!orgId) { setError("No organization found"); setLoading(false); return; }
+      setCurrentOrgId(orgId);
+
+      const rows = await fetchAlertsQuery(orgId);
+      setAlerts(rows.map(dbRowToAlertItem));
+    } catch (err: any) {
+      setError(err?.message || "Failed to load alerts");
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => { loadAlerts(); }, [loadAlerts]);
 
   /* Realtime subscription for alerts table */
   useRealtimeSubscription<Record<string, unknown>>({
@@ -505,40 +294,51 @@ export default function AlertsPage() {
   const selectedAlert = alerts.find((a) => a.id === selectedAlertId) ?? null;
 
   /* Actions */
-  const acknowledgeAlert = (id: string) => {
-    setAlerts((prev) =>
-      prev.map((a) =>
-        a.id === id
-          ? {
-              ...a,
-              status: "acknowledged" as Status,
-              timeline: [
-                ...a.timeline,
-                { action: "Acknowledged", timestamp: "Just now", user: "You" },
-              ],
-            }
-          : a
-      )
-    );
-    toast("Alert acknowledged", { variant: "success" });
+  const handleAcknowledgeAlert = async (id: string) => {
+    if (!currentUserId) return;
+    try {
+      await acknowledgeAlertQuery(id, currentUserId);
+      setAlerts((prev) =>
+        prev.map((a) =>
+          a.id === id
+            ? {
+                ...a,
+                status: "acknowledged" as Status,
+                timeline: [
+                  ...a.timeline,
+                  { action: "Acknowledged", timestamp: "Just now", user: "You" },
+                ],
+              }
+            : a
+        )
+      );
+      toast("Alert acknowledged", { variant: "success" });
+    } catch {
+      toast("Failed to acknowledge alert", { variant: "error" });
+    }
   };
 
-  const resolveAlert = (id: string) => {
-    setAlerts((prev) =>
-      prev.map((a) =>
-        a.id === id
-          ? {
-              ...a,
-              status: "resolved" as Status,
-              timeline: [
-                ...a.timeline,
-                { action: "Resolved", timestamp: "Just now", user: "You" },
-              ],
-            }
-          : a
-      )
-    );
-    toast("Alert resolved", { variant: "success" });
+  const handleResolveAlert = async (id: string) => {
+    try {
+      await resolveAlertQuery(id);
+      setAlerts((prev) =>
+        prev.map((a) =>
+          a.id === id
+            ? {
+                ...a,
+                status: "resolved" as Status,
+                timeline: [
+                  ...a.timeline,
+                  { action: "Resolved", timestamp: "Just now", user: "You" },
+                ],
+              }
+            : a
+        )
+      );
+      toast("Alert resolved", { variant: "success" });
+    } catch {
+      toast("Failed to resolve alert", { variant: "error" });
+    }
   };
 
   const markAllRead = () => {
@@ -547,6 +347,11 @@ export default function AlertsPage() {
       toast("No active alerts to acknowledge", { variant: "info" });
       return;
     }
+    // Acknowledge each active alert in DB
+    const activeAlerts = alerts.filter((a) => a.status === "active");
+    activeAlerts.forEach((a) => {
+      if (currentUserId) acknowledgeAlertQuery(a.id, currentUserId).catch(() => {});
+    });
     setAlerts((prev) =>
       prev.map((a) =>
         a.status === "active"
@@ -626,8 +431,20 @@ export default function AlertsPage() {
         </div>
       </div>
 
+      {/* Loading / Error states */}
+      {loading && (
+        <div className="flex items-center justify-center py-12">
+          <Loader2 size={24} className="animate-spin" style={{ color: "var(--text-tertiary)" }} />
+        </div>
+      )}
+      {error && !loading && (
+        <div className="text-center py-8 text-[13px]" style={{ color: "var(--status-critical)" }}>
+          {error}
+        </div>
+      )}
+
       {/* Main content: alert list + detail sidebar */}
-      <div className="flex flex-col lg:flex-row gap-3 flex-1 min-h-0">
+      {!loading && !error && <div className="flex flex-col lg:flex-row gap-3 flex-1 min-h-0">
         {/* Alert list */}
         <div className="flex-1 flex flex-col gap-1.5 overflow-y-auto pr-1" style={{ maxHeight: "calc(100vh - 260px)" }}>
           {filteredAlerts.length === 0 ? (
@@ -709,7 +526,7 @@ export default function AlertsPage() {
                           size="sm"
                           onClick={(e) => {
                             e.stopPropagation();
-                            acknowledgeAlert(alert.id);
+                            handleAcknowledgeAlert(alert.id);
                           }}
                         >
                           Ack
@@ -721,7 +538,7 @@ export default function AlertsPage() {
                           size="sm"
                           onClick={(e) => {
                             e.stopPropagation();
-                            resolveAlert(alert.id);
+                            handleResolveAlert(alert.id);
                           }}
                         >
                           Resolve
@@ -747,8 +564,8 @@ export default function AlertsPage() {
           {selectedAlert ? (
             <AlertDetail
               alert={selectedAlert}
-              onAcknowledge={acknowledgeAlert}
-              onResolve={resolveAlert}
+              onAcknowledge={handleAcknowledgeAlert}
+              onResolve={handleResolveAlert}
               onClose={() => setSelectedAlertId(null)}
             />
           ) : (
@@ -761,7 +578,7 @@ export default function AlertsPage() {
             </div>
           )}
         </div>
-      </div>
+      </div>}
     </div>
   );
 }

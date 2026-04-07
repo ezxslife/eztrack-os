@@ -814,7 +814,7 @@ function OverviewTab({ stageIndex }: { stageIndex: number }) {
       </Card>
 
       {/* Key Metrics */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
         <MetricCard icon={Clock} label="Days Open" value={c.daysOpen} sub="Since Feb 19" />
         <MetricCard icon={Users} label="Resources" value={c.resourceCount} sub="5 active, 1 inactive" />
         <MetricCard icon={Package} label="Evidence Items" value={c.evidenceCount} sub="6 physical, 17 digital" />
@@ -1187,7 +1187,7 @@ function TasksTab({ onAddTask }: { onAddTask: () => void }) {
   return (
     <div className="space-y-4">
       {/* Summary bar */}
-      <div className="grid grid-cols-3 gap-3">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
         <MetricCard icon={ListChecks} label="Overall Completion" value={`${overallPercent}%`} />
         <MetricCard icon={Timer} label="Total Hours" value={`${totalHours}h`} sub={`Across ${TASKS.length} tasks`} />
         <MetricCard icon={Flag} label="Critical Tasks" value={TASKS.filter((t) => t.critical).length} sub={`of ${TASKS.length} total`} />
