@@ -1,9 +1,12 @@
 "use client";
 
+import { useState, useRef, useEffect } from "react";
 import clsx from "clsx";
-import { Bell, ChevronDown, Command, Menu, Search } from "lucide-react";
+import { Bell, ChevronDown, Command, LogOut, Menu, Search, User } from "lucide-react";
 import { Breadcrumbs } from "./Breadcrumbs";
 import { ThemeToggle } from "@/components/ui/ThemeToggle";
+import { getSupabaseBrowser } from "@/lib/supabase-browser";
+import { useRouter } from "next/navigation";
 
 interface TopBarProps {
   userName?: string;
@@ -13,11 +16,35 @@ interface TopBarProps {
 }
 
 export function TopBar({
-  userName = "Marcus Chen",
+  userName = "User",
   userAvatar,
   className,
   onMenuToggle,
 }: TopBarProps) {
+  const [menuOpen, setMenuOpen] = useState(false);
+  const menuRef = useRef<HTMLDivElement>(null);
+  const router = useRouter();
+
+  // Close dropdown when clicking outside
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (menuRef.current && !menuRef.current.contains(event.target as Node)) {
+        setMenuOpen(false);
+      }
+    }
+    if (menuOpen) {
+      document.addEventListener("mousedown", handleClickOutside);
+      return () => document.removeEventListener("mousedown", handleClickOutside);
+    }
+  }, [menuOpen]);
+
+  async function handleSignOut() {
+    const supabase = getSupabaseBrowser();
+    await supabase.auth.signOut();
+    router.push("/login");
+    router.refresh();
+  }
+
   return (
     <header
       className={clsx(
@@ -86,30 +113,70 @@ export function TopBar({
           <span className="absolute top-1.5 right-1.5 h-2 w-2 rounded-full bg-red-500 ring-2 ring-[var(--surface-primary)]" />
         </button>
 
-        {/* User button */}
-        <button
-          className={clsx(
-            "flex items-center gap-2 ml-1 h-8 pl-1.5 pr-2 rounded-md",
-            "hover:bg-[var(--surface-hover)]",
-            "transition-colors duration-[var(--duration-fast)]"
-          )}
-        >
-          <div className="h-6 w-6 rounded-full bg-[var(--eztrack-primary-500)]/15 flex items-center justify-center text-[11px] font-semibold text-[var(--eztrack-primary-500)] shrink-0">
-            {userAvatar ? (
-              <img
-                src={userAvatar}
-                alt={userName}
-                className="h-6 w-6 rounded-full object-cover"
-              />
-            ) : (
-              userName.charAt(0).toUpperCase()
+        {/* User dropdown */}
+        <div className="relative" ref={menuRef}>
+          <button
+            onClick={() => setMenuOpen(!menuOpen)}
+            className={clsx(
+              "flex items-center gap-2 ml-1 h-8 pl-1.5 pr-2 rounded-md",
+              "hover:bg-[var(--surface-hover)]",
+              "transition-colors duration-[var(--duration-fast)]",
+              menuOpen && "bg-[var(--surface-hover)]"
             )}
-          </div>
-          <span className="text-[13px] font-medium text-[var(--text-primary)] hidden sm:block">
-            {userName}
-          </span>
-          <ChevronDown size={14} className="text-[var(--text-tertiary)]" />
-        </button>
+          >
+            <div className="h-6 w-6 rounded-full bg-[var(--eztrack-primary-500)]/15 flex items-center justify-center text-[11px] font-semibold text-[var(--eztrack-primary-500)] shrink-0">
+              {userAvatar ? (
+                <img
+                  src={userAvatar}
+                  alt={userName}
+                  className="h-6 w-6 rounded-full object-cover"
+                />
+              ) : (
+                userName.charAt(0).toUpperCase()
+              )}
+            </div>
+            <span className="text-[13px] font-medium text-[var(--text-primary)] hidden sm:block max-w-[120px] truncate">
+              {userName}
+            </span>
+            <ChevronDown
+              size={14}
+              className={clsx(
+                "text-[var(--text-tertiary)] transition-transform duration-150",
+                menuOpen && "rotate-180"
+              )}
+            />
+          </button>
+
+          {/* Dropdown menu */}
+          {menuOpen && (
+            <div
+              className={clsx(
+                "absolute right-0 top-full mt-1 w-48 py-1 rounded-lg shadow-lg",
+                "bg-[var(--surface-primary)] border border-[var(--border-default)]",
+                "animate-fade-in z-50"
+              )}
+            >
+              <button
+                onClick={() => {
+                  setMenuOpen(false);
+                  router.push("/settings");
+                }}
+                className="flex items-center gap-2.5 w-full px-3 py-2 text-[13px] text-[var(--text-secondary)] hover:bg-[var(--surface-hover)] hover:text-[var(--text-primary)] transition-colors"
+              >
+                <User size={15} />
+                Profile & Settings
+              </button>
+              <div className="my-1 h-px bg-[var(--border-default)]" />
+              <button
+                onClick={handleSignOut}
+                className="flex items-center gap-2.5 w-full px-3 py-2 text-[13px] text-[var(--status-error)] hover:bg-[var(--red-50,#fef2f2)] dark:hover:bg-[var(--red-900,#7f1d1d)]/10 transition-colors"
+              >
+                <LogOut size={15} />
+                Sign Out
+              </button>
+            </div>
+          )}
+        </div>
       </div>
     </header>
   );

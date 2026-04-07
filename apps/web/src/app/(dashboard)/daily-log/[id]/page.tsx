@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, use } from "react";
+import { useState, use, useEffect, useCallback } from "react";
 import Link from "next/link";
 import {
   ArrowLeft,
@@ -15,6 +15,8 @@ import {
   ArrowUpRight,
   Plus,
   ChevronRight,
+  Loader2,
+  AlertCircle,
 } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { StatusBadge } from "@/components/ui/Badge";
@@ -28,89 +30,15 @@ import {
 } from "@/components/modals/daily-log";
 import { CreateDispatchFromLogModal, EscalationChainModal } from "@/components/modals/workflows";
 import { useToast } from "@/components/ui/Toast";
-
-/* ── Mock detail data keyed by id ── */
-const MOCK_DETAILS: Record<
-  string,
-  {
-    recordNumber: string;
-    topic: string;
-    location: string;
-    priority: "low" | "medium" | "high";
-    status: string;
-    synopsis: string;
-    createdBy: string;
-    createdAt: string;
-    updatedAt: string;
-  }
-> = {
-  "1": {
-    recordNumber: "DL-0001",
-    topic: "Main Stage barrier check completed",
-    location: "Main Stage",
-    priority: "low",
-    status: "closed",
-    synopsis:
-      "Routine barrier inspection of the Main Stage area completed without issues. All crowd control barriers are in position and secure. Verified emergency exit pathways are clear.",
-    createdBy: "Officer Rivera",
-    createdAt: "Apr 5, 2026 at 9:12 AM",
-    updatedAt: "Apr 5, 2026 at 9:45 AM",
-  },
-  "2": {
-    recordNumber: "DL-0002",
-    topic: "Unauthorized vendor near Gate C",
-    location: "North Gate",
-    priority: "medium",
-    status: "open",
-    synopsis:
-      "An unauthorized vendor was observed selling merchandise near Gate C without a valid permit. The vendor was approached and asked to move. Follow up with event management regarding vendor zone enforcement.",
-    createdBy: "Sgt. Patel",
-    createdAt: "Apr 5, 2026 at 8:54 AM",
-    updatedAt: "Apr 5, 2026 at 9:10 AM",
-  },
-  "3": {
-    recordNumber: "DL-0003",
-    topic: "VIP parking lot overcrowding",
-    location: "VIP Lot B",
-    priority: "high",
-    status: "in_progress",
-    synopsis:
-      "VIP Parking Lot B has exceeded 90% capacity. Attendants have been redirected to route incoming VIP vehicles to Lot A overflow area. Dispatch notified for additional traffic control officer support. Estimated resolution in 30 minutes pending overflow lot activation.",
-    createdBy: "Officer Martinez",
-    createdAt: "Apr 5, 2026 at 8:38 AM",
-    updatedAt: "Apr 5, 2026 at 9:25 AM",
-  },
-};
-
-/* ── Mock timeline ── */
-interface TimelineEntry {
-  time: string;
-  description: string;
-  icon: "create" | "escalate" | "update" | "review";
-}
-
-const MOCK_TIMELINES: Record<string, TimelineEntry[]> = {
-  "3": [
-    { time: "2:15 PM", description: "Log created by Officer Martinez", icon: "create" },
-    { time: "2:20 PM", description: "Priority escalated to High", icon: "escalate" },
-    { time: "2:45 PM", description: "Synopsis updated with overflow lot details", icon: "update" },
-    { time: "3:10 PM", description: "Reviewed by Lt. Nguyen", icon: "review" },
-  ],
-};
-
-/* ── Mock audit trail ── */
-interface AuditEntry {
-  action: string;
-  user: string;
-  time: string;
-}
-
-const MOCK_AUDIT: AuditEntry[] = [
-  { action: "Created", user: "Officer Martinez", time: "Apr 5, 2026 8:38 AM" },
-  { action: "Viewed", user: "Lt. Nguyen", time: "Apr 5, 2026 8:45 AM" },
-  { action: "Updated", user: "Officer Martinez", time: "Apr 5, 2026 9:25 AM" },
-  { action: "Viewed", user: "Sgt. Patel", time: "Apr 5, 2026 9:30 AM" },
-];
+import {
+  fetchDailyLogById,
+  fetchDailyLogAudit,
+  updateDailyLogStatus,
+  updateDailyLog,
+  type DailyLogDetail,
+  type DailyLogAuditEntry,
+} from "@/lib/queries/daily-logs";
+import { formatDateTime, formatRelativeTime } from "@/lib/utils/time";
 
 const TAB_LIST = [
   { id: "overview", label: "Overview" },
@@ -134,6 +62,10 @@ export default function DailyLogDetailPage({
 }) {
   const { toast } = useToast();
   const { id } = use(params);
+  const [detail, setDetail] = useState<DailyLogDetail | null>(null);
+  const [auditEntries, setAuditEntries] = useState<DailyLogAuditEntry[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState("overview");
   const [escalateModal, setEscalateModal] = useState(false);
   const [editLogModal, setEditLogModal] = useState(false);
@@ -142,25 +74,46 @@ export default function DailyLogDetailPage({
   const [createDispatchModal, setCreateDispatchModal] = useState(false);
   const [escalationChainModal, setEscalationChainModal] = useState(false);
 
-  const detail = MOCK_DETAILS[id] ?? {
-    recordNumber: `DL-${id.padStart(4, "0")}`,
-    topic: "VIP parking lot overcrowding",
-    location: "VIP Lot B",
-    priority: "high" as const,
-    status: "in_progress",
-    synopsis:
-      "VIP Parking Lot B has exceeded 90% capacity. Attendants have been redirected to route incoming VIP vehicles to Lot A overflow area. Dispatch notified for additional traffic control officer support.",
-    createdBy: "Officer Martinez",
-    createdAt: "Apr 5, 2026 at 8:38 AM",
-    updatedAt: "Apr 5, 2026 at 9:25 AM",
-  };
+  const loadData = useCallback(async () => {
+    try {
+      setLoading(true);
+      setError(null);
+      const [logDetail, audit] = await Promise.all([
+        fetchDailyLogById(id),
+        fetchDailyLogAudit(id),
+      ]);
+      setDetail(logDetail);
+      setAuditEntries(audit);
+    } catch (err: any) {
+      setError(err.message || "Failed to load daily log");
+    } finally {
+      setLoading(false);
+    }
+  }, [id]);
 
-  const timeline = MOCK_TIMELINES[id] ?? [
-    { time: "2:15 PM", description: "Log created by Officer Martinez", icon: "create" as const },
-    { time: "2:20 PM", description: "Priority escalated to High", icon: "escalate" as const },
-    { time: "2:45 PM", description: "Synopsis updated", icon: "update" as const },
-    { time: "3:10 PM", description: "Reviewed by Lt. Nguyen", icon: "review" as const },
-  ];
+  useEffect(() => {
+    loadData();
+  }, [loadData]);
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center py-20">
+        <Loader2 size={24} className="animate-spin text-[var(--text-tertiary)]" />
+      </div>
+    );
+  }
+
+  if (error || !detail) {
+    return (
+      <div className="flex flex-col items-center justify-center py-20 gap-3">
+        <AlertCircle size={24} className="text-[var(--status-critical)]" />
+        <p className="text-[13px] text-[var(--text-tertiary)]">{error || "Daily log not found"}</p>
+        <Link href="/daily-log">
+          <Button variant="outline" size="sm">Back to Daily Log</Button>
+        </Link>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-5 animate-fade-in">
@@ -214,7 +167,7 @@ export default function DailyLogDetailPage({
             <div className="surface-card p-5">
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-y-5 gap-x-8">
                 <Field label="Topic" value={detail.topic} />
-                <Field label="Location" value={detail.location} />
+                <Field label="Location" value={detail.location?.name || "Unknown"} />
                 <Field label="Priority">
                   <PriorityBadge priority={detail.priority} />
                 </Field>
@@ -222,11 +175,11 @@ export default function DailyLogDetailPage({
                   <StatusBadge status={detail.status} dot />
                 </Field>
                 <div className="sm:col-span-2">
-                  <Field label="Synopsis" value={detail.synopsis} />
+                  <Field label="Synopsis" value={detail.synopsis ?? undefined} />
                 </div>
-                <Field label="Created By" value={detail.createdBy} />
-                <Field label="Created At" value={detail.createdAt} />
-                <Field label="Updated At" value={detail.updatedAt} />
+                <Field label="Created By" value={detail.creator?.fullName || "Unknown"} />
+                <Field label="Created At" value={formatDateTime(detail.createdAt)} />
+                <Field label="Updated At" value={formatDateTime(detail.updatedAt)} />
               </div>
             </div>
           )}
@@ -238,20 +191,28 @@ export default function DailyLogDetailPage({
                 <div className="absolute left-[15px] top-2 bottom-2 w-px bg-[var(--border-default)]" />
 
                 <div className="space-y-5">
-                  {timeline.map((entry, i) => {
-                    const IconComp = TIMELINE_ICONS[entry.icon] ?? Clock;
+                  {auditEntries.length === 0 && (
+                    <p className="text-[13px] text-[var(--text-tertiary)] text-center py-4">
+                      No timeline entries yet
+                    </p>
+                  )}
+                  {auditEntries.map((entry) => {
+                    const IconComp = entry.action.toLowerCase().includes("creat") ? Plus
+                      : entry.action.toLowerCase().includes("view") ? Eye
+                      : entry.action.toLowerCase().includes("escalat") ? ArrowUpRight
+                      : Edit;
                     return (
-                      <div key={i} className="flex gap-3 relative">
+                      <div key={entry.id} className="flex gap-3 relative">
                         <div className="w-[31px] h-[31px] rounded-full bg-[var(--surface-secondary)] border border-[var(--border-default)] flex items-center justify-center shrink-0 z-10">
                           <IconComp size={13} className="text-[var(--text-tertiary)]" />
                         </div>
                         <div className="pt-1">
                           <p className="text-[13px] text-[var(--text-primary)]">
-                            {entry.description}
+                            {entry.action}{entry.actorName ? ` by ${entry.actorName}` : ""}
                           </p>
                           <p className="text-[11px] text-[var(--text-tertiary)] mt-0.5 flex items-center gap-1">
                             <Clock size={10} />
-                            {entry.time}
+                            {formatRelativeTime(entry.createdAt)}
                           </p>
                         </div>
                       </div>
@@ -354,12 +315,15 @@ export default function DailyLogDetailPage({
               Audit Trail
             </h3>
             <div className="space-y-2.5">
-              {MOCK_AUDIT.map((entry, i) => (
-                <div key={i} className="flex items-start gap-2">
+              {auditEntries.length === 0 && (
+                <p className="text-[12px] text-[var(--text-tertiary)]">No audit entries</p>
+              )}
+              {auditEntries.map((entry) => (
+                <div key={entry.id} className="flex items-start gap-2">
                   <div className="w-5 h-5 rounded-full bg-[var(--surface-secondary)] flex items-center justify-center shrink-0 mt-0.5">
-                    {entry.action === "Viewed" ? (
+                    {entry.action.toLowerCase().includes("view") ? (
                       <Eye size={10} className="text-[var(--text-tertiary)]" />
-                    ) : entry.action === "Created" ? (
+                    ) : entry.action.toLowerCase().includes("creat") ? (
                       <Plus size={10} className="text-[var(--text-tertiary)]" />
                     ) : (
                       <UserCheck size={10} className="text-[var(--text-tertiary)]" />
@@ -367,9 +331,11 @@ export default function DailyLogDetailPage({
                   </div>
                   <div>
                     <p className="text-[12px] text-[var(--text-primary)]">
-                      {entry.action} by {entry.user}
+                      {entry.action}{entry.actorName ? ` by ${entry.actorName}` : ""}
                     </p>
-                    <p className="text-[11px] text-[var(--text-tertiary)]">{entry.time}</p>
+                    <p className="text-[11px] text-[var(--text-tertiary)]">
+                      {formatRelativeTime(entry.createdAt)}
+                    </p>
                   </div>
                 </div>
               ))}
@@ -413,15 +379,25 @@ export default function DailyLogDetailPage({
         open={editLogModal}
         onClose={() => setEditLogModal(false)}
         onSubmit={async (data) => {
-          toast("Daily log updated", { variant: "success" });
-          setEditLogModal(false);
+          try {
+            await updateDailyLog(id, {
+              topic: data.topic,
+              synopsis: data.notes,
+              priority: data.priority,
+            });
+            toast("Daily log updated", { variant: "success" });
+            setEditLogModal(false);
+            loadData();
+          } catch (err: any) {
+            toast(err.message || "Failed to update", { variant: "error" });
+          }
         }}
         initialData={{
           topic: detail.topic,
-          location: detail.location,
+          location: detail.location?.name || "",
           priority: detail.priority,
-          notes: detail.synopsis,
-          staffInvolved: detail.createdBy,
+          notes: detail.synopsis || "",
+          staffInvolved: detail.creator?.fullName || "",
         }}
       />
 
@@ -438,8 +414,14 @@ export default function DailyLogDetailPage({
         open={deleteLogModal}
         onClose={() => setDeleteLogModal(false)}
         onConfirm={async () => {
-          toast("Daily log deleted", { variant: "info" });
-          setDeleteLogModal(false);
+          try {
+            await updateDailyLogStatus(id, "closed");
+            toast("Daily log closed", { variant: "info" });
+            setDeleteLogModal(false);
+            loadData();
+          } catch (err: any) {
+            toast(err.message || "Failed to close log", { variant: "error" });
+          }
         }}
         entryTitle={detail.topic}
       />
@@ -452,13 +434,13 @@ export default function DailyLogDetailPage({
           setCreateDispatchModal(false);
         }}
         logData={{
-          id: detail.recordNumber,
+          id: detail.id,
           recordNumber: detail.recordNumber,
           topic: detail.topic,
-          location: detail.location || "",
+          location: detail.location?.name || "",
           priority: detail.priority || "medium",
           synopsis: detail.synopsis || "",
-          createdBy: detail.createdBy || "",
+          createdBy: detail.creator?.fullName || "",
         }}
       />
 
@@ -471,12 +453,12 @@ export default function DailyLogDetailPage({
         }}
         sourceType="daily_log"
         sourceData={{
-          id: detail.recordNumber,
+          id: detail.id,
           title: detail.topic,
-          location: detail.location || "",
+          location: detail.location?.name || "",
           priority: detail.priority || "medium",
           synopsis: detail.synopsis || "",
-          createdBy: detail.createdBy || "",
+          createdBy: detail.creator?.fullName || "",
         }}
         targetType="dispatch"
       />

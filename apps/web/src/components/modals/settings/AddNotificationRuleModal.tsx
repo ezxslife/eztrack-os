@@ -4,17 +4,13 @@ import { useState } from "react";
 import { FormModal } from "@/components/modals/FormModal";
 import { Select } from "@/components/ui/Select";
 import { Toggle } from "@/components/ui/Toggle";
+import { useFormState } from "@/hooks/useFormState";
+import { addNotificationRuleSchema, type AddNotificationRuleValues } from "@/lib/validations/settings";
 
 interface AddNotificationRuleModalProps {
   open: boolean;
   onClose: () => void;
-  onSubmit: (data: {
-    eventType: string;
-    pushEnabled: boolean;
-    emailEnabled: boolean;
-    smsEnabled: boolean;
-    recipients: string;
-  }) => void | Promise<void>;
+  onSubmit: (data: AddNotificationRuleValues) => void | Promise<void>;
 }
 
 const EVENT_TYPE_OPTIONS = [
@@ -39,34 +35,24 @@ export function AddNotificationRuleModal({
   onClose,
   onSubmit,
 }: AddNotificationRuleModalProps) {
-  const [eventType, setEventType] = useState("");
-  const [pushEnabled, setPushEnabled] = useState(true);
-  const [emailEnabled, setEmailEnabled] = useState(false);
-  const [smsEnabled, setSmsEnabled] = useState(false);
-  const [recipients, setRecipients] = useState("");
+  const form = useFormState({
+    initialValues: {
+      eventType: "",
+      pushEnabled: true as boolean,
+      emailEnabled: false as boolean,
+      smsEnabled: false as boolean,
+      recipients: "",
+    },
+    schema: addNotificationRuleSchema,
+  });
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const isValid = eventType !== "" && recipients !== "";
-
-  const resetForm = () => {
-    setEventType("");
-    setPushEnabled(true);
-    setEmailEnabled(false);
-    setSmsEnabled(false);
-    setRecipients("");
-  };
-
   const handleSubmit = async () => {
+    if (!form.validate()) return;
     setIsSubmitting(true);
     try {
-      await onSubmit({
-        eventType,
-        pushEnabled,
-        emailEnabled,
-        smsEnabled,
-        recipients,
-      });
-      resetForm();
+      await onSubmit(form.values as AddNotificationRuleValues);
+      form.reset();
       onClose();
     } finally {
       setIsSubmitting(false);
@@ -74,7 +60,7 @@ export function AddNotificationRuleModal({
   };
 
   const handleClose = () => {
-    resetForm();
+    form.reset();
     onClose();
   };
 
@@ -87,41 +73,43 @@ export function AddNotificationRuleModal({
       size="md"
       submitLabel="Add Rule"
       isSubmitting={isSubmitting}
-      isValid={isValid}
+      isValid={form.isValid}
     >
       <Select
         label="Event Type"
         options={EVENT_TYPE_OPTIONS}
-        value={eventType}
-        onChange={(e) => setEventType(e.target.value)}
+        value={form.values.eventType}
+        onChange={(e) => form.setValue("eventType", e.target.value)}
         placeholder="Select event type"
+        error={form.touched.eventType ? form.errors.eventType : undefined}
       />
 
       <div className="space-y-3">
         <p className="text-[12px] font-medium text-[var(--text-secondary)]">Channels</p>
         <Toggle
           label="Push Notification"
-          checked={pushEnabled}
-          onChange={setPushEnabled}
+          checked={!!form.values.pushEnabled}
+          onChange={(val) => form.setValue("pushEnabled", val)}
         />
         <Toggle
           label="Email"
-          checked={emailEnabled}
-          onChange={setEmailEnabled}
+          checked={!!form.values.emailEnabled}
+          onChange={(val) => form.setValue("emailEnabled", val)}
         />
         <Toggle
           label="SMS"
-          checked={smsEnabled}
-          onChange={setSmsEnabled}
+          checked={!!form.values.smsEnabled}
+          onChange={(val) => form.setValue("smsEnabled", val)}
         />
       </div>
 
       <Select
         label="Recipients"
         options={RECIPIENT_OPTIONS}
-        value={recipients}
-        onChange={(e) => setRecipients(e.target.value)}
+        value={form.values.recipients}
+        onChange={(e) => form.setValue("recipients", e.target.value)}
         placeholder="Select recipients"
+        error={form.touched.recipients ? form.errors.recipients : undefined}
       />
     </FormModal>
   );

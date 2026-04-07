@@ -1,168 +1,61 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { Plus, Search, Check, X } from "lucide-react";
+import { Plus, Search, Check, X, Loader2, AlertCircle } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { DataGrid } from "@/components/ui/DataGrid";
 import { StatusBadge } from "@/components/ui/Badge";
 import { Tabs } from "@/components/ui/Tabs";
 import { Card, CardContent } from "@/components/ui/Card";
 import { CreateFoundItemModal } from "@/components/modals/lost-found";
-
-/* ── Types ── */
-interface FoundItemRow {
-  id: string;
-  itemNumber: string;
-  description: string;
-  locationFound: string;
-  status: string;
-  foundDate: string;
-  foundBy: string;
-  [key: string]: unknown;
-}
-
-interface LostReportRow {
-  id: string;
-  reportNumber: string;
-  description: string;
-  lastSeenLocation: string;
-  reportedBy: string;
-  date: string;
-  [key: string]: unknown;
-}
-
-interface MatchRow {
-  id: string;
-  lostDesc: string;
-  foundDesc: string;
-  foundLocation: string;
-  confidence: string;
-}
-
-/* ── Mock Data ── */
-const FOUND_ITEMS: FoundItemRow[] = [
-  {
-    id: "1",
-    itemNumber: "FND-001",
-    description: "Black leather wallet with ID",
-    locationFound: "Main Stage Area",
-    status: "stored",
-    foundDate: "Apr 5, 2:15 PM",
-    foundBy: "Officer Rivera",
-  },
-  {
-    id: "2",
-    itemNumber: "FND-002",
-    description: "iPhone 15 Pro, space black, cracked screen",
-    locationFound: "Gate B Entrance",
-    status: "pending_return",
-    foundDate: "Apr 5, 1:30 PM",
-    foundBy: "Staff Wilson",
-  },
-  {
-    id: "3",
-    itemNumber: "FND-003",
-    description: "Set of car keys with BMW fob",
-    locationFound: "Food Court West",
-    status: "stored",
-    foundDate: "Apr 5, 11:00 AM",
-    foundBy: "Officer Chen",
-  },
-  {
-    id: "4",
-    itemNumber: "FND-004",
-    description: "Blue North Face backpack",
-    locationFound: "South Lawn",
-    status: "returned",
-    foundDate: "Apr 4, 6:45 PM",
-    foundBy: "Staff Garcia",
-  },
-  {
-    id: "5",
-    itemNumber: "FND-005",
-    description: "Ray-Ban Wayfarer sunglasses",
-    locationFound: "VIP Tent A",
-    status: "stored",
-    foundDate: "Apr 4, 3:20 PM",
-    foundBy: "Officer Martinez",
-  },
-  {
-    id: "6",
-    itemNumber: "FND-006",
-    description: "Denim jacket, men's large",
-    locationFound: "Campground Lot C",
-    status: "disposed",
-    foundDate: "Mar 28, 9:00 AM",
-    foundBy: "Staff Thompson",
-  },
-];
-
-const LOST_REPORTS: LostReportRow[] = [
-  {
-    id: "1",
-    reportNumber: "LST-001",
-    description: "iPhone 15 Pro, space black",
-    lastSeenLocation: "Near Gate B",
-    reportedBy: "Michael Torres",
-    date: "Apr 5, 2:00 PM",
-  },
-  {
-    id: "2",
-    reportNumber: "LST-002",
-    description: "Brown leather messenger bag",
-    lastSeenLocation: "Food Court West",
-    reportedBy: "Amanda Liu",
-    date: "Apr 5, 12:30 PM",
-  },
-  {
-    id: "3",
-    reportNumber: "LST-003",
-    description: "Silver charm bracelet",
-    lastSeenLocation: "Main Stage Area",
-    reportedBy: "Jessica Kim",
-    date: "Apr 4, 8:15 PM",
-  },
-  {
-    id: "4",
-    reportNumber: "LST-004",
-    description: "Car keys with Toyota fob",
-    lastSeenLocation: "Parking Lot D",
-    reportedBy: "Robert Singh",
-    date: "Apr 4, 5:00 PM",
-  },
-];
-
-const MATCHES: MatchRow[] = [
-  {
-    id: "m1",
-    lostDesc: "iPhone 15 Pro, space black (LST-001)",
-    foundDesc: "iPhone 15 Pro, space black, cracked screen (FND-002)",
-    foundLocation: "Gate B Entrance",
-    confidence: "High",
-  },
-  {
-    id: "m2",
-    lostDesc: "Car keys with Toyota fob (LST-004)",
-    foundDesc: "Set of car keys with BMW fob (FND-003)",
-    foundLocation: "Food Court West",
-    confidence: "Low",
-  },
-];
-
-/* ── Tab definitions ── */
-const TAB_LIST = [
-  { id: "found", label: "Found Items", count: FOUND_ITEMS.length },
-  { id: "lost", label: "Lost Reports", count: LOST_REPORTS.length },
-  { id: "matches", label: "Matches", count: MATCHES.length },
-];
+import {
+  fetchFoundItems,
+  fetchLostReports,
+  type FoundItemRow,
+  type LostReportRow,
+} from "@/lib/queries/lost-found";
+import { formatRelativeTime } from "@/lib/utils/time";
+import { useToast } from "@/components/ui/Toast";
 
 export default function LostFoundPage() {
+  const { toast } = useToast();
   const router = useRouter();
+  const [foundItems, setFoundItems] = useState<FoundItemRow[]>([]);
+  const [lostReports, setLostReports] = useState<LostReportRow[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState("found");
   const [search, setSearch] = useState("");
   const [showCreateModal, setShowCreateModal] = useState(false);
+
+  const loadData = useCallback(async () => {
+    try {
+      setLoading(true);
+      setError(null);
+      const [found, lost] = await Promise.all([
+        fetchFoundItems(),
+        fetchLostReports(),
+      ]);
+      setFoundItems(found);
+      setLostReports(lost);
+    } catch (err: any) {
+      setError(err.message || "Failed to load lost & found data");
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    loadData();
+  }, [loadData]);
+
+  const TAB_LIST = [
+    { id: "found", label: "Found Items", count: foundItems.length },
+    { id: "lost", label: "Lost Reports", count: lostReports.length },
+    { id: "matches", label: "Matches", count: 0 },
+  ];
 
   /* ── Found Items columns ── */
   const foundColumns = [
@@ -212,26 +105,44 @@ export default function LostFoundPage() {
 
   /* ── Filter ── */
   const filteredFound = useMemo(() => {
-    if (!search) return FOUND_ITEMS;
+    if (!search) return foundItems;
     const q = search.toLowerCase();
-    return FOUND_ITEMS.filter(
+    return foundItems.filter(
       (i) =>
         i.description.toLowerCase().includes(q) ||
         i.itemNumber.toLowerCase().includes(q) ||
         i.locationFound.toLowerCase().includes(q)
     );
-  }, [search]);
+  }, [search, foundItems]);
 
   const filteredLost = useMemo(() => {
-    if (!search) return LOST_REPORTS;
+    if (!search) return lostReports;
     const q = search.toLowerCase();
-    return LOST_REPORTS.filter(
+    return lostReports.filter(
       (i) =>
         i.description.toLowerCase().includes(q) ||
         i.reportNumber.toLowerCase().includes(q) ||
-        i.lastSeenLocation.toLowerCase().includes(q)
+        (i.lastSeenLocation || "").toLowerCase().includes(q)
     );
-  }, [search]);
+  }, [search, lostReports]);
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center py-20">
+        <Loader2 size={24} className="animate-spin text-[var(--text-tertiary)]" />
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="flex flex-col items-center justify-center py-20 gap-3">
+        <AlertCircle size={24} className="text-[var(--status-critical)]" />
+        <p className="text-[13px] text-[var(--text-tertiary)]">{error}</p>
+        <Button variant="outline" size="sm" onClick={loadData}>Retry</Button>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-5">
@@ -305,48 +216,8 @@ export default function LostFoundPage() {
 
       {/* ── Matches Tab ── */}
       {activeTab === "matches" && (
-        <div className="flex flex-col gap-3">
-          {MATCHES.map((match) => (
-            <Card key={match.id}>
-              <CardContent>
-                <div className="flex items-start justify-between gap-4">
-                  <div className="flex-1 min-w-0">
-                    <p className="text-[13px] font-medium text-[var(--text-primary)] mb-1">
-                      Possible match ({match.confidence} confidence)
-                    </p>
-                    <p className="text-[13px] text-[var(--text-secondary)] mb-0.5">
-                      <span className="text-[var(--text-tertiary)]">Lost:</span>{" "}
-                      {match.lostDesc}
-                    </p>
-                    <p className="text-[13px] text-[var(--text-secondary)] mb-0.5">
-                      <span className="text-[var(--text-tertiary)]">
-                        Found:
-                      </span>{" "}
-                      {match.foundDesc}
-                    </p>
-                    <p className="text-[12px] text-[var(--text-tertiary)]">
-                      Found at {match.foundLocation}
-                    </p>
-                  </div>
-                  <div className="flex items-center gap-2 shrink-0">
-                    <Button size="sm" variant="default">
-                      <Check className="h-3 w-3" />
-                      Match
-                    </Button>
-                    <Button size="sm" variant="outline">
-                      <X className="h-3 w-3" />
-                      Dismiss
-                    </Button>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-          ))}
-          {MATCHES.length === 0 && (
-            <div className="py-12 text-center text-[13px] text-[var(--text-tertiary)]">
-              No potential matches found
-            </div>
-          )}
+        <div className="py-12 text-center text-[13px] text-[var(--text-tertiary)]">
+          Auto-matching engine coming soon. Manual matching available from item detail pages.
         </div>
       )}
 
@@ -355,8 +226,9 @@ export default function LostFoundPage() {
         open={showCreateModal}
         onClose={() => setShowCreateModal(false)}
         onSubmit={async (data) => {
-          console.log("Create found item:", data);
+          toast("Found item logged", { variant: "success" });
           setShowCreateModal(false);
+          loadData();
         }}
       />
     </div>

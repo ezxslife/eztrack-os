@@ -5,25 +5,13 @@ import { FormModal } from "@/components/modals/FormModal";
 import { Input } from "@/components/ui/Input";
 import { Select } from "@/components/ui/Select";
 import { Textarea } from "@/components/ui/Textarea";
+import { useFormState } from "@/hooks/useFormState";
+import { createContactSchema, type CreateContactValues } from "@/lib/validations/contacts";
 
 interface CreateContactModalProps {
   open: boolean;
   onClose: () => void;
-  onSubmit: (data: {
-    contactType: string;
-    firstName: string;
-    lastName: string;
-    organizationName: string;
-    category: string;
-    email: string;
-    phone: string;
-    secondaryPhone: string;
-    address: string;
-    title: string;
-    idType: string;
-    idNumber: string;
-    notes: string;
-  }) => void | Promise<void>;
+  onSubmit: (data: CreateContactValues) => void | Promise<void>;
 }
 
 const CONTACT_TYPE_OPTIONS = [
@@ -52,58 +40,32 @@ export function CreateContactModal({
   onClose,
   onSubmit,
 }: CreateContactModalProps) {
-  const [contactType, setContactType] = useState("individual");
-  const [firstName, setFirstName] = useState("");
-  const [lastName, setLastName] = useState("");
-  const [organizationName, setOrganizationName] = useState("");
-  const [category, setCategory] = useState("");
-  const [email, setEmail] = useState("");
-  const [phone, setPhone] = useState("");
-  const [secondaryPhone, setSecondaryPhone] = useState("");
-  const [address, setAddress] = useState("");
-  const [title, setTitle] = useState("");
-  const [idType, setIdType] = useState("");
-  const [idNumber, setIdNumber] = useState("");
-  const [notes, setNotes] = useState("");
+  const form = useFormState({
+    initialValues: {
+      contactType: "individual",
+      firstName: "",
+      lastName: "",
+      organizationName: "",
+      category: "",
+      email: "",
+      phone: "",
+      secondaryPhone: "",
+      address: "",
+      title: "",
+      idType: "",
+      idNumber: "",
+      notes: "",
+    },
+    schema: createContactSchema,
+  });
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const isValid = phone.trim().length > 0 && (contactType === "individual" ? firstName.trim().length > 0 : organizationName.trim().length > 0);
-
-  const resetForm = () => {
-    setContactType("individual");
-    setFirstName("");
-    setLastName("");
-    setOrganizationName("");
-    setCategory("");
-    setEmail("");
-    setPhone("");
-    setSecondaryPhone("");
-    setAddress("");
-    setTitle("");
-    setIdType("");
-    setIdNumber("");
-    setNotes("");
-  };
-
   const handleSubmit = async () => {
+    if (!form.validate()) return;
     setIsSubmitting(true);
     try {
-      await onSubmit({
-        contactType,
-        firstName: firstName.trim(),
-        lastName: lastName.trim(),
-        organizationName: organizationName.trim(),
-        category,
-        email: email.trim(),
-        phone: phone.trim(),
-        secondaryPhone: secondaryPhone.trim(),
-        address: address.trim(),
-        title: title.trim(),
-        idType,
-        idNumber: idNumber.trim(),
-        notes: notes.trim(),
-      });
-      resetForm();
+      await onSubmit(form.values as CreateContactValues);
+      form.reset();
       onClose();
     } finally {
       setIsSubmitting(false);
@@ -111,7 +73,7 @@ export function CreateContactModal({
   };
 
   const handleClose = () => {
-    resetForm();
+    form.reset();
     onClose();
   };
 
@@ -124,7 +86,7 @@ export function CreateContactModal({
       size="md"
       submitLabel="Add Contact"
       isSubmitting={isSubmitting}
-      isValid={isValid}
+      isValid={form.isValid}
     >
       <div className="flex gap-3">
         {CONTACT_TYPE_OPTIONS.map((opt) => (
@@ -133,8 +95,8 @@ export function CreateContactModal({
               type="radio"
               name="contactType"
               value={opt.value}
-              checked={contactType === opt.value}
-              onChange={(e) => setContactType(e.target.value)}
+              checked={form.values.contactType === opt.value}
+              onChange={(e) => form.setValue("contactType", e.target.value)}
               className="accent-[var(--eztrack-primary-500,#6366f1)]"
             />
             <span className="text-[13px] text-[var(--text-primary)]">{opt.label}</span>
@@ -142,19 +104,20 @@ export function CreateContactModal({
         ))}
       </div>
 
-      {contactType === "individual" ? (
+      {form.values.contactType === "individual" ? (
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <Input
             label="First Name"
             placeholder="First name"
-            value={firstName}
-            onChange={(e) => setFirstName(e.target.value)}
+            value={form.values.firstName}
+            onChange={(e) => form.setValue("firstName", e.target.value)}
+            error={form.touched.firstName ? form.errors.firstName : undefined}
           />
           <Input
             label="Last Name"
             placeholder="Last name"
-            value={lastName}
-            onChange={(e) => setLastName(e.target.value)}
+            value={form.values.lastName}
+            onChange={(e) => form.setValue("lastName", e.target.value)}
           />
         </div>
       ) : null}
@@ -162,16 +125,18 @@ export function CreateContactModal({
       <Input
         label="Organization Name"
         placeholder="Organization or company"
-        value={organizationName}
-        onChange={(e) => setOrganizationName(e.target.value)}
+        value={form.values.organizationName}
+        onChange={(e) => form.setValue("organizationName", e.target.value)}
+        error={form.touched.organizationName ? form.errors.organizationName : undefined}
       />
 
       <Select
         label="Category"
         options={CATEGORY_OPTIONS}
-        value={category}
-        onChange={(e) => setCategory(e.target.value)}
+        value={form.values.category}
+        onChange={(e) => form.setValue("category", e.target.value)}
         placeholder="Select category"
+        error={form.touched.category ? form.errors.category : undefined}
       />
 
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -179,15 +144,17 @@ export function CreateContactModal({
           label="Email"
           type="email"
           placeholder="email@example.com"
-          value={email}
-          onChange={(e) => setEmail(e.target.value)}
+          value={form.values.email}
+          onChange={(e) => form.setValue("email", e.target.value)}
+          error={form.touched.email ? form.errors.email : undefined}
         />
         <Input
           label="Phone (required)"
           type="tel"
           placeholder="(555) 123-4567"
-          value={phone}
-          onChange={(e) => setPhone(e.target.value)}
+          value={form.values.phone}
+          onChange={(e) => form.setValue("phone", e.target.value)}
+          error={form.touched.phone ? form.errors.phone : undefined}
         />
       </div>
 
@@ -195,46 +162,46 @@ export function CreateContactModal({
         label="Secondary Phone"
         type="tel"
         placeholder="(555) 987-6543"
-        value={secondaryPhone}
-        onChange={(e) => setSecondaryPhone(e.target.value)}
+        value={form.values.secondaryPhone}
+        onChange={(e) => form.setValue("secondaryPhone", e.target.value)}
       />
 
       <Textarea
         label="Address"
         placeholder="Full address..."
-        value={address}
-        onChange={(e) => setAddress(e.target.value)}
+        value={form.values.address}
+        onChange={(e) => form.setValue("address", e.target.value)}
         rows={2}
       />
 
       <Input
         label="Title"
         placeholder="Job title or role"
-        value={title}
-        onChange={(e) => setTitle(e.target.value)}
+        value={form.values.title}
+        onChange={(e) => form.setValue("title", e.target.value)}
       />
 
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
         <Select
           label="ID Type"
           options={ID_TYPE_OPTIONS}
-          value={idType}
-          onChange={(e) => setIdType(e.target.value)}
+          value={form.values.idType}
+          onChange={(e) => form.setValue("idType", e.target.value)}
           placeholder="Select ID type"
         />
         <Input
           label="ID Number"
           placeholder="ID number"
-          value={idNumber}
-          onChange={(e) => setIdNumber(e.target.value)}
+          value={form.values.idNumber}
+          onChange={(e) => form.setValue("idNumber", e.target.value)}
         />
       </div>
 
       <Textarea
         label="Notes"
         placeholder="Additional notes..."
-        value={notes}
-        onChange={(e) => setNotes(e.target.value)}
+        value={form.values.notes}
+        onChange={(e) => form.setValue("notes", e.target.value)}
         rows={2}
       />
     </FormModal>

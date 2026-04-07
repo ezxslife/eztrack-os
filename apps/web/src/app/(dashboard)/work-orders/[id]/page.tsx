@@ -1,6 +1,6 @@
 "use client";
 
-import { use, useState } from "react";
+import { use, useState, useEffect, useCallback } from "react";
 import Link from "next/link";
 import {
   ArrowLeft,
@@ -33,39 +33,10 @@ const CloseWorkOrderModal = dynamic(() => import("@/components/modals/work-order
 const AddWorkOrderNoteModal = dynamic(() => import("@/components/modals/work-orders/AddWorkOrderNoteModal").then(m => ({ default: m.AddWorkOrderNoteModal })), { ssr: false });
 const DeleteWorkOrderModal = dynamic(() => import("@/components/modals/work-orders/DeleteWorkOrderModal").then(m => ({ default: m.DeleteWorkOrderModal })), { ssr: false });
 
-/* ═══════════════════════════════════════════════════════════════
-   MOCK DATA
-   ═══════════════════════════════════════════════════════════════ */
-
-const WORK_ORDER = {
-  id: "wo-2026-0047",
-  woNumber: "WO-2026-0047",
-  title: "Replace broken gate latch — North Perimeter Gate 3",
-  description:
-    "The latch mechanism on North Perimeter Gate 3 has failed and no longer secures the gate. The gate can be pushed open without resistance, creating a security vulnerability. The latch housing appears corroded and the spring mechanism is broken. Full latch assembly replacement is required. Gate must remain monitored by personnel until the repair is completed.",
-  category: "security",
-  priority: "high" as const,
-  status: "in_progress",
-  location: "North Perimeter",
-  specificLocation: "Gate 3",
-  assignedTo: {
-    name: "Sarah Martinez",
-    initials: "SM",
-    role: "Maintenance Technician",
-    note: "Latch assembly ordered from supplier — expected delivery AM Apr 5. Will install same day if parts arrive on schedule.",
-  },
-  estimatedCost: 450.0,
-  actualCost: null as number | null,
-  scheduledDate: "Apr 4, 2026",
-  dueDate: "Apr 6, 2026",
-  completedAt: null as string | null,
-  createdBy: "Lt. Nguyen",
-  createdAt: "Apr 4, 2026 9:15 AM",
-  linkedCase: {
-    id: "CASE-2026-000012",
-    title: "Unauthorized access — North Perimeter breach",
-  },
-};
+import { Loader2, AlertCircle } from "lucide-react";
+import { useToast } from "@/components/ui/Toast";
+import { fetchWorkOrderById, updateWorkOrderStatus, deleteWorkOrder, type WorkOrderDetail } from "@/lib/queries/work-orders";
+import { formatDateTime } from "@/lib/utils/time";
 
 const STATUS_STEPS = [
   { key: "open", label: "Open" },
@@ -142,15 +113,86 @@ export default function WorkOrderDetailPage({
   params: Promise<{ id: string }>;
 }) {
   const { id } = use(params);
-  const wo = WORK_ORDER;
-  const currentStepIndex = getStatusStepIndex(wo.status);
-  const progressPercent = Math.round(((currentStepIndex + 1) / STATUS_STEPS.length) * 100);
+  const { toast } = useToast();
+
+  const [workOrderData, setWorkOrderData] = useState<WorkOrderDetail | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   const [showAssignModal, setShowAssignModal] = useState(false);
   const [showCompleteModal, setShowCompleteModal] = useState(false);
   const [showCloseModal, setShowCloseModal] = useState(false);
   const [showNoteModal, setShowNoteModal] = useState(false);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
+
+  const loadWorkOrder = useCallback(async () => {
+    try {
+      setLoading(true);
+      setError(null);
+      const data = await fetchWorkOrderById(id);
+      setWorkOrderData(data);
+    } catch (err: any) {
+      setError(err.message || "Failed to load work order");
+    } finally {
+      setLoading(false);
+    }
+  }, [id]);
+
+  useEffect(() => {
+    loadWorkOrder();
+  }, [loadWorkOrder]);
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center py-20">
+        <Loader2 size={24} className="animate-spin text-[var(--text-tertiary)]" />
+      </div>
+    );
+  }
+
+  if (error || !workOrderData) {
+    return (
+      <div className="flex flex-col items-center justify-center py-20 gap-3">
+        <AlertCircle size={24} className="text-[var(--status-critical)]" />
+        <p className="text-[13px] text-[var(--text-tertiary)]">{error || "Work order not found"}</p>
+        <Link href="/work-orders"><Button variant="outline" size="sm">Back to Work Orders</Button></Link>
+      </div>
+    );
+  }
+
+  // Map real DB data → template shape
+  const initials = workOrderData.assignedStaff?.fullName
+    ? workOrderData.assignedStaff.fullName.split(" ").map((w) => w[0]).join("").slice(0, 2).toUpperCase()
+    : "??";
+
+  const wo = {
+    id: workOrderData.id,
+    woNumber: workOrderData.recordNumber,
+    title: workOrderData.title,
+    description: workOrderData.description || "No description provided",
+    category: workOrderData.category,
+    priority: workOrderData.priority,
+    status: workOrderData.status,
+    location: workOrderData.location?.name || "Unknown",
+    specificLocation: "",
+    assignedTo: {
+      name: workOrderData.assignedStaff?.fullName || "Unassigned",
+      initials,
+      role: "",
+      note: "",
+    },
+    estimatedCost: workOrderData.estimatedCost || 0,
+    actualCost: null as number | null,
+    scheduledDate: workOrderData.scheduledDate ? formatDateTime(workOrderData.scheduledDate) : "—",
+    dueDate: workOrderData.dueDate ? formatDateTime(workOrderData.dueDate) : "—",
+    completedAt: null as string | null,
+    createdBy: workOrderData.creator?.fullName || "Unknown",
+    createdAt: formatDateTime(workOrderData.createdAt),
+    linkedCase: null as { id: string; title: string } | null,
+  };
+
+  const currentStepIndex = getStatusStepIndex(wo.status);
+  const progressPercent = Math.round(((currentStepIndex + 1) / STATUS_STEPS.length) * 100);
 
   return (
     <div className="space-y-5 max-w-3xl pb-24">
@@ -556,8 +598,14 @@ export default function WorkOrderDetailPage({
         open={showCompleteModal}
         onClose={() => setShowCompleteModal(false)}
         onSubmit={async (data) => {
-          console.log("Complete work order:", data);
-          setShowCompleteModal(false);
+          try {
+            await updateWorkOrderStatus(workOrderData.id, "completed");
+            toast("Work order completed", { variant: "success" });
+            setShowCompleteModal(false);
+            loadWorkOrder();
+          } catch (err: any) {
+            toast(err.message || "Failed to complete", { variant: "error" });
+          }
         }}
         estimatedCost={wo.estimatedCost}
       />
@@ -565,8 +613,14 @@ export default function WorkOrderDetailPage({
         open={showCloseModal}
         onClose={() => setShowCloseModal(false)}
         onConfirm={async (reason) => {
-          console.log("Close work order:", reason);
-          setShowCloseModal(false);
+          try {
+            await updateWorkOrderStatus(workOrderData.id, "closed");
+            toast("Work order closed", { variant: "success" });
+            setShowCloseModal(false);
+            loadWorkOrder();
+          } catch (err: any) {
+            toast(err.message || "Failed to close", { variant: "error" });
+          }
         }}
       />
       <AddWorkOrderNoteModal
@@ -581,8 +635,14 @@ export default function WorkOrderDetailPage({
         open={showDeleteModal}
         onClose={() => setShowDeleteModal(false)}
         onConfirm={async () => {
-          console.log("Delete work order:", id);
-          setShowDeleteModal(false);
+          try {
+            await deleteWorkOrder(workOrderData.id);
+            toast("Work order deleted", { variant: "info" });
+            setShowDeleteModal(false);
+            window.location.href = "/work-orders";
+          } catch (err: any) {
+            toast(err.message || "Failed to delete", { variant: "error" });
+          }
         }}
       />
     </div>

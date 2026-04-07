@@ -5,20 +5,14 @@ import { FormModal } from "@/components/modals/FormModal";
 import { Input } from "@/components/ui/Input";
 import { Select } from "@/components/ui/Select";
 import { Textarea } from "@/components/ui/Textarea";
+import { useFormState } from "@/hooks/useFormState";
+import { editDailyLogSchema, type EditDailyLogValues } from "@/lib/validations/daily-logs";
 
 interface EditDailyLogModalProps {
   open: boolean;
   onClose: () => void;
-  onSubmit: (data: DailyLogFormData) => void | Promise<void>;
-  initialData: DailyLogFormData | null;
-}
-
-interface DailyLogFormData {
-  topic: string;
-  location: string;
-  priority: string;
-  notes: string;
-  staffInvolved: string;
+  onSubmit: (data: EditDailyLogValues) => void | Promise<void>;
+  initialData: EditDailyLogValues | null;
 }
 
 const LOCATION_OPTIONS = [
@@ -44,29 +38,29 @@ export function EditDailyLogModal({
   onSubmit,
   initialData,
 }: EditDailyLogModalProps) {
-  const [topic, setTopic] = useState("");
-  const [location, setLocation] = useState("");
-  const [priority, setPriority] = useState("low");
-  const [notes, setNotes] = useState("");
-  const [staffInvolved, setStaffInvolved] = useState("");
+  const form = useFormState({
+    initialValues: { topic: "", location: "", priority: "low", notes: "", staffInvolved: "" },
+    schema: editDailyLogSchema,
+  });
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   useEffect(() => {
     if (initialData && open) {
-      setTopic(initialData.topic);
-      setLocation(initialData.location);
-      setPriority(initialData.priority);
-      setNotes(initialData.notes);
-      setStaffInvolved(initialData.staffInvolved);
+      form.setValues({
+        topic: initialData.topic ?? "",
+        location: initialData.location ?? "",
+        priority: initialData.priority ?? "low",
+        notes: initialData.notes ?? "",
+        staffInvolved: initialData.staffInvolved ?? "",
+      });
     }
-  }, [initialData, open]);
-
-  const isValid = topic.trim() !== "";
+  }, [initialData, open]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleSubmit = async () => {
+    if (!form.validate()) return;
     setIsSubmitting(true);
     try {
-      await onSubmit({ topic, location, priority, notes, staffInvolved });
+      await onSubmit(form.values as EditDailyLogValues);
       onClose();
     } finally {
       setIsSubmitting(false);
@@ -83,43 +77,45 @@ export function EditDailyLogModal({
       size="md"
       submitLabel="Save Changes"
       isSubmitting={isSubmitting}
-      isValid={isValid}
+      isValid={form.isValid}
     >
       <Input
         label="Topic"
         placeholder="What happened?"
-        value={topic}
-        onChange={(e) => setTopic(e.target.value)}
+        value={form.values.topic}
+        onChange={(e) => form.setValue("topic", e.target.value)}
+        error={form.touched.topic ? form.errors.topic : undefined}
       />
 
       <Select
         label="Location"
         options={LOCATION_OPTIONS}
-        value={location}
-        onChange={(e) => setLocation(e.target.value)}
+        value={form.values.location}
+        onChange={(e) => form.setValue("location", e.target.value)}
         placeholder="Select location..."
       />
 
       <Select
         label="Priority"
         options={PRIORITY_OPTIONS}
-        value={priority}
-        onChange={(e) => setPriority(e.target.value)}
+        value={form.values.priority}
+        onChange={(e) => form.setValue("priority", e.target.value)}
+        error={form.touched.priority ? form.errors.priority : undefined}
       />
 
       <Textarea
         label="Notes"
         placeholder="Additional details..."
-        value={notes}
-        onChange={(e) => setNotes(e.target.value)}
+        value={form.values.notes}
+        onChange={(e) => form.setValue("notes", e.target.value)}
         rows={3}
       />
 
       <Input
         label="Staff Involved"
         placeholder="Names of staff involved..."
-        value={staffInvolved}
-        onChange={(e) => setStaffInvolved(e.target.value)}
+        value={form.values.staffInvolved}
+        onChange={(e) => form.setValue("staffInvolved", e.target.value)}
       />
     </FormModal>
   );

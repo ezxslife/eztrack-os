@@ -392,7 +392,7 @@ export default function VehicleDetailPage({
         vehicle={{
           make: vehicle.make,
           model: vehicle.model,
-          year: vehicle.year,
+          year: String(vehicle.year),
           color: vehicle.color,
           licensePlate: vehicle.plate,
           licenseState: vehicle.registrationState,

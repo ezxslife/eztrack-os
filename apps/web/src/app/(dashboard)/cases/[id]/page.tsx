@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, use } from "react";
+import { useState, use, useEffect, useCallback } from "react";
 import Link from "next/link";
 import {
   ArrowLeft,
@@ -64,8 +64,12 @@ const CaseClosureWizard = dynamic(() => import("@/components/modals/cases/CaseCl
 const CreateBriefingFromCaseModal = dynamic(() => import("@/components/modals/workflows/CreateBriefingFromCaseModal").then(m => ({ default: m.CreateBriefingFromCaseModal })), { ssr: false });
 const CreateWorkOrderFromCaseModal = dynamic(() => import("@/components/modals/workflows/CreateWorkOrderFromCaseModal").then(m => ({ default: m.CreateWorkOrderFromCaseModal })), { ssr: false });
 
+import { Loader2, AlertCircle } from "lucide-react";
+import { fetchCaseById, updateCaseStatus, deleteCase, type CaseDetail } from "@/lib/queries/cases";
+import { formatDateTime, formatRelativeTime } from "@/lib/utils/time";
+
 /* ================================================================
-   MOCK DATA
+   MOCK DATA (sub-resources — no dedicated DB tables yet)
    ================================================================ */
 
 const STAGES = [
@@ -330,7 +334,67 @@ export default function CaseDetailPage({
   const [createBriefingModal, setCreateBriefingModal] = useState(false);
   const [createWorkOrderModal, setCreateWorkOrderModal] = useState(false);
 
-  const c = CASE_DATA;
+  // ── Real data fetch ──
+  const [caseData, setCaseData] = useState<CaseDetail | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  const loadCase = useCallback(async () => {
+    try {
+      setLoading(true);
+      setError(null);
+      const data = await fetchCaseById(id);
+      setCaseData(data);
+    } catch (err: any) {
+      setError(err.message || "Failed to load case");
+    } finally {
+      setLoading(false);
+    }
+  }, [id]);
+
+  useEffect(() => {
+    loadCase();
+  }, [loadCase]);
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center py-20">
+        <Loader2 size={24} className="animate-spin text-[var(--text-tertiary)]" />
+      </div>
+    );
+  }
+
+  if (error || !caseData) {
+    return (
+      <div className="flex flex-col items-center justify-center py-20 gap-3">
+        <AlertCircle size={24} className="text-[var(--status-critical)]" />
+        <p className="text-[13px] text-[var(--text-tertiary)]">{error || "Case not found"}</p>
+        <Link href="/cases"><Button variant="outline" size="sm">Back to Cases</Button></Link>
+      </div>
+    );
+  }
+
+  // Map real DB data → template shape (sub-resource counts stay mock)
+  const c = {
+    id: caseData.recordNumber,
+    title: caseData.caseType,
+    stage: "assessment" as const,
+    status: caseData.status,
+    priority: (caseData.escalationLevel || "medium") as "critical" | "high" | "medium" | "low",
+    daysOpen: Math.floor((Date.now() - new Date(caseData.createdAt).getTime()) / 86400000),
+    createdBy: caseData.creator?.fullName || "Unknown",
+    caseManager: caseData.leadInvestigator?.fullName || "Unassigned",
+    createdAt: formatDateTime(caseData.createdAt),
+    updatedAt: formatDateTime(caseData.updatedAt),
+    location: "—",
+    category: caseData.caseType,
+    description: caseData.synopsis || "No synopsis provided",
+    evidenceCount: EVIDENCE.length,
+    taskCount: TASKS.length,
+    tasksCompleted: TASKS.filter((t) => t.percentComplete === 100).length,
+    resourceCount: RESOURCES.length,
+    narrativeCount: NARRATIVES.length,
+  };
   const currentStageIndex = STAGES.findIndex((s) => s.key === c.stage);
 
   return (
@@ -429,8 +493,14 @@ export default function CaseDetailPage({
         open={statusChangeModal}
         onClose={() => setStatusChangeModal(false)}
         onConfirm={async (newStatus, reason) => {
-          toast("Case status updated", { variant: "success" });
-          setStatusChangeModal(false);
+          try {
+            await updateCaseStatus(caseData.id, newStatus.toLowerCase() as any);
+            toast("Case status updated", { variant: "success" });
+            setStatusChangeModal(false);
+            loadCase();
+          } catch (err: any) {
+            toast(err.message || "Failed to update status", { variant: "error" });
+          }
         }}
         currentStatus={c.status.toUpperCase()}
         caseNumber={c.id}
@@ -492,8 +562,14 @@ export default function CaseDetailPage({
         open={deleteCaseModal}
         onClose={() => setDeleteCaseModal(false)}
         onConfirm={async (reason) => {
-          toast("Case deleted", { variant: "info" });
-          setDeleteCaseModal(false);
+          try {
+            await deleteCase(caseData.id);
+            toast("Case deleted", { variant: "info" });
+            setDeleteCaseModal(false);
+            window.location.href = "/cases";
+          } catch (err: any) {
+            toast(err.message || "Failed to delete case", { variant: "error" });
+          }
         }}
         caseNumber={c.id}
       />

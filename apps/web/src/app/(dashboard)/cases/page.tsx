@@ -1,85 +1,55 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { Plus, Search } from "lucide-react";
+import { Plus, Search, Loader2, AlertCircle } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { DataGrid } from "@/components/ui/DataGrid";
 import { StatusBadge } from "@/components/ui/Badge";
 import { PriorityBadge } from "@/components/ui/PriorityBadge";
 import { DeleteCaseModal } from "@/components/modals/cases";
 import { useToast } from "@/components/ui/Toast";
-
-/* ── Types ── */
-interface CaseRow {
-  id: string;
-  caseNumber: string;
-  caseType: string;
-  status: string;
-  leadInvestigator: string;
-  created: string;
-  priority: "critical" | "high" | "medium" | "low";
-  [key: string]: unknown;
-}
-
-/* ── Mock Data ── */
-const MOCK_CASES: CaseRow[] = [
-  {
-    id: "1",
-    caseNumber: "CSE-2026-001",
-    caseType: "Theft Investigation",
-    status: "in_progress",
-    leadInvestigator: "Sgt. Maria Patel",
-    created: "Apr 5, 10:30 AM",
-    priority: "high",
-  },
-  {
-    id: "2",
-    caseNumber: "CSE-2026-002",
-    caseType: "Assault Follow-up",
-    status: "investigation",
-    leadInvestigator: "Lt. Sarah Nguyen",
-    created: "Apr 4, 3:15 PM",
-    priority: "critical",
-  },
-  {
-    id: "3",
-    caseNumber: "CSE-2026-003",
-    caseType: "Trespassing Pattern",
-    status: "open",
-    leadInvestigator: "Officer James Rivera",
-    created: "Apr 3, 9:00 AM",
-    priority: "medium",
-  },
-  {
-    id: "4",
-    caseNumber: "CSE-2026-004",
-    caseType: "Drug Activity",
-    status: "assigned",
-    leadInvestigator: "Capt. David Kim",
-    created: "Apr 2, 11:45 AM",
-    priority: "high",
-  },
-];
+import { fetchCases, deleteCase, type CaseRow } from "@/lib/queries/cases";
+import { formatRelativeTime } from "@/lib/utils/time";
 
 export default function CasesPage() {
   const { toast } = useToast();
   const router = useRouter();
+  const [cases, setCases] = useState<CaseRow[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [search, setSearch] = useState("");
   const [sortKey, setSortKey] = useState("caseNumber");
   const [sortDir, setSortDir] = useState<"asc" | "desc">("desc");
-  const [deleteModal, setDeleteModal] = useState<{ open: boolean; caseNumber?: string }>({ open: false });
+  const [deleteModal, setDeleteModal] = useState<{ open: boolean; caseNumber?: string; caseId?: string }>({ open: false });
+
+  const loadCases = useCallback(async () => {
+    try {
+      setLoading(true);
+      setError(null);
+      const data = await fetchCases();
+      setCases(data);
+    } catch (err: any) {
+      setError(err.message || "Failed to load cases");
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    loadCases();
+  }, [loadCases]);
 
   const filtered = useMemo(() => {
-    let items = [...MOCK_CASES];
+    let items = [...cases];
     if (search) {
       const q = search.toLowerCase();
       items = items.filter(
         (c) =>
           c.caseNumber.toLowerCase().includes(q) ||
           c.caseType.toLowerCase().includes(q) ||
-          c.leadInvestigator.toLowerCase().includes(q)
+          (c.leadInvestigator || "").toLowerCase().includes(q)
       );
     }
     items.sort((a, b) => {
@@ -114,14 +84,41 @@ export default function CasesPage() {
       render: (row: CaseRow) => <StatusBadge status={row.status} dot />,
     },
     { key: "leadInvestigator", label: "Lead Investigator" },
-    { key: "created", label: "Created", sortable: true },
+    {
+      key: "created",
+      label: "Created",
+      sortable: true,
+      render: (row: CaseRow) => (
+        <span className="text-[12px] text-[var(--text-tertiary)]">
+          {formatRelativeTime(row.created)}
+        </span>
+      ),
+    },
     {
       key: "priority",
       label: "Priority",
       sortable: true,
-      render: (row: CaseRow) => <PriorityBadge priority={row.priority} />,
+      render: (row: CaseRow) => row.priority ? <PriorityBadge priority={row.priority as any} /> : <span className="text-[12px] text-[var(--text-tertiary)]">—</span>,
     },
   ];
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center py-20">
+        <Loader2 size={24} className="animate-spin text-[var(--text-tertiary)]" />
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="flex flex-col items-center justify-center py-20 gap-3">
+        <AlertCircle size={24} className="text-[var(--status-critical)]" />
+        <p className="text-[13px] text-[var(--text-tertiary)]">{error}</p>
+        <Button variant="outline" size="sm" onClick={loadCases}>Retry</Button>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-5">
@@ -187,8 +184,14 @@ export default function CasesPage() {
         open={deleteModal.open}
         onClose={() => setDeleteModal({ open: false })}
         onConfirm={async (reason) => {
-          toast("Case deleted", { variant: "info" });
-          setDeleteModal({ open: false });
+          try {
+            if (deleteModal.caseId) await deleteCase(deleteModal.caseId);
+            toast("Case deleted", { variant: "info" });
+            setDeleteModal({ open: false });
+            loadCases();
+          } catch (err: any) {
+            toast(err.message || "Failed to delete case", { variant: "error" });
+          }
         }}
         caseNumber={deleteModal.caseNumber ?? ""}
       />

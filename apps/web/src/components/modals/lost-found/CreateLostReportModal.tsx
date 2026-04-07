@@ -5,19 +5,13 @@ import { FormModal } from "@/components/modals/FormModal";
 import { Input } from "@/components/ui/Input";
 import { Select } from "@/components/ui/Select";
 import { Textarea } from "@/components/ui/Textarea";
+import { useFormState } from "@/hooks/useFormState";
+import { createLostReportSchema, type CreateLostReportValues } from "@/lib/validations/lost-found";
 
 interface CreateLostReportModalProps {
   open: boolean;
   onClose: () => void;
-  onSubmit: (data: {
-    description: string;
-    category: string;
-    lastSeenLocation: string;
-    reportedByName: string;
-    reportedByPhone: string;
-    reportedByEmail: string;
-    notes: string;
-  }) => void | Promise<void>;
+  onSubmit: (data: CreateLostReportValues) => void | Promise<void>;
 }
 
 const CATEGORY_OPTIONS = [
@@ -35,40 +29,26 @@ export function CreateLostReportModal({
   onClose,
   onSubmit,
 }: CreateLostReportModalProps) {
-  const [description, setDescription] = useState("");
-  const [category, setCategory] = useState("");
-  const [lastSeenLocation, setLastSeenLocation] = useState("");
-  const [reportedByName, setReportedByName] = useState("");
-  const [reportedByPhone, setReportedByPhone] = useState("");
-  const [reportedByEmail, setReportedByEmail] = useState("");
-  const [notes, setNotes] = useState("");
+  const form = useFormState({
+    initialValues: {
+      description: "",
+      category: "",
+      lastSeenLocation: "",
+      reportedByName: "",
+      reportedByPhone: "",
+      reportedByEmail: "",
+      notes: "",
+    },
+    schema: createLostReportSchema,
+  });
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const isValid = description.trim().length > 0 && category !== "";
-
-  const resetForm = () => {
-    setDescription("");
-    setCategory("");
-    setLastSeenLocation("");
-    setReportedByName("");
-    setReportedByPhone("");
-    setReportedByEmail("");
-    setNotes("");
-  };
-
   const handleSubmit = async () => {
+    if (!form.validate()) return;
     setIsSubmitting(true);
     try {
-      await onSubmit({
-        description: description.trim(),
-        category,
-        lastSeenLocation: lastSeenLocation.trim(),
-        reportedByName: reportedByName.trim(),
-        reportedByPhone: reportedByPhone.trim(),
-        reportedByEmail: reportedByEmail.trim(),
-        notes: notes.trim(),
-      });
-      resetForm();
+      await onSubmit(form.values as CreateLostReportValues);
+      form.reset();
       onClose();
     } finally {
       setIsSubmitting(false);
@@ -76,7 +56,7 @@ export function CreateLostReportModal({
   };
 
   const handleClose = () => {
-    resetForm();
+    form.reset();
     onClose();
   };
 
@@ -89,43 +69,45 @@ export function CreateLostReportModal({
       size="md"
       submitLabel="Submit Report"
       isSubmitting={isSubmitting}
-      isValid={isValid}
+      isValid={form.isValid}
     >
       <Input
         label="Item Description"
         placeholder="Describe the lost item..."
-        value={description}
-        onChange={(e) => setDescription(e.target.value)}
+        value={form.values.description}
+        onChange={(e) => form.setValue("description", e.target.value)}
+        error={form.touched.description ? form.errors.description : undefined}
       />
 
       <Select
         label="Category"
         options={CATEGORY_OPTIONS}
-        value={category}
-        onChange={(e) => setCategory(e.target.value)}
+        value={form.values.category}
+        onChange={(e) => form.setValue("category", e.target.value)}
         placeholder="Select category"
+        error={form.touched.category ? form.errors.category : undefined}
       />
 
       <Input
         label="Last Seen Location"
         placeholder="Where was it last seen?"
-        value={lastSeenLocation}
-        onChange={(e) => setLastSeenLocation(e.target.value)}
+        value={form.values.lastSeenLocation}
+        onChange={(e) => form.setValue("lastSeenLocation", e.target.value)}
       />
 
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
         <Input
           label="Reported By"
           placeholder="Name"
-          value={reportedByName}
-          onChange={(e) => setReportedByName(e.target.value)}
+          value={form.values.reportedByName}
+          onChange={(e) => form.setValue("reportedByName", e.target.value)}
         />
         <Input
           label="Phone"
           type="tel"
           placeholder="(555) 123-4567"
-          value={reportedByPhone}
-          onChange={(e) => setReportedByPhone(e.target.value)}
+          value={form.values.reportedByPhone}
+          onChange={(e) => form.setValue("reportedByPhone", e.target.value)}
         />
       </div>
 
@@ -133,15 +115,16 @@ export function CreateLostReportModal({
         label="Email"
         type="email"
         placeholder="email@example.com"
-        value={reportedByEmail}
-        onChange={(e) => setReportedByEmail(e.target.value)}
+        value={form.values.reportedByEmail}
+        onChange={(e) => form.setValue("reportedByEmail", e.target.value)}
+        error={form.touched.reportedByEmail ? form.errors.reportedByEmail : undefined}
       />
 
       <Textarea
         label="Notes"
         placeholder="Any additional details..."
-        value={notes}
-        onChange={(e) => setNotes(e.target.value)}
+        value={form.values.notes}
+        onChange={(e) => form.setValue("notes", e.target.value)}
         rows={2}
       />
     </FormModal>

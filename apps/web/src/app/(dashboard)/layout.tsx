@@ -1,8 +1,9 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Sidebar } from "@/components/layout/Sidebar";
 import { TopBar } from "@/components/layout/TopBar";
+import { getSupabaseBrowser } from "@/lib/supabase-browser";
 
 export default function DashboardLayout({
   children,
@@ -11,6 +12,34 @@ export default function DashboardLayout({
 }) {
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
+  const [userName, setUserName] = useState("User");
+  const [userAvatar, setUserAvatar] = useState<string | null>(null);
+
+  useEffect(() => {
+    async function loadProfile() {
+      const supabase = getSupabaseBrowser();
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+
+      if (user) {
+        const { data: profile } = await supabase
+          .from("profiles")
+          .select("full_name, avatar_url")
+          .eq("id", user.id)
+          .single();
+
+        if (profile) {
+          setUserName(profile.full_name || user.email || "User");
+          setUserAvatar(profile.avatar_url);
+        } else {
+          setUserName(user.email || "User");
+        }
+      }
+    }
+
+    loadProfile();
+  }, []);
 
   return (
     <div className="flex h-screen overflow-hidden bg-[var(--surface-bg)]">
@@ -27,8 +56,17 @@ export default function DashboardLayout({
         onMobileClose={() => setMobileOpen(false)}
       />
       <div className="flex flex-1 flex-col overflow-hidden">
-        <TopBar onMenuToggle={() => setMobileOpen(true)} />
-        <main id="main-content" className="flex-1 overflow-y-auto px-3 py-3 sm:px-4 sm:py-4 lg:px-6 lg:py-5">{children}</main>
+        <TopBar
+          userName={userName}
+          userAvatar={userAvatar}
+          onMenuToggle={() => setMobileOpen(true)}
+        />
+        <main
+          id="main-content"
+          className="flex-1 overflow-y-auto px-3 py-3 sm:px-4 sm:py-4 lg:px-6 lg:py-5"
+        >
+          {children}
+        </main>
       </div>
     </div>
   );

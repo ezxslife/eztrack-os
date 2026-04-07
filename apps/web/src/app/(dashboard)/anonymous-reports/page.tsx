@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect, useCallback } from "react";
 import {
   ShieldOff,
   ChevronDown,
@@ -22,6 +22,9 @@ import {
   CardContent,
   CardFooter,
 } from "@/components/ui/Card";
+import { fetchAnonReports, type AnonReportRow } from "@/lib/queries/anonymous-reports";
+import { formatDateTime } from "@/lib/utils/time";
+import { Loader2 } from "lucide-react";
 
 /* ── Types ── */
 type ReportCategory =
@@ -90,35 +93,26 @@ const categoryLabel: Record<ReportCategory, string> = {
   other: "Other",
 };
 
-/* ── Mock admin reports ── */
-const MOCK_ADMIN_REPORTS: AdminReport[] = [
-  {
-    id: "1",
-    code: "ANON-2026-0015",
-    category: "safety_concern",
-    submitted: "Apr 4, 2026",
-    status: "under_review",
-    location: "Gate B - South Entrance",
-  },
-  {
-    id: "2",
-    code: "ANON-2026-0014",
-    category: "theft",
-    submitted: "Apr 3, 2026",
-    status: "investigating",
-    location: "Merchandise Tent A",
-  },
-  {
-    id: "3",
-    code: "ANON-2026-0013",
-    category: "drug_activity",
-    submitted: "Apr 1, 2026",
-    status: "resolved",
-    location: "Parking Lot C",
-  },
-];
-
 export default function AnonymousReportsPage() {
+  /* ── Real data state ── */
+  const [adminReports, setAdminReports] = useState<AnonReportRow[]>([]);
+  const [reportsLoading, setReportsLoading] = useState(true);
+
+  const loadReports = useCallback(async () => {
+    try {
+      setReportsLoading(true);
+      const data = await fetchAnonReports();
+      setAdminReports(data);
+    } catch {
+      // Silently fail for admin table — not critical
+    } finally {
+      setReportsLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    loadReports();
+  }, [loadReports]);
   /* ── Submit form state ── */
   const [category, setCategory] = useState("");
   const [location, setLocation] = useState("");
@@ -392,29 +386,41 @@ export default function AnonymousReportsPage() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-[var(--border-default)]">
-                {MOCK_ADMIN_REPORTS.map((report) => (
+                {reportsLoading ? (
+                  <tr>
+                    <td colSpan={5} className="px-5 py-8 text-center">
+                      <Loader2 size={18} className="animate-spin text-[var(--text-tertiary)] mx-auto" />
+                    </td>
+                  </tr>
+                ) : adminReports.length === 0 ? (
+                  <tr>
+                    <td colSpan={5} className="px-5 py-8 text-center text-[var(--text-tertiary)] text-[13px]">
+                      No anonymous reports yet
+                    </td>
+                  </tr>
+                ) : adminReports.map((report) => (
                   <tr
                     key={report.id}
                     className="hover:bg-[var(--surface-hover)] transition-colors duration-100"
                   >
                     <td className="px-5 py-2.5 font-mono font-medium text-[var(--text-primary)]">
-                      {report.code}
+                      {report.id.substring(0, 8).toUpperCase()}
                     </td>
                     <td className="px-5 py-2.5">
-                      <Badge tone={categoryTone[report.category]}>
-                        {categoryLabel[report.category]}
+                      <Badge tone={categoryTone[report.category as ReportCategory] ?? "default"}>
+                        {categoryLabel[report.category as ReportCategory] ?? report.category}
                       </Badge>
                     </td>
                     <td className="px-5 py-2.5 text-[var(--text-secondary)]">
-                      {report.submitted}
+                      {formatDateTime(report.submittedAt)}
                     </td>
                     <td className="px-5 py-2.5">
-                      <Badge tone={statusTone[report.status]} dot>
-                        {statusLabel[report.status]}
+                      <Badge tone={statusTone[report.status as ReportStatus] ?? "default"} dot>
+                        {statusLabel[report.status as ReportStatus] ?? report.status}
                       </Badge>
                     </td>
                     <td className="px-5 py-2.5 text-[var(--text-secondary)]">
-                      {report.location}
+                      {report.reportText.substring(0, 50)}...
                     </td>
                   </tr>
                 ))}

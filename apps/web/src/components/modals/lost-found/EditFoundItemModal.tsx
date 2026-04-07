@@ -5,22 +5,14 @@ import { FormModal } from "@/components/modals/FormModal";
 import { Input } from "@/components/ui/Input";
 import { Select } from "@/components/ui/Select";
 import { Textarea } from "@/components/ui/Textarea";
-
-interface FoundItemData {
-  description: string;
-  category: string;
-  foundLocation: string;
-  foundBy: string;
-  storageLocation: string;
-  condition: string;
-  notes: string;
-}
+import { useFormState } from "@/hooks/useFormState";
+import { editFoundItemSchema, type EditFoundItemValues } from "@/lib/validations/lost-found";
 
 interface EditFoundItemModalProps {
   open: boolean;
   onClose: () => void;
-  onSubmit: (data: FoundItemData) => void | Promise<void>;
-  initialData?: Partial<FoundItemData>;
+  onSubmit: (data: EditFoundItemValues) => void | Promise<void>;
+  initialData?: Partial<EditFoundItemValues>;
 }
 
 const CATEGORY_OPTIONS = [
@@ -48,52 +40,40 @@ export function EditFoundItemModal({
   onSubmit,
   initialData,
 }: EditFoundItemModalProps) {
-  const [description, setDescription] = useState("");
-  const [category, setCategory] = useState("");
-  const [foundLocation, setFoundLocation] = useState("");
-  const [foundBy, setFoundBy] = useState("");
-  const [storageLocation, setStorageLocation] = useState("");
-  const [condition, setCondition] = useState("");
-  const [notes, setNotes] = useState("");
+  const form = useFormState({
+    initialValues: {
+      description: "",
+      category: "",
+      foundLocation: "",
+      foundBy: "",
+      storageLocation: "",
+      condition: "",
+      notes: "",
+    },
+    schema: editFoundItemSchema,
+  });
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   useEffect(() => {
     if (open && initialData) {
-      setDescription(initialData.description ?? "");
-      setCategory(initialData.category ?? "");
-      setFoundLocation(initialData.foundLocation ?? "");
-      setFoundBy(initialData.foundBy ?? "");
-      setStorageLocation(initialData.storageLocation ?? "");
-      setCondition(initialData.condition ?? "");
-      setNotes(initialData.notes ?? "");
+      form.setValues({
+        description: initialData.description ?? "",
+        category: initialData.category ?? "",
+        foundLocation: initialData.foundLocation ?? "",
+        foundBy: initialData.foundBy ?? "",
+        storageLocation: initialData.storageLocation ?? "",
+        condition: initialData.condition ?? "",
+        notes: initialData.notes ?? "",
+      });
     }
-  }, [open, initialData]);
-
-  const isValid = description.trim().length > 0 && category !== "";
-
-  const resetForm = () => {
-    setDescription("");
-    setCategory("");
-    setFoundLocation("");
-    setFoundBy("");
-    setStorageLocation("");
-    setCondition("");
-    setNotes("");
-  };
+  }, [open, initialData]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleSubmit = async () => {
+    if (!form.validate()) return;
     setIsSubmitting(true);
     try {
-      await onSubmit({
-        description: description.trim(),
-        category,
-        foundLocation: foundLocation.trim(),
-        foundBy: foundBy.trim(),
-        storageLocation: storageLocation.trim(),
-        condition,
-        notes: notes.trim(),
-      });
-      resetForm();
+      await onSubmit(form.values as EditFoundItemValues);
+      form.reset();
       onClose();
     } finally {
       setIsSubmitting(false);
@@ -101,7 +81,7 @@ export function EditFoundItemModal({
   };
 
   const handleClose = () => {
-    resetForm();
+    form.reset();
     onClose();
   };
 
@@ -114,58 +94,60 @@ export function EditFoundItemModal({
       size="md"
       submitLabel="Save Changes"
       isSubmitting={isSubmitting}
-      isValid={isValid}
+      isValid={form.isValid}
     >
       <Input
         label="Item Description"
         placeholder="Describe the item..."
-        value={description}
-        onChange={(e) => setDescription(e.target.value)}
+        value={form.values.description}
+        onChange={(e) => form.setValue("description", e.target.value)}
+        error={form.touched.description ? form.errors.description : undefined}
       />
 
       <Select
         label="Category"
         options={CATEGORY_OPTIONS}
-        value={category}
-        onChange={(e) => setCategory(e.target.value)}
+        value={form.values.category}
+        onChange={(e) => form.setValue("category", e.target.value)}
         placeholder="Select category"
+        error={form.touched.category ? form.errors.category : undefined}
       />
 
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
         <Input
           label="Found Location"
           placeholder="Where was it found?"
-          value={foundLocation}
-          onChange={(e) => setFoundLocation(e.target.value)}
+          value={form.values.foundLocation}
+          onChange={(e) => form.setValue("foundLocation", e.target.value)}
         />
         <Input
           label="Found By"
           placeholder="Who found it?"
-          value={foundBy}
-          onChange={(e) => setFoundBy(e.target.value)}
+          value={form.values.foundBy}
+          onChange={(e) => form.setValue("foundBy", e.target.value)}
         />
       </div>
 
       <Input
         label="Storage Location"
         placeholder="Where is it being stored?"
-        value={storageLocation}
-        onChange={(e) => setStorageLocation(e.target.value)}
+        value={form.values.storageLocation}
+        onChange={(e) => form.setValue("storageLocation", e.target.value)}
       />
 
       <Select
         label="Condition"
         options={CONDITION_OPTIONS}
-        value={condition}
-        onChange={(e) => setCondition(e.target.value)}
+        value={form.values.condition}
+        onChange={(e) => form.setValue("condition", e.target.value)}
         placeholder="Select condition"
       />
 
       <Textarea
         label="Notes"
         placeholder="Additional notes..."
-        value={notes}
-        onChange={(e) => setNotes(e.target.value)}
+        value={form.values.notes}
+        onChange={(e) => form.setValue("notes", e.target.value)}
         rows={2}
       />
     </FormModal>

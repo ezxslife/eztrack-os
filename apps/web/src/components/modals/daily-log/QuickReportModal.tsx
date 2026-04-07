@@ -5,18 +5,13 @@ import { FormModal } from "@/components/modals/FormModal";
 import { Input } from "@/components/ui/Input";
 import { Select } from "@/components/ui/Select";
 import { Textarea } from "@/components/ui/Textarea";
+import { useFormState } from "@/hooks/useFormState";
+import { quickReportSchema, type QuickReportValues } from "@/lib/validations/daily-logs";
 
 interface QuickReportModalProps {
   open: boolean;
   onClose: () => void;
-  onSubmit: (data: QuickReportData) => void | Promise<void>;
-}
-
-interface QuickReportData {
-  topic: string;
-  location: string;
-  priority: string;
-  notes: string;
+  onSubmit: (data: QuickReportValues) => void | Promise<void>;
 }
 
 const LOCATION_OPTIONS = [
@@ -41,22 +36,18 @@ export function QuickReportModal({
   onClose,
   onSubmit,
 }: QuickReportModalProps) {
-  const [topic, setTopic] = useState("");
-  const [location, setLocation] = useState("");
-  const [priority, setPriority] = useState("low");
-  const [notes, setNotes] = useState("");
+  const form = useFormState({
+    initialValues: { topic: "", location: "", priority: "low", notes: "" },
+    schema: quickReportSchema,
+  });
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const isValid = topic.trim() !== "";
-
   const handleSubmit = async () => {
+    if (!form.validate()) return;
     setIsSubmitting(true);
     try {
-      await onSubmit({ topic, location, priority, notes });
-      setTopic("");
-      setLocation("");
-      setPriority("low");
-      setNotes("");
+      await onSubmit(form.values as QuickReportValues);
+      form.reset();
       onClose();
     } finally {
       setIsSubmitting(false);
@@ -73,35 +64,37 @@ export function QuickReportModal({
       size="sm"
       submitLabel="Log Entry"
       isSubmitting={isSubmitting}
-      isValid={isValid}
+      isValid={form.isValid}
     >
       <Input
         label="Topic"
         placeholder="What happened?"
-        value={topic}
-        onChange={(e) => setTopic(e.target.value)}
+        value={form.values.topic}
+        onChange={(e) => form.setValue("topic", e.target.value)}
+        error={form.touched.topic ? form.errors.topic : undefined}
       />
 
       <Select
         label="Location"
         options={LOCATION_OPTIONS}
-        value={location}
-        onChange={(e) => setLocation(e.target.value)}
+        value={form.values.location}
+        onChange={(e) => form.setValue("location", e.target.value)}
         placeholder="Select location..."
       />
 
       <Select
         label="Priority"
         options={PRIORITY_OPTIONS}
-        value={priority}
-        onChange={(e) => setPriority(e.target.value)}
+        value={form.values.priority}
+        onChange={(e) => form.setValue("priority", e.target.value)}
+        error={form.touched.priority ? form.errors.priority : undefined}
       />
 
       <Textarea
         label="Notes"
         placeholder="Additional details..."
-        value={notes}
-        onChange={(e) => setNotes(e.target.value)}
+        value={form.values.notes}
+        onChange={(e) => form.setValue("notes", e.target.value)}
         rows={2}
       />
     </FormModal>

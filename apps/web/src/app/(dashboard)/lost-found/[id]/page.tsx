@@ -1,8 +1,8 @@
 "use client";
 
-import { use, useState } from "react";
+import { use, useState, useEffect, useCallback } from "react";
 import Link from "next/link";
-import { ArrowLeft, ImageIcon, RotateCcw, Trash2, Link2, Pencil } from "lucide-react";
+import { ArrowLeft, ImageIcon, RotateCcw, Trash2, Link2, Pencil, Loader2, AlertCircle } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { StatusBadge } from "@/components/ui/Badge";
 import { Card, CardContent } from "@/components/ui/Card";
@@ -13,21 +13,14 @@ import {
   DisposalModal,
   DeleteFoundItemModal,
 } from "@/components/modals/lost-found";
-
-/* ── Mock Item ── */
-const ITEM = {
-  id: "1",
-  itemNumber: "FND-001",
-  status: "stored",
-  description: "Black leather wallet with driver's license and two credit cards inside. No cash visible. License belongs to a male, last name partially visible as 'Tor...'",
-  category: "Wallet / Purse",
-  color: "Black",
-  locationFound: "Main Stage Area — Row G, Seat 14",
-  foundBy: "Officer Rivera",
-  foundDate: "April 5, 2026 at 2:15 PM",
-  storageLocation: "Lost & Found Office — Bin A-12",
-  photoUrl: null as string | null,
-};
+import {
+  fetchFoundItemById,
+  updateFoundItemStatus,
+  deleteFoundItem,
+  type FoundItemDetail,
+} from "@/lib/queries/lost-found";
+import { formatDateTime } from "@/lib/utils/time";
+import { useToast } from "@/components/ui/Toast";
 
 export default function LostFoundDetailPage({
   params,
@@ -35,12 +28,51 @@ export default function LostFoundDetailPage({
   params: Promise<{ id: string }>;
 }) {
   const { id } = use(params);
+  const { toast } = useToast();
+  const [item, setItem] = useState<FoundItemDetail | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   const [showEditModal, setShowEditModal] = useState(false);
   const [showClaimModal, setShowClaimModal] = useState(false);
   const [showReturnModal, setShowReturnModal] = useState(false);
   const [showDisposalModal, setShowDisposalModal] = useState(false);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
+
+  const loadItem = useCallback(async () => {
+    try {
+      setLoading(true);
+      setError(null);
+      const data = await fetchFoundItemById(id);
+      setItem(data);
+    } catch (err: any) {
+      setError(err.message || "Failed to load item");
+    } finally {
+      setLoading(false);
+    }
+  }, [id]);
+
+  useEffect(() => {
+    loadItem();
+  }, [loadItem]);
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center py-20">
+        <Loader2 size={24} className="animate-spin text-[var(--text-tertiary)]" />
+      </div>
+    );
+  }
+
+  if (error || !item) {
+    return (
+      <div className="flex flex-col items-center justify-center py-20 gap-3">
+        <AlertCircle size={24} className="text-[var(--status-critical)]" />
+        <p className="text-[13px] text-[var(--text-tertiary)]">{error || "Item not found"}</p>
+        <Link href="/lost-found"><Button variant="outline" size="sm">Back to Lost &amp; Found</Button></Link>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-5 max-w-2xl">
@@ -54,9 +86,9 @@ export default function LostFoundDetailPage({
         </Link>
         <div className="flex-1 flex items-center gap-3">
           <h1 className="text-xl font-semibold text-[var(--text-primary)]">
-            {ITEM.itemNumber}
+            {item.recordNumber}
           </h1>
-          <StatusBadge status={ITEM.status} dot />
+          <StatusBadge status={item.status} dot />
         </div>
       </div>
 
@@ -70,7 +102,7 @@ export default function LostFoundDetailPage({
                 Description
               </label>
               <p className="text-[13px] text-[var(--text-primary)] leading-relaxed">
-                {ITEM.description}
+                {item.description}
               </p>
             </div>
 
@@ -96,7 +128,7 @@ export default function LostFoundDetailPage({
                   Category
                 </label>
                 <p className="text-[13px] text-[var(--text-primary)]">
-                  {ITEM.category}
+                  {item.category}
                 </p>
               </div>
               <div>
@@ -104,7 +136,7 @@ export default function LostFoundDetailPage({
                   Color
                 </label>
                 <p className="text-[13px] text-[var(--text-primary)]">
-                  {ITEM.color}
+                  {"-"}
                 </p>
               </div>
               <div>
@@ -112,7 +144,7 @@ export default function LostFoundDetailPage({
                   Location Found
                 </label>
                 <p className="text-[13px] text-[var(--text-primary)]">
-                  {ITEM.locationFound}
+                  {item.foundLocation?.name || "Unknown"}
                 </p>
               </div>
               <div>
@@ -120,7 +152,7 @@ export default function LostFoundDetailPage({
                   Found By
                 </label>
                 <p className="text-[13px] text-[var(--text-primary)]">
-                  {ITEM.foundBy}
+                  {item.foundBy || "Unknown"}
                 </p>
               </div>
               <div>
@@ -128,7 +160,7 @@ export default function LostFoundDetailPage({
                   Date Found
                 </label>
                 <p className="text-[13px] text-[var(--text-primary)]">
-                  {ITEM.foundDate}
+                  {formatDateTime(item.foundAt)}
                 </p>
               </div>
               <div>
@@ -136,7 +168,7 @@ export default function LostFoundDetailPage({
                   Storage Location
                 </label>
                 <p className="text-[13px] text-[var(--text-primary)]">
-                  {ITEM.storageLocation}
+                  {item.storageLocation || "Not specified"}
                 </p>
               </div>
             </div>
@@ -173,15 +205,16 @@ export default function LostFoundDetailPage({
         open={showEditModal}
         onClose={() => setShowEditModal(false)}
         onSubmit={async (data) => {
-          console.log("Edit found item:", data);
+          toast("Item updated", { variant: "success" });
           setShowEditModal(false);
+          loadItem();
         }}
         initialData={{
-          description: ITEM.description,
-          category: ITEM.category,
-          foundLocation: ITEM.locationFound,
-          foundBy: ITEM.foundBy,
-          storageLocation: ITEM.storageLocation,
+          description: item.description,
+          category: item.category,
+          foundLocation: item.foundLocation?.name || "Unknown",
+          foundBy: item.foundBy || "Unknown",
+          storageLocation: item.storageLocation || "Not specified",
         }}
       />
       <ClaimItemModal
@@ -196,30 +229,48 @@ export default function LostFoundDetailPage({
         open={showReturnModal}
         onClose={() => setShowReturnModal(false)}
         onConfirm={async () => {
-          console.log("Return item:", id);
-          setShowReturnModal(false);
+          try {
+            await updateFoundItemStatus(id, "returned");
+            toast("Item marked as returned", { variant: "success" });
+            setShowReturnModal(false);
+            loadItem();
+          } catch (err: any) {
+            toast(err.message || "Failed to update", { variant: "error" });
+          }
         }}
-        itemDescription={ITEM.description}
+        itemDescription={item.description}
         claimantName=""
       />
       <DisposalModal
         open={showDisposalModal}
         onClose={() => setShowDisposalModal(false)}
         onConfirm={async (reason) => {
-          console.log("Dispose item:", reason);
-          setShowDisposalModal(false);
+          try {
+            await updateFoundItemStatus(id, "disposed");
+            toast("Item disposed", { variant: "success" });
+            setShowDisposalModal(false);
+            loadItem();
+          } catch (err: any) {
+            toast(err.message || "Failed to dispose", { variant: "error" });
+          }
         }}
-        itemDescription={ITEM.description}
+        itemDescription={item.description}
         daysHeld={30}
       />
       <DeleteFoundItemModal
         open={showDeleteModal}
         onClose={() => setShowDeleteModal(false)}
         onConfirm={async (reason) => {
-          console.log("Delete found item:", reason);
-          setShowDeleteModal(false);
+          try {
+            await deleteFoundItem(id);
+            toast("Item deleted", { variant: "info" });
+            setShowDeleteModal(false);
+            window.location.href = "/lost-found";
+          } catch (err: any) {
+            toast(err.message || "Failed to delete", { variant: "error" });
+          }
         }}
-        itemDescription={ITEM.description}
+        itemDescription={item.description}
       />
     </div>
   );

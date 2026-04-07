@@ -5,27 +5,14 @@ import { FormModal } from "@/components/modals/FormModal";
 import { Input } from "@/components/ui/Input";
 import { Select } from "@/components/ui/Select";
 import { Textarea } from "@/components/ui/Textarea";
-
-interface PersonnelData {
-  firstName: string;
-  lastName: string;
-  role: string;
-  badgeNumber: string;
-  phone: string;
-  email: string;
-  shift: string;
-  zone: string;
-  certifications: string;
-  startDate: string;
-  emergencyContact: string;
-  notes: string;
-}
+import { useFormState } from "@/hooks/useFormState";
+import { createPersonnelSchema, type CreatePersonnelValues } from "@/lib/validations/personnel";
 
 interface EditPersonnelModalProps {
   open: boolean;
   onClose: () => void;
-  onSubmit: (data: PersonnelData) => void | Promise<void>;
-  initialData?: PersonnelData;
+  onSubmit: (data: CreatePersonnelValues) => void | Promise<void>;
+  initialData?: CreatePersonnelValues;
 }
 
 const ROLE_OPTIONS = [
@@ -61,59 +48,49 @@ export function EditPersonnelModal({
   onSubmit,
   initialData,
 }: EditPersonnelModalProps) {
-  const [firstName, setFirstName] = useState("");
-  const [lastName, setLastName] = useState("");
-  const [role, setRole] = useState("");
-  const [badgeNumber, setBadgeNumber] = useState("");
-  const [phone, setPhone] = useState("");
-  const [email, setEmail] = useState("");
-  const [shift, setShift] = useState("");
-  const [zone, setZone] = useState("");
-  const [certifications, setCertifications] = useState("");
-  const [startDate, setStartDate] = useState("");
-  const [emergencyContact, setEmergencyContact] = useState("");
-  const [notes, setNotes] = useState("");
+  const form = useFormState({
+    initialValues: {
+      firstName: "",
+      lastName: "",
+      role: "",
+      badgeNumber: "",
+      phone: "",
+      email: "",
+      shift: "",
+      zone: "",
+      certifications: "",
+      startDate: "",
+      emergencyContact: "",
+      notes: "",
+    },
+    schema: createPersonnelSchema,
+  });
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   useEffect(() => {
-    if (initialData) {
-      setFirstName(initialData.firstName);
-      setLastName(initialData.lastName);
-      setRole(initialData.role);
-      setBadgeNumber(initialData.badgeNumber);
-      setPhone(initialData.phone);
-      setEmail(initialData.email);
-      setShift(initialData.shift);
-      setZone(initialData.zone);
-      setCertifications(initialData.certifications);
-      setStartDate(initialData.startDate);
-      setEmergencyContact(initialData.emergencyContact);
-      setNotes(initialData.notes);
+    if (initialData && open) {
+      form.setValues({
+        firstName: initialData.firstName ?? "",
+        lastName: initialData.lastName ?? "",
+        role: initialData.role ?? "",
+        badgeNumber: initialData.badgeNumber ?? "",
+        phone: initialData.phone ?? "",
+        email: initialData.email ?? "",
+        shift: initialData.shift ?? "",
+        zone: initialData.zone ?? "",
+        certifications: initialData.certifications ?? "",
+        startDate: initialData.startDate ?? "",
+        emergencyContact: initialData.emergencyContact ?? "",
+        notes: initialData.notes ?? "",
+      });
     }
-  }, [initialData]);
-
-  const isValid =
-    firstName.trim().length > 0 &&
-    lastName.trim().length > 0 &&
-    role.length > 0;
+  }, [initialData, open]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleSubmit = async () => {
+    if (!form.validate()) return;
     setIsSubmitting(true);
     try {
-      await onSubmit({
-        firstName: firstName.trim(),
-        lastName: lastName.trim(),
-        role,
-        badgeNumber: badgeNumber.trim(),
-        phone: phone.trim(),
-        email: email.trim(),
-        shift,
-        zone,
-        certifications: certifications.trim(),
-        startDate,
-        emergencyContact: emergencyContact.trim(),
-        notes: notes.trim(),
-      });
+      await onSubmit(form.values as CreatePersonnelValues);
       onClose();
     } finally {
       setIsSubmitting(false);
@@ -129,20 +106,22 @@ export function EditPersonnelModal({
       size="md"
       submitLabel="Save Changes"
       isSubmitting={isSubmitting}
-      isValid={isValid}
+      isValid={form.isValid}
     >
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
         <Input
           label="First Name"
           placeholder="First name"
-          value={firstName}
-          onChange={(e) => setFirstName(e.target.value)}
+          value={form.values.firstName}
+          onChange={(e) => form.setValue("firstName", e.target.value)}
+          error={form.touched.firstName ? form.errors.firstName : undefined}
         />
         <Input
           label="Last Name"
           placeholder="Last name"
-          value={lastName}
-          onChange={(e) => setLastName(e.target.value)}
+          value={form.values.lastName}
+          onChange={(e) => form.setValue("lastName", e.target.value)}
+          error={form.touched.lastName ? form.errors.lastName : undefined}
         />
       </div>
 
@@ -150,15 +129,16 @@ export function EditPersonnelModal({
         <Select
           label="Role"
           options={ROLE_OPTIONS}
-          value={role}
-          onChange={(e) => setRole(e.target.value)}
+          value={form.values.role}
+          onChange={(e) => form.setValue("role", e.target.value)}
           placeholder="Select role"
+          error={form.touched.role ? form.errors.role : undefined}
         />
         <Input
           label="Badge Number"
           placeholder="B-1234"
-          value={badgeNumber}
-          onChange={(e) => setBadgeNumber(e.target.value)}
+          value={form.values.badgeNumber}
+          onChange={(e) => form.setValue("badgeNumber", e.target.value)}
         />
       </div>
 
@@ -167,15 +147,16 @@ export function EditPersonnelModal({
           label="Phone"
           type="tel"
           placeholder="(555) 123-4567"
-          value={phone}
-          onChange={(e) => setPhone(e.target.value)}
+          value={form.values.phone}
+          onChange={(e) => form.setValue("phone", e.target.value)}
         />
         <Input
           label="Email"
           type="email"
           placeholder="email@example.com"
-          value={email}
-          onChange={(e) => setEmail(e.target.value)}
+          value={form.values.email}
+          onChange={(e) => form.setValue("email", e.target.value)}
+          error={form.touched.email ? form.errors.email : undefined}
         />
       </div>
 
@@ -183,15 +164,15 @@ export function EditPersonnelModal({
         <Select
           label="Shift"
           options={SHIFT_OPTIONS}
-          value={shift}
-          onChange={(e) => setShift(e.target.value)}
+          value={form.values.shift}
+          onChange={(e) => form.setValue("shift", e.target.value)}
           placeholder="Select shift"
         />
         <Select
           label="Zone"
           options={ZONE_OPTIONS}
-          value={zone}
-          onChange={(e) => setZone(e.target.value)}
+          value={form.values.zone}
+          onChange={(e) => form.setValue("zone", e.target.value)}
           placeholder="Select zone"
         />
       </div>
@@ -199,8 +180,8 @@ export function EditPersonnelModal({
       <Textarea
         label="Certifications"
         placeholder="List certifications, one per line"
-        value={certifications}
-        onChange={(e) => setCertifications(e.target.value)}
+        value={form.values.certifications}
+        onChange={(e) => form.setValue("certifications", e.target.value)}
         rows={2}
       />
 
@@ -208,22 +189,22 @@ export function EditPersonnelModal({
         <Input
           label="Start Date"
           type="date"
-          value={startDate}
-          onChange={(e) => setStartDate(e.target.value)}
+          value={form.values.startDate}
+          onChange={(e) => form.setValue("startDate", e.target.value)}
         />
         <Input
           label="Emergency Contact"
           placeholder="Name & phone"
-          value={emergencyContact}
-          onChange={(e) => setEmergencyContact(e.target.value)}
+          value={form.values.emergencyContact}
+          onChange={(e) => form.setValue("emergencyContact", e.target.value)}
         />
       </div>
 
       <Textarea
         label="Notes"
         placeholder="Additional notes..."
-        value={notes}
-        onChange={(e) => setNotes(e.target.value)}
+        value={form.values.notes}
+        onChange={(e) => form.setValue("notes", e.target.value)}
         rows={2}
       />
     </FormModal>

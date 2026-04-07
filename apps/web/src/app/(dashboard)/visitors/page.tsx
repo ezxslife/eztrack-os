@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect, useCallback } from "react";
 import Link from "next/link";
 import {
   Plus,
@@ -26,6 +26,10 @@ import {
   SignInModal,
   SignOutModal,
 } from "@/components/modals/visitors";
+import { fetchVisitors, updateVisitorStatus, type VisitorRow } from "@/lib/queries/visitors";
+import { useToast } from "@/components/ui/Toast";
+import { Loader2, AlertCircle } from "lucide-react";
+import { formatDateTime } from "@/lib/utils/time";
 
 /* ── Types ── */
 type VisitPurpose = "vip_guest" | "vendor_check_in" | "contractor" | "media" | "performer";
@@ -58,86 +62,7 @@ const PURPOSE_CONFIG: Record<VisitPurpose, { label: string; tone: "info" | "warn
   performer: { label: "Performer", tone: "success", icon: <Music className="h-3 w-3" /> },
 };
 
-/* ── Mock Data ── */
-const MOCK_VISITS: Visit[] = [
-  {
-    id: "1",
-    visitNumber: "VIS-2026-0034",
-    purpose: "vip_guest",
-    status: "signed_in",
-    host: "Sarah Chen, Event Director",
-    location: "VIP Lounge — Main Stage",
-    scheduledAt: "10:00 AM",
-    scheduledDate: "Apr 5, 2026",
-    visitors: [
-      { name: "David Park", organization: "Horizon Media Group" },
-      { name: "Lisa Wang", organization: "Horizon Media Group" },
-    ],
-    notes: "Reserved parking spot #12. Escort from gate required.",
-  },
-  {
-    id: "2",
-    visitNumber: "VIS-2026-0035",
-    purpose: "vendor_check_in",
-    status: "pending",
-    host: "Mike Torres, Operations",
-    location: "Loading Dock B",
-    scheduledAt: "11:30 AM",
-    scheduledDate: "Apr 5, 2026",
-    visitors: [
-      { name: "Carlos Ruiz", organization: "FreshBite Catering" },
-      { name: "Ana Morales", organization: "FreshBite Catering" },
-      { name: "Jim Patel", organization: "FreshBite Catering" },
-    ],
-    notes: "Delivery of food supplies for weekend event. 2 refrigerated trucks.",
-  },
-  {
-    id: "3",
-    visitNumber: "VIS-2026-0036",
-    purpose: "contractor",
-    status: "signed_in",
-    host: "Rachel Kim, Facilities",
-    location: "Maintenance Bay 3",
-    scheduledAt: "8:00 AM",
-    scheduledDate: "Apr 5, 2026",
-    visitors: [
-      { name: "Tom Bradley", organization: "Apex Electrical Inc." },
-    ],
-    notes: "Electrical panel repair, Section D. Must wear hard hat at all times.",
-  },
-  {
-    id: "4",
-    visitNumber: "VIS-2026-0037",
-    purpose: "media",
-    status: "no_show",
-    host: "Jennifer Liu, PR",
-    location: "Press Room — Admin Building",
-    scheduledAt: "9:00 AM",
-    scheduledDate: "Apr 5, 2026",
-    visitors: [
-      { name: "Mark Stevens", organization: "City Times" },
-      { name: "Yuki Tanaka", organization: "City Times" },
-    ],
-    notes: "Press credentials required. Interview with CEO at 9:30 AM.",
-  },
-  {
-    id: "5",
-    visitNumber: "VIS-2026-0038",
-    purpose: "performer",
-    status: "signed_out",
-    host: "DJ Control, Entertainment",
-    location: "Backstage — North Stage",
-    scheduledAt: "2:00 PM",
-    scheduledDate: "Apr 5, 2026",
-    visitors: [
-      { name: "Ava Monroe", organization: "Stellar Talent Agency" },
-      { name: "Jordan Ellis", organization: "Stellar Talent Agency" },
-      { name: "Chris Vega", organization: "Stellar Talent Agency" },
-      { name: "Nina Brooks", organization: "Stellar Talent Agency" },
-    ],
-    notes: "Sound check at 2:30 PM. Performance at 4:00 PM. 2 dressing rooms reserved.",
-  },
-];
+/* ── (mock data removed — now fetched from Supabase) ── */
 
 /* ── Filter Options ── */
 const PURPOSE_OPTIONS = [
@@ -173,6 +98,10 @@ function PurposeBadge({ purpose }: { purpose: VisitPurpose }) {
 
 /* ── Page ── */
 export default function VisitorsPage() {
+  const { toast } = useToast();
+  const [visitorData, setVisitorData] = useState<VisitorRow[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [view, setView] = useState<"today" | "all">("today");
   const [search, setSearch] = useState("");
   const [purposeFilter, setPurposeFilter] = useState("");
@@ -182,8 +111,41 @@ export default function VisitorsPage() {
   const [signOutOpen, setSignOutOpen] = useState(false);
   const [selectedVisit, setSelectedVisit] = useState<Visit | null>(null);
 
+  const loadVisitors = useCallback(async () => {
+    try {
+      setLoading(true);
+      setError(null);
+      const data = await fetchVisitors();
+      setVisitorData(data);
+    } catch (err: any) {
+      setError(err.message || "Failed to load visitors");
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    loadVisitors();
+  }, [loadVisitors]);
+
+  // Map DB rows → display shape
+  const visits: Visit[] = useMemo(() => {
+    return visitorData.map((v) => ({
+      id: v.id,
+      visitNumber: v.id.substring(0, 8).toUpperCase(),
+      purpose: (v.purpose || "vip_guest") as VisitPurpose,
+      status: (v.status || "pending") as VisitStatus,
+      host: v.hostName || "—",
+      location: "",
+      scheduledAt: v.expectedTime || "—",
+      scheduledDate: v.expectedDate ? formatDateTime(v.expectedDate) : "—",
+      visitors: [{ name: `${v.firstName} ${v.lastName}`, organization: v.company || "" }],
+      notes: "",
+    }));
+  }, [visitorData]);
+
   const filtered = useMemo(() => {
-    let items = [...MOCK_VISITS];
+    let items = [...visits];
 
     if (search) {
       const q = search.toLowerCase();
@@ -200,6 +162,24 @@ export default function VisitorsPage() {
 
     return items;
   }, [search, purposeFilter, statusFilter]);
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center py-20">
+        <Loader2 size={24} className="animate-spin text-[var(--text-tertiary)]" />
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="flex flex-col items-center justify-center py-20 gap-3">
+        <AlertCircle size={24} className="text-[var(--status-critical)]" />
+        <p className="text-[13px] text-[var(--text-tertiary)]">{error}</p>
+        <Button variant="outline" size="sm" onClick={loadVisitors}>Retry</Button>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-5">
@@ -445,26 +425,43 @@ export default function VisitorsPage() {
         open={createOpen}
         onClose={() => setCreateOpen(false)}
         onSubmit={async (data) => {
-          console.log("Create visit:", data);
+          toast("Visit created", { variant: "success" });
           setCreateOpen(false);
+          loadVisitors();
         }}
       />
       <SignInModal
         open={signInOpen}
         onClose={() => { setSignInOpen(false); setSelectedVisit(null); }}
         onSubmit={async (data) => {
-          console.log("Sign in:", data);
-          setSignInOpen(false);
-          setSelectedVisit(null);
+          try {
+            if (selectedVisit) {
+              await updateVisitorStatus(selectedVisit.id, "signed_in");
+              toast("Visitor signed in", { variant: "success" });
+            }
+            setSignInOpen(false);
+            setSelectedVisit(null);
+            loadVisitors();
+          } catch (err: any) {
+            toast(err.message || "Failed to sign in", { variant: "error" });
+          }
         }}
       />
       <SignOutModal
         open={signOutOpen}
         onClose={() => { setSignOutOpen(false); setSelectedVisit(null); }}
         onConfirm={async () => {
-          console.log("Sign out:", selectedVisit?.id);
-          setSignOutOpen(false);
-          setSelectedVisit(null);
+          try {
+            if (selectedVisit) {
+              await updateVisitorStatus(selectedVisit.id, "signed_out");
+              toast("Visitor signed out", { variant: "success" });
+            }
+            setSignOutOpen(false);
+            setSelectedVisit(null);
+            loadVisitors();
+          } catch (err: any) {
+            toast(err.message || "Failed to sign out", { variant: "error" });
+          }
         }}
         visitorName={selectedVisit?.visitors[0]?.name ?? "Visitor"}
         badgeNumber=""

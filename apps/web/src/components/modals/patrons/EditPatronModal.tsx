@@ -4,24 +4,14 @@ import { useState, useEffect } from "react";
 import { FormModal } from "@/components/modals/FormModal";
 import { Input } from "@/components/ui/Input";
 import { Select } from "@/components/ui/Select";
-
-interface PatronData {
-  firstName: string;
-  lastName: string;
-  email: string;
-  phone: string;
-  dob: string;
-  ticketType: string;
-  photoUrl: string;
-  idType: string;
-  idNumber: string;
-}
+import { useFormState } from "@/hooks/useFormState";
+import { editPatronSchema, type EditPatronValues } from "@/lib/validations/patrons";
 
 interface EditPatronModalProps {
   open: boolean;
   onClose: () => void;
-  onSubmit: (data: PatronData) => void | Promise<void>;
-  patron?: PatronData;
+  onSubmit: (data: EditPatronValues) => void | Promise<void>;
+  patron?: EditPatronValues;
 }
 
 const TICKET_TYPE_OPTIONS = [
@@ -46,47 +36,43 @@ export function EditPatronModal({
   onSubmit,
   patron,
 }: EditPatronModalProps) {
-  const [firstName, setFirstName] = useState("");
-  const [lastName, setLastName] = useState("");
-  const [email, setEmail] = useState("");
-  const [phone, setPhone] = useState("");
-  const [dob, setDob] = useState("");
-  const [ticketType, setTicketType] = useState("");
-  const [photoUrl, setPhotoUrl] = useState("");
-  const [idType, setIdType] = useState("");
-  const [idNumber, setIdNumber] = useState("");
+  const form = useFormState({
+    initialValues: {
+      firstName: "",
+      lastName: "",
+      email: "",
+      phone: "",
+      dob: "",
+      ticketType: "",
+      photoUrl: "",
+      idType: "",
+      idNumber: "",
+    },
+    schema: editPatronSchema,
+  });
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   useEffect(() => {
-    if (patron) {
-      setFirstName(patron.firstName);
-      setLastName(patron.lastName);
-      setEmail(patron.email);
-      setPhone(patron.phone);
-      setDob(patron.dob);
-      setTicketType(patron.ticketType);
-      setPhotoUrl(patron.photoUrl);
-      setIdType(patron.idType);
-      setIdNumber(patron.idNumber);
+    if (patron && open) {
+      form.setValues({
+        firstName: patron.firstName ?? "",
+        lastName: patron.lastName ?? "",
+        email: patron.email ?? "",
+        phone: patron.phone ?? "",
+        dob: patron.dob ?? "",
+        ticketType: patron.ticketType ?? "",
+        photoUrl: patron.photoUrl ?? "",
+        idType: patron.idType ?? "",
+        idNumber: patron.idNumber ?? "",
+      });
     }
-  }, [patron]);
-
-  const isValid = firstName.trim().length > 0 && lastName.trim().length > 0;
+  }, [patron, open]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleSubmit = async () => {
+    if (!form.validate()) return;
     setIsSubmitting(true);
     try {
-      await onSubmit({
-        firstName: firstName.trim(),
-        lastName: lastName.trim(),
-        email: email.trim(),
-        phone: phone.trim(),
-        dob,
-        ticketType,
-        photoUrl,
-        idType,
-        idNumber: idNumber.trim(),
-      });
+      await onSubmit(form.values as EditPatronValues);
       onClose();
     } finally {
       setIsSubmitting(false);
@@ -102,20 +88,22 @@ export function EditPatronModal({
       size="md"
       submitLabel="Save Changes"
       isSubmitting={isSubmitting}
-      isValid={isValid}
+      isValid={form.isValid}
     >
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
         <Input
           label="First Name"
           placeholder="First name"
-          value={firstName}
-          onChange={(e) => setFirstName(e.target.value)}
+          value={form.values.firstName}
+          onChange={(e) => form.setValue("firstName", e.target.value)}
+          error={form.touched.firstName ? form.errors.firstName : undefined}
         />
         <Input
           label="Last Name"
           placeholder="Last name"
-          value={lastName}
-          onChange={(e) => setLastName(e.target.value)}
+          value={form.values.lastName}
+          onChange={(e) => form.setValue("lastName", e.target.value)}
+          error={form.touched.lastName ? form.errors.lastName : undefined}
         />
       </div>
 
@@ -124,15 +112,16 @@ export function EditPatronModal({
           label="Email"
           type="email"
           placeholder="email@example.com"
-          value={email}
-          onChange={(e) => setEmail(e.target.value)}
+          value={form.values.email}
+          onChange={(e) => form.setValue("email", e.target.value)}
+          error={form.touched.email ? form.errors.email : undefined}
         />
         <Input
           label="Phone"
           type="tel"
           placeholder="(555) 123-4567"
-          value={phone}
-          onChange={(e) => setPhone(e.target.value)}
+          value={form.values.phone}
+          onChange={(e) => form.setValue("phone", e.target.value)}
         />
       </div>
 
@@ -140,14 +129,14 @@ export function EditPatronModal({
         <Input
           label="Date of Birth"
           type="date"
-          value={dob}
-          onChange={(e) => setDob(e.target.value)}
+          value={form.values.dob}
+          onChange={(e) => form.setValue("dob", e.target.value)}
         />
         <Select
           label="Ticket Type"
           options={TICKET_TYPE_OPTIONS}
-          value={ticketType}
-          onChange={(e) => setTicketType(e.target.value)}
+          value={form.values.ticketType}
+          onChange={(e) => form.setValue("ticketType", e.target.value)}
           placeholder="Select ticket type"
         />
       </div>
@@ -156,7 +145,7 @@ export function EditPatronModal({
         <p className="text-[13px] text-[var(--text-tertiary)]">
           Click or drag to upload patron photo
         </p>
-        {photoUrl && (
+        {form.values.photoUrl && (
           <p className="text-[12px] text-[var(--text-secondary)] mt-1">Photo uploaded</p>
         )}
       </div>
@@ -165,15 +154,15 @@ export function EditPatronModal({
         <Select
           label="ID Type"
           options={ID_TYPE_OPTIONS}
-          value={idType}
-          onChange={(e) => setIdType(e.target.value)}
+          value={form.values.idType}
+          onChange={(e) => form.setValue("idType", e.target.value)}
           placeholder="Select ID type"
         />
         <Input
           label="ID Number"
           placeholder="ID number"
-          value={idNumber}
-          onChange={(e) => setIdNumber(e.target.value)}
+          value={form.values.idNumber}
+          onChange={(e) => form.setValue("idNumber", e.target.value)}
         />
       </div>
     </FormModal>

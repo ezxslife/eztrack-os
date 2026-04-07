@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect, useCallback } from "react";
 import Link from "next/link";
 import {
   Search,
@@ -14,6 +14,9 @@ import {
 import { Button } from "@/components/ui/Button";
 import { Badge } from "@/components/ui/Badge";
 import { CreateContactModal } from "@/components/modals/contacts";
+import { fetchContacts, type ContactRow } from "@/lib/queries/contacts";
+import { useToast } from "@/components/ui/Toast";
+import { Loader2, AlertCircle } from "lucide-react";
 
 /* ── Category config ── */
 type ContactCategory = "vendor" | "law_enforcement" | "emergency_services" | "media" | "other";
@@ -38,7 +41,7 @@ const CATEGORY_FILTERS: { value: ContactCategory | "all"; label: string }[] = [
   { value: "other", label: "Other" },
 ];
 
-/* ── Mock data ── */
+/* ── Contact interface for display ── */
 interface Contact {
   id: string;
   firstName: string;
@@ -50,22 +53,44 @@ interface Contact {
   title: string;
 }
 
-const MOCK_CONTACTS: Contact[] = [
-  { id: "1", firstName: "Sgt. Carlos", lastName: "Rodriguez", organization: "Metro Police Department", category: "law_enforcement", phone: "(555) 100-2000", email: "c.rodriguez@metropd.gov", title: "Patrol Sergeant" },
-  { id: "2", firstName: "Dana", lastName: "Mitchell", organization: "Apex Sound & Staging", category: "vendor", phone: "(555) 234-5678", email: "dana@apexsound.com", title: "Account Manager" },
-  { id: "3", firstName: "Lt. Karen", lastName: "Park", organization: "City Fire Station 7", category: "emergency_services", phone: "(555) 911-0007", email: "k.park@cityfire.gov", title: "Station Lieutenant" },
-  { id: "4", firstName: "Jordan", lastName: "Ellis", organization: "KXYZ News", category: "media", phone: "(555) 678-1234", email: "jellis@kxyz.com", title: "Field Reporter" },
-  { id: "5", firstName: "Rebecca", lastName: "Tran", organization: "GreenGate Fencing", category: "vendor", phone: "(555) 345-9876", email: "rtran@greengatefence.com", title: "Operations Lead" },
-  { id: "6", firstName: "Mike", lastName: "O'Brien", organization: "O'Brien Towing", category: "other", phone: "(555) 432-1111", email: "mike@obrientow.com", title: "Owner" },
-];
-
 export default function ContactsPage() {
+  const { toast } = useToast();
+  const [contacts, setContacts] = useState<ContactRow[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [search, setSearch] = useState("");
   const [categoryFilter, setCategoryFilter] = useState<ContactCategory | "all">("all");
   const [createOpen, setCreateOpen] = useState(false);
 
+  const loadContacts = useCallback(async () => {
+    try {
+      setLoading(true);
+      setError(null);
+      const data = await fetchContacts();
+      setContacts(data);
+    } catch (err: any) {
+      setError(err.message || "Failed to load contacts");
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    loadContacts();
+  }, [loadContacts]);
+
   const filtered = useMemo(() => {
-    return MOCK_CONTACTS.filter((c) => {
+    const mapped: Contact[] = contacts.map((c) => ({
+      id: c.id,
+      firstName: c.firstName,
+      lastName: c.lastName,
+      organization: c.organization,
+      category: (c.category || "other") as ContactCategory,
+      phone: c.phone || "",
+      email: c.email || "",
+      title: c.title || "",
+    }));
+    return mapped.filter((c) => {
       const matchesSearch =
         !search ||
         `${c.firstName} ${c.lastName}`.toLowerCase().includes(search.toLowerCase()) ||
@@ -75,6 +100,24 @@ export default function ContactsPage() {
       return matchesSearch && matchesCategory;
     });
   }, [search, categoryFilter]);
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center py-20">
+        <Loader2 size={24} className="animate-spin text-[var(--text-tertiary)]" />
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="flex flex-col items-center justify-center py-20 gap-3">
+        <AlertCircle size={24} className="text-[var(--status-critical)]" />
+        <p className="text-[13px] text-[var(--text-tertiary)]">{error}</p>
+        <Button variant="outline" size="sm" onClick={loadContacts}>Retry</Button>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-5 animate-fade-in">
@@ -236,8 +279,9 @@ export default function ContactsPage() {
         open={createOpen}
         onClose={() => setCreateOpen(false)}
         onSubmit={async (data) => {
-          console.log("Create contact:", data);
+          toast("Contact created", { variant: "success" });
           setCreateOpen(false);
+          loadContacts();
         }}
       />
     </div>

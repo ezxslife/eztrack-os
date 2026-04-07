@@ -4,21 +4,13 @@ import { useState } from "react";
 import { FormModal } from "@/components/modals/FormModal";
 import { Input } from "@/components/ui/Input";
 import { Select } from "@/components/ui/Select";
+import { useFormState } from "@/hooks/useFormState";
+import { createPatronSchema, type CreatePatronValues } from "@/lib/validations/patrons";
 
 interface CreatePatronModalProps {
   open: boolean;
   onClose: () => void;
-  onSubmit: (data: {
-    firstName: string;
-    lastName: string;
-    email: string;
-    phone: string;
-    dob: string;
-    ticketType: string;
-    photoUrl: string;
-    idType: string;
-    idNumber: string;
-  }) => void | Promise<void>;
+  onSubmit: (data: CreatePatronValues) => void | Promise<void>;
 }
 
 const TICKET_TYPE_OPTIONS = [
@@ -42,46 +34,28 @@ export function CreatePatronModal({
   onClose,
   onSubmit,
 }: CreatePatronModalProps) {
-  const [firstName, setFirstName] = useState("");
-  const [lastName, setLastName] = useState("");
-  const [email, setEmail] = useState("");
-  const [phone, setPhone] = useState("");
-  const [dob, setDob] = useState("");
-  const [ticketType, setTicketType] = useState("");
-  const [photoUrl, setPhotoUrl] = useState("");
-  const [idType, setIdType] = useState("");
-  const [idNumber, setIdNumber] = useState("");
+  const form = useFormState({
+    initialValues: {
+      firstName: "",
+      lastName: "",
+      email: "",
+      phone: "",
+      dob: "",
+      ticketType: "",
+      photoUrl: "",
+      idType: "",
+      idNumber: "",
+    },
+    schema: createPatronSchema,
+  });
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const isValid = firstName.trim().length > 0 && lastName.trim().length > 0;
-
-  const resetForm = () => {
-    setFirstName("");
-    setLastName("");
-    setEmail("");
-    setPhone("");
-    setDob("");
-    setTicketType("");
-    setPhotoUrl("");
-    setIdType("");
-    setIdNumber("");
-  };
-
   const handleSubmit = async () => {
+    if (!form.validate()) return;
     setIsSubmitting(true);
     try {
-      await onSubmit({
-        firstName: firstName.trim(),
-        lastName: lastName.trim(),
-        email: email.trim(),
-        phone: phone.trim(),
-        dob,
-        ticketType,
-        photoUrl,
-        idType,
-        idNumber: idNumber.trim(),
-      });
-      resetForm();
+      await onSubmit(form.values as CreatePatronValues);
+      form.reset();
       onClose();
     } finally {
       setIsSubmitting(false);
@@ -89,7 +63,7 @@ export function CreatePatronModal({
   };
 
   const handleClose = () => {
-    resetForm();
+    form.reset();
     onClose();
   };
 
@@ -102,20 +76,22 @@ export function CreatePatronModal({
       size="md"
       submitLabel="Add Patron"
       isSubmitting={isSubmitting}
-      isValid={isValid}
+      isValid={form.isValid}
     >
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
         <Input
           label="First Name"
           placeholder="First name"
-          value={firstName}
-          onChange={(e) => setFirstName(e.target.value)}
+          value={form.values.firstName}
+          onChange={(e) => form.setValue("firstName", e.target.value)}
+          error={form.touched.firstName ? form.errors.firstName : undefined}
         />
         <Input
           label="Last Name"
           placeholder="Last name"
-          value={lastName}
-          onChange={(e) => setLastName(e.target.value)}
+          value={form.values.lastName}
+          onChange={(e) => form.setValue("lastName", e.target.value)}
+          error={form.touched.lastName ? form.errors.lastName : undefined}
         />
       </div>
 
@@ -124,15 +100,16 @@ export function CreatePatronModal({
           label="Email"
           type="email"
           placeholder="email@example.com"
-          value={email}
-          onChange={(e) => setEmail(e.target.value)}
+          value={form.values.email}
+          onChange={(e) => form.setValue("email", e.target.value)}
+          error={form.touched.email ? form.errors.email : undefined}
         />
         <Input
           label="Phone"
           type="tel"
           placeholder="(555) 123-4567"
-          value={phone}
-          onChange={(e) => setPhone(e.target.value)}
+          value={form.values.phone}
+          onChange={(e) => form.setValue("phone", e.target.value)}
         />
       </div>
 
@@ -140,14 +117,14 @@ export function CreatePatronModal({
         <Input
           label="Date of Birth"
           type="date"
-          value={dob}
-          onChange={(e) => setDob(e.target.value)}
+          value={form.values.dob}
+          onChange={(e) => form.setValue("dob", e.target.value)}
         />
         <Select
           label="Ticket Type"
           options={TICKET_TYPE_OPTIONS}
-          value={ticketType}
-          onChange={(e) => setTicketType(e.target.value)}
+          value={form.values.ticketType}
+          onChange={(e) => form.setValue("ticketType", e.target.value)}
           placeholder="Select ticket type"
         />
       </div>
@@ -156,7 +133,7 @@ export function CreatePatronModal({
         <p className="text-[13px] text-[var(--text-tertiary)]">
           Click or drag to upload patron photo
         </p>
-        {photoUrl && (
+        {form.values.photoUrl && (
           <p className="text-[12px] text-[var(--text-secondary)] mt-1">Photo selected</p>
         )}
       </div>
@@ -165,15 +142,15 @@ export function CreatePatronModal({
         <Select
           label="ID Type"
           options={ID_TYPE_OPTIONS}
-          value={idType}
-          onChange={(e) => setIdType(e.target.value)}
+          value={form.values.idType}
+          onChange={(e) => form.setValue("idType", e.target.value)}
           placeholder="Select ID type"
         />
         <Input
           label="ID Number"
           placeholder="ID number"
-          value={idNumber}
-          onChange={(e) => setIdNumber(e.target.value)}
+          value={form.values.idNumber}
+          onChange={(e) => form.setValue("idNumber", e.target.value)}
         />
       </div>
     </FormModal>

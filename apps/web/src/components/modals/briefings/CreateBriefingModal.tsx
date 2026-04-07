@@ -5,18 +5,13 @@ import { FormModal } from "@/components/modals/FormModal";
 import { Input } from "@/components/ui/Input";
 import { Select } from "@/components/ui/Select";
 import { Textarea } from "@/components/ui/Textarea";
+import { useFormState } from "@/hooks/useFormState";
+import { createBriefingSchema, type CreateBriefingValues } from "@/lib/validations/briefings";
 
 interface CreateBriefingModalProps {
   open: boolean;
   onClose: () => void;
-  onSubmit: (data: {
-    title: string;
-    content: string;
-    priority: string;
-    recipients: string;
-    sourceModule: string;
-    linkUrl: string;
-  }) => void | Promise<void>;
+  onSubmit: (data: CreateBriefingValues) => void | Promise<void>;
 }
 
 const PRIORITY_OPTIONS = [
@@ -42,37 +37,25 @@ export function CreateBriefingModal({
   onClose,
   onSubmit,
 }: CreateBriefingModalProps) {
-  const [title, setTitle] = useState("");
-  const [content, setContent] = useState("");
-  const [priority, setPriority] = useState("normal");
-  const [recipients, setRecipients] = useState("");
-  const [sourceModule, setSourceModule] = useState("manual");
-  const [linkUrl, setLinkUrl] = useState("");
+  const form = useFormState({
+    initialValues: {
+      title: "",
+      content: "",
+      priority: "normal",
+      recipients: "",
+      sourceModule: "manual",
+      linkUrl: "",
+    },
+    schema: createBriefingSchema,
+  });
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const isValid = title.trim().length > 0 && content.trim().length > 0;
-
-  const resetForm = () => {
-    setTitle("");
-    setContent("");
-    setPriority("normal");
-    setRecipients("");
-    setSourceModule("manual");
-    setLinkUrl("");
-  };
-
   const handleSubmit = async () => {
+    if (!form.validate()) return;
     setIsSubmitting(true);
     try {
-      await onSubmit({
-        title: title.trim(),
-        content: content.trim(),
-        priority,
-        recipients,
-        sourceModule,
-        linkUrl: linkUrl.trim(),
-      });
-      resetForm();
+      await onSubmit(form.values as CreateBriefingValues);
+      form.reset();
       onClose();
     } finally {
       setIsSubmitting(false);
@@ -80,7 +63,7 @@ export function CreateBriefingModal({
   };
 
   const handleClose = () => {
-    resetForm();
+    form.reset();
     onClose();
   };
 
@@ -93,35 +76,38 @@ export function CreateBriefingModal({
       size="md"
       submitLabel="Publish"
       isSubmitting={isSubmitting}
-      isValid={isValid}
+      isValid={form.isValid}
     >
       <Input
         label="Title"
         placeholder="Briefing title..."
-        value={title}
-        onChange={(e) => setTitle(e.target.value)}
+        value={form.values.title}
+        onChange={(e) => form.setValue("title", e.target.value)}
+        error={form.touched.title ? form.errors.title : undefined}
       />
 
       <Textarea
         label="Content"
         placeholder="Briefing content..."
-        value={content}
-        onChange={(e) => setContent(e.target.value)}
+        value={form.values.content}
+        onChange={(e) => form.setValue("content", e.target.value)}
         rows={6}
+        error={form.touched.content ? form.errors.content : undefined}
       />
 
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
         <Select
           label="Priority"
           options={PRIORITY_OPTIONS}
-          value={priority}
-          onChange={(e) => setPriority(e.target.value)}
+          value={form.values.priority}
+          onChange={(e) => form.setValue("priority", e.target.value)}
+          error={form.touched.priority ? form.errors.priority : undefined}
         />
         <Select
           label="Recipients"
           options={RECIPIENT_OPTIONS}
-          value={recipients}
-          onChange={(e) => setRecipients(e.target.value)}
+          value={form.values.recipients}
+          onChange={(e) => form.setValue("recipients", e.target.value)}
           placeholder="Select recipients"
         />
       </div>
@@ -129,16 +115,16 @@ export function CreateBriefingModal({
       <Select
         label="Source Module"
         options={SOURCE_MODULE_OPTIONS}
-        value={sourceModule}
-        onChange={(e) => setSourceModule(e.target.value)}
+        value={form.values.sourceModule}
+        onChange={(e) => form.setValue("sourceModule", e.target.value)}
       />
 
       <Input
         label="Link URL (optional)"
         type="url"
         placeholder="https://..."
-        value={linkUrl}
-        onChange={(e) => setLinkUrl(e.target.value)}
+        value={form.values.linkUrl}
+        onChange={(e) => form.setValue("linkUrl", e.target.value)}
       />
     </FormModal>
   );

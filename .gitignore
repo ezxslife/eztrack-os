@@ -1,7 +1,33 @@
-node_modules
-.next
-.next-out
+# Dependencies
+node_modules/
+
+# Build outputs
+.next/
+.next-out/
+dist/
+out/
+
+# Environment variables
 .env
 .env.local
-.turbo
-dist
+.env.*.local
+
+# Turbo
+.turbo/
+
+# Vercel
+.vercel/
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Debug
+npm-debug.log*
+pnpm-debug.log*

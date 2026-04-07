@@ -5,21 +5,13 @@ import { FormModal } from "@/components/modals/FormModal";
 import { Input } from "@/components/ui/Input";
 import { Select } from "@/components/ui/Select";
 import { Textarea } from "@/components/ui/Textarea";
+import { useFormState } from "@/hooks/useFormState";
+import { createWorkOrderSchema, type CreateWorkOrderValues } from "@/lib/validations/work-orders";
 
 interface CreateWorkOrderModalProps {
   open: boolean;
   onClose: () => void;
-  onSubmit: (data: {
-    title: string;
-    category: string;
-    priority: string;
-    description: string;
-    location: string;
-    scheduledDate: string;
-    dueDate: string;
-    estimatedCost: number;
-    assignTo: string;
-  }) => void | Promise<void>;
+  onSubmit: (data: CreateWorkOrderValues & { estimatedCost: number }) => void | Promise<void>;
   locations?: { value: string; label: string }[];
   assignees?: { value: string; label: string }[];
 }
@@ -50,54 +42,39 @@ export function CreateWorkOrderModal({
   locations = [],
   assignees = [],
 }: CreateWorkOrderModalProps) {
-  const [title, setTitle] = useState("");
-  const [category, setCategory] = useState("");
-  const [priority, setPriority] = useState("");
-  const [description, setDescription] = useState("");
-  const [location, setLocation] = useState("");
-  const [scheduledDate, setScheduledDate] = useState("");
-  const [dueDate, setDueDate] = useState("");
-  const [estimatedCost, setEstimatedCost] = useState("");
-  const [assignTo, setAssignTo] = useState("");
+  const form = useFormState({
+    initialValues: {
+      title: "",
+      category: "",
+      priority: "",
+      description: "",
+      location: "",
+      scheduledDate: "",
+      dueDate: "",
+      estimatedCost: "",
+      assignTo: "",
+    },
+    schema: createWorkOrderSchema,
+  });
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const isValid = title.trim().length > 0 && category !== "" && priority !== "";
-
   const handleSubmit = async () => {
+    if (!form.validate()) return;
     setIsSubmitting(true);
     try {
       await onSubmit({
-        title: title.trim(),
-        category,
-        priority,
-        description: description.trim(),
-        location,
-        scheduledDate,
-        dueDate,
-        estimatedCost: parseFloat(estimatedCost) || 0,
-        assignTo,
-      });
-      resetForm();
+        ...form.values,
+        estimatedCost: parseFloat(form.values.estimatedCost ?? "0") || 0,
+      } as CreateWorkOrderValues & { estimatedCost: number });
+      form.reset();
       onClose();
     } finally {
       setIsSubmitting(false);
     }
   };
 
-  const resetForm = () => {
-    setTitle("");
-    setCategory("");
-    setPriority("");
-    setDescription("");
-    setLocation("");
-    setScheduledDate("");
-    setDueDate("");
-    setEstimatedCost("");
-    setAssignTo("");
-  };
-
   const handleClose = () => {
-    resetForm();
+    form.reset();
     onClose();
   };
 
@@ -110,45 +87,48 @@ export function CreateWorkOrderModal({
       size="lg"
       submitLabel="Create"
       isSubmitting={isSubmitting}
-      isValid={isValid}
+      isValid={form.isValid}
     >
       <Input
         label="Title"
         placeholder="Work order title..."
-        value={title}
-        onChange={(e) => setTitle(e.target.value)}
+        value={form.values.title}
+        onChange={(e) => form.setValue("title", e.target.value)}
+        error={form.touched.title ? form.errors.title : undefined}
       />
 
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
         <Select
           label="Category"
           options={CATEGORY_OPTIONS}
-          value={category}
-          onChange={(e) => setCategory(e.target.value)}
+          value={form.values.category}
+          onChange={(e) => form.setValue("category", e.target.value)}
           placeholder="Select category"
+          error={form.touched.category ? form.errors.category : undefined}
         />
         <Select
           label="Priority"
           options={PRIORITY_OPTIONS}
-          value={priority}
-          onChange={(e) => setPriority(e.target.value)}
+          value={form.values.priority}
+          onChange={(e) => form.setValue("priority", e.target.value)}
           placeholder="Select priority"
+          error={form.touched.priority ? form.errors.priority : undefined}
         />
       </div>
 
       <Textarea
         label="Description"
         placeholder="Describe the work to be done..."
-        value={description}
-        onChange={(e) => setDescription(e.target.value)}
+        value={form.values.description}
+        onChange={(e) => form.setValue("description", e.target.value)}
         rows={3}
       />
 
       <Select
         label="Location"
         options={locations}
-        value={location}
-        onChange={(e) => setLocation(e.target.value)}
+        value={form.values.location}
+        onChange={(e) => form.setValue("location", e.target.value)}
         placeholder="Select location"
       />
 
@@ -156,14 +136,14 @@ export function CreateWorkOrderModal({
         <Input
           label="Scheduled Date"
           type="date"
-          value={scheduledDate}
-          onChange={(e) => setScheduledDate(e.target.value)}
+          value={form.values.scheduledDate}
+          onChange={(e) => form.setValue("scheduledDate", e.target.value)}
         />
         <Input
           label="Due Date"
           type="date"
-          value={dueDate}
-          onChange={(e) => setDueDate(e.target.value)}
+          value={form.values.dueDate}
+          onChange={(e) => form.setValue("dueDate", e.target.value)}
         />
       </div>
 
@@ -172,14 +152,14 @@ export function CreateWorkOrderModal({
           label="Estimated Cost ($)"
           type="number"
           placeholder="0.00"
-          value={estimatedCost}
-          onChange={(e) => setEstimatedCost(e.target.value)}
+          value={form.values.estimatedCost}
+          onChange={(e) => form.setValue("estimatedCost", e.target.value)}
         />
         <Select
           label="Assign To"
           options={assignees}
-          value={assignTo}
-          onChange={(e) => setAssignTo(e.target.value)}
+          value={form.values.assignTo}
+          onChange={(e) => form.setValue("assignTo", e.target.value)}
           placeholder="Select assignee"
         />
       </div>

@@ -1,6 +1,7 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { useParams } from "next/navigation";
 import Link from "next/link";
 import {
   ArrowLeft,
@@ -48,7 +49,19 @@ import { PriorityBadge } from "@/components/ui/PriorityBadge";
 import { Tabs } from "@/components/ui/Tabs";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/Card";
 import { ProgressBar } from "@/components/ui/ProgressBar";
+import { Loader2, AlertCircle } from "lucide-react";
 import dynamic from "next/dynamic";
+import {
+  fetchIncidentById,
+  fetchIncidentNarratives,
+  fetchIncidentParticipants,
+  fetchIncidentFinancials,
+  type IncidentDetail,
+  type IncidentNarrative,
+  type IncidentParticipant,
+  type IncidentFinancial,
+} from "@/lib/queries/incidents";
+import { formatDateTime } from "@/lib/utils/time";
 
 const AddNarrativeModal = dynamic(() => import("@/components/modals/incidents/AddNarrativeModal").then(m => ({ default: m.AddNarrativeModal })), { ssr: false });
 const EditNarrativeModal = dynamic(() => import("@/components/modals/incidents/EditNarrativeModal").then(m => ({ default: m.EditNarrativeModal })), { ssr: false });
@@ -445,21 +458,18 @@ const DOCUMENT_LOG = [
    MAIN COMPONENT
    ═══════════════════════════════════════════════════════════════ */
 
-const TAB_LIST = [
-  { id: "report", label: "Report Details" },
-  { id: "narrative", label: "Narrative", count: NARRATIVES.length },
-  { id: "participants", label: "Participants", count: PARTICIPANTS.length },
-  { id: "media", label: "Media", count: MEDIA.length },
-  { id: "related", label: "Related", count: RELATED_INCIDENTS.length },
-  { id: "attached", label: "Attached Records" },
-  { id: "forms", label: "Forms", count: FORMS.length },
-  { id: "financial", label: "Savings & Losses" },
-  { id: "sharing", label: "Sharing", count: SHARES.filter((s) => !s.isExpired).length },
-  { id: "doccontrol", label: "Doc Control" },
-  { id: "doclog", label: "Document Log" },
-];
-
 export default function IncidentDetailPage() {
+  const params = useParams();
+  const incidentId = params.id as string;
+
+  // Data state — loaded from Supabase
+  const [incident, setIncident] = useState<IncidentDetail | null>(null);
+  const [narratives, setNarratives] = useState<IncidentNarrative[]>([]);
+  const [participants, setParticipants] = useState<IncidentParticipant[]>([]);
+  const [financials, setFinancials] = useState<IncidentFinancial[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
   const [activeTab, setActiveTab] = useState("report");
   const [checklist, setChecklist] = useState(CHECKLIST);
 
@@ -477,6 +487,33 @@ export default function IncidentDetailPage() {
   const [lockModal, setLockModal] = useState(false);
   const [escalationChainModal, setEscalationChainModal] = useState(false);
 
+  // Fetch all incident data from Supabase
+  useEffect(() => {
+    let cancelled = false;
+    async function load() {
+      try {
+        setLoading(true);
+        const [inc, narr, parts, fins] = await Promise.all([
+          fetchIncidentById(incidentId),
+          fetchIncidentNarratives(incidentId),
+          fetchIncidentParticipants(incidentId),
+          fetchIncidentFinancials(incidentId),
+        ]);
+        if (cancelled) return;
+        setIncident(inc);
+        setNarratives(narr);
+        setParticipants(parts);
+        setFinancials(fins);
+      } catch (err: any) {
+        if (!cancelled) setError(err.message || "Failed to load incident");
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    }
+    load();
+    return () => { cancelled = true; };
+  }, [incidentId]);
+
   const toggleCheck = (id: string) => {
     setChecklist((prev) =>
       prev.map((item) =>
@@ -484,6 +521,47 @@ export default function IncidentDetailPage() {
       )
     );
   };
+
+  // Loading state
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center py-20">
+        <Loader2 className="h-6 w-6 animate-spin text-[var(--text-tertiary)]" />
+        <span className="ml-2 text-[13px] text-[var(--text-tertiary)]">Loading incident…</span>
+      </div>
+    );
+  }
+
+  // Error state
+  if (error || !incident) {
+    return (
+      <div className="flex flex-col items-center justify-center py-20 gap-3">
+        <AlertCircle className="h-8 w-8 text-[var(--status-error)]" />
+        <p className="text-[13px] text-[var(--text-secondary)]">{error || "Incident not found"}</p>
+        <Link href="/incidents">
+          <Button variant="outline" size="sm">Back to Incidents</Button>
+        </Link>
+      </div>
+    );
+  }
+
+  // Compute financial totals from real data
+  const totalLosses = financials.filter((f) => f.entryType === "loss").reduce((sum, f) => sum + f.amount, 0);
+  const totalSavings = financials.filter((f) => f.entryType === "saving").reduce((sum, f) => sum + f.amount, 0);
+
+  const TAB_LIST = [
+    { id: "report", label: "Report Details" },
+    { id: "narrative", label: "Narrative", count: narratives.length },
+    { id: "participants", label: "Participants", count: participants.length },
+    { id: "media", label: "Media", count: MEDIA.length },
+    { id: "related", label: "Related", count: RELATED_INCIDENTS.length },
+    { id: "attached", label: "Attached Records" },
+    { id: "forms", label: "Forms", count: FORMS.length },
+    { id: "financial", label: "Savings & Losses" },
+    { id: "sharing", label: "Sharing", count: SHARES.filter((s) => !s.isExpired).length },
+    { id: "doccontrol", label: "Doc Control" },
+    { id: "doclog", label: "Document Log" },
+  ];
 
   return (
     <div className="space-y-5">
@@ -501,24 +579,19 @@ export default function IncidentDetailPage() {
           <div className="space-y-1.5">
             <div className="flex items-center gap-3 flex-wrap">
               <h1 className="text-xl font-semibold text-[var(--text-primary)]">
-                Incident #{INCIDENT.recordNumber}
+                Incident #{incident.recordNumber}
               </h1>
-              <StatusBadge status={INCIDENT.status} dot />
-              <PriorityBadge priority={INCIDENT.severity} />
-              {INCIDENT.isLocked && (
-                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-yellow-500/10 text-yellow-600 dark:text-yellow-400 text-[11px] font-medium">
-                  <Lock className="h-3 w-3" /> Locked
-                </span>
-              )}
+              <StatusBadge status={incident.status} dot />
+              <PriorityBadge priority={incident.severity as any} />
             </div>
             <div className="flex items-center gap-4 text-[12px] text-[var(--text-tertiary)]">
-              <span>{INCIDENT.type} — {INCIDENT.specific}</span>
+              <span>{incident.type}</span>
               <span>·</span>
-              <span>Owner: {INCIDENT.owner}</span>
+              <span>Owner: {incident.creator?.fullName || "Unknown"}</span>
               <span>·</span>
-              <span>Created {INCIDENT.createdAt}</span>
+              <span>Created {formatDateTime(incident.createdAt)}</span>
               <span>·</span>
-              <span>Updated {INCIDENT.updatedAt}</span>
+              <span>Updated {formatDateTime(incident.updatedAt)}</span>
             </div>
           </div>
           <div className="flex items-center gap-2 shrink-0">
@@ -544,16 +617,17 @@ export default function IncidentDetailPage() {
       {/* ── Tab Content ── */}
       <div>
         {activeTab === "report" && (
-          <ReportDetailsTab checklist={checklist} onToggle={toggleCheck} />
+          <ReportDetailsTab incident={incident} totalLosses={totalLosses} totalSavings={totalSavings} checklist={checklist} onToggle={toggleCheck} />
         )}
         {activeTab === "narrative" && (
           <NarrativeTab
+            narratives={narratives}
             onAddNarrative={() => setNarrativeModal(true)}
             onEditNarrative={(n) => setEditNarrativeModal({ open: true, data: { id: n.id, title: n.title, content: n.content } })}
           />
         )}
         {activeTab === "participants" && (
-          <ParticipantsTab onAddParticipant={() => setParticipantWizard(true)} />
+          <ParticipantsTab participants={participants} onAddParticipant={() => setParticipantWizard(true)} />
         )}
         {activeTab === "media" && (
           <MediaTab onUploadMedia={() => setMediaModal(true)} />
@@ -564,7 +638,7 @@ export default function IncidentDetailPage() {
         {activeTab === "attached" && <AttachedRecordsTab />}
         {activeTab === "forms" && <FormsTab />}
         {activeTab === "financial" && (
-          <SavingsLossesTab onAddEntry={() => setFinancialModal(true)} />
+          <SavingsLossesTab financials={financials} totalLosses={totalLosses} totalSavings={totalSavings} onAddEntry={() => setFinancialModal(true)} />
         )}
         {activeTab === "sharing" && (
           <SharingTab onShare={() => setShareModal(true)} />
@@ -632,14 +706,14 @@ export default function IncidentDetailPage() {
         open={deleteModal}
         onClose={() => setDeleteModal(false)}
         onConfirm={async () => { setDeleteModal(false); }}
-        incidentNumber={INCIDENT.recordNumber}
+        incidentNumber={incident.recordNumber}
       />
       <LockIncidentModal
         open={lockModal}
         onClose={() => setLockModal(false)}
         onConfirm={async () => { setLockModal(false); }}
-        isLocked={INCIDENT.isLocked}
-        incidentNumber={INCIDENT.recordNumber}
+        isLocked={false}
+        incidentNumber={incident.recordNumber}
       />
       <EscalationChainModal
         open={escalationChainModal}
@@ -649,12 +723,12 @@ export default function IncidentDetailPage() {
         }}
         sourceType="incident"
         sourceData={{
-          id: INCIDENT.id,
-          title: INCIDENT.recordNumber,
-          location: INCIDENT.location || "",
-          priority: INCIDENT.severity || "medium",
-          synopsis: INCIDENT.synopsis || "",
-          createdBy: INCIDENT.createdBy || "",
+          id: incident.id,
+          title: incident.recordNumber,
+          location: incident.location?.name || "",
+          priority: incident.severity || "medium",
+          synopsis: incident.synopsis || "",
+          createdBy: incident.creator?.fullName || "",
         }}
         targetType="case"
       />
@@ -667,9 +741,15 @@ export default function IncidentDetailPage() {
    ═══════════════════════════════════════════════════════════════ */
 
 function ReportDetailsTab({
+  incident,
+  totalLosses,
+  totalSavings,
   checklist,
   onToggle,
 }: {
+  incident: IncidentDetail;
+  totalLosses: number;
+  totalSavings: number;
   checklist: typeof CHECKLIST;
   onToggle: (id: string) => void;
 }) {
@@ -690,18 +770,21 @@ function ReportDetailsTab({
                 label="Incident Number"
                 value={
                   <span className="inline-flex items-center gap-1.5">
-                    {INCIDENT.recordNumber}
-                    <button className="text-[var(--text-tertiary)] hover:text-[var(--text-secondary)] transition-colors">
+                    {incident.recordNumber}
+                    <button
+                      onClick={() => navigator.clipboard.writeText(incident.recordNumber)}
+                      className="text-[var(--text-tertiary)] hover:text-[var(--text-secondary)] transition-colors"
+                    >
                       <Copy className="h-3 w-3" />
                     </button>
                   </span>
                 }
               />
-              <FieldRow label="Incident Type" value={INCIDENT.type} />
-              <FieldRow label="Specific Type" value={INCIDENT.specific} />
-              <FieldRow label="Category" value={INCIDENT.category} />
-              <FieldRow label="Created" value={`${INCIDENT.createdAt} by ${INCIDENT.createdBy}`} />
-              <FieldRow label="Last Updated" value={INCIDENT.updatedAt} />
+              <FieldRow label="Incident Type" value={incident.type} />
+              <FieldRow label="Severity" value={<PriorityBadge priority={incident.severity as any} />} />
+              <FieldRow label="Disposition" value={incident.disposition || "—"} />
+              <FieldRow label="Created" value={`${formatDateTime(incident.createdAt)} by ${incident.creator?.fullName || "Unknown"}`} />
+              <FieldRow label="Last Updated" value={formatDateTime(incident.updatedAt)} />
             </div>
           </CardContent>
         </Card>
@@ -709,17 +792,14 @@ function ReportDetailsTab({
         {/* Classification & Risk */}
         <Card>
           <CardHeader>
-            <CardTitle>Classification & Risk</CardTitle>
+            <CardTitle>Classification & Status</CardTitle>
           </CardHeader>
           <CardContent>
             <div className="grid grid-cols-2 gap-x-6 gap-y-4">
-              <FieldRow label="Status" value={<StatusBadge status={INCIDENT.status} dot />} />
-              <FieldRow label="Risk Level" value={<RiskBadge level={INCIDENT.riskLevel} />} />
-              <FieldRow label="Assigned To" value={INCIDENT.assignedTo} />
-              <FieldRow label="Owner" value={INCIDENT.owner} />
-              <div className="col-span-2">
-                <FieldRow label="Risk Assessment Notes" value={INCIDENT.riskAssessmentNotes} />
-              </div>
+              <FieldRow label="Status" value={<StatusBadge status={incident.status} dot />} />
+              <FieldRow label="Severity" value={<PriorityBadge priority={incident.severity as any} />} />
+              <FieldRow label="Owner" value={incident.creator?.fullName || "Unknown"} />
+              <FieldRow label="Reported By" value={incident.reportedBy || "—"} />
             </div>
           </CardContent>
         </Card>
@@ -731,33 +811,14 @@ function ReportDetailsTab({
           </CardHeader>
           <CardContent>
             <div className="grid grid-cols-2 gap-x-6 gap-y-4">
-              <FieldRow label="Occurrence" value={INCIDENT.occurrenceDateTime} />
-              <FieldRow label="Reported" value={INCIDENT.reportedDateTime} />
-              <FieldRow label="Zone" value={INCIDENT.zone} />
-              <FieldRow label="Location" value={`${INCIDENT.location} — ${INCIDENT.specificLocation}`} />
+              <FieldRow label="Reported" value={formatDateTime(incident.createdAt)} />
+              <FieldRow label="Location" value={incident.location?.name || "Unknown"} />
               <div className="col-span-2">
-                <FieldRow label="Event" value={INCIDENT.event} />
+                <FieldRow label="Synopsis" value={incident.synopsis || "—"} />
               </div>
               <div className="col-span-2">
-                <FieldRow label="Synopsis" value={INCIDENT.synopsis} />
+                <FieldRow label="Full Description" value={incident.description || "—"} />
               </div>
-              <div className="col-span-2">
-                <FieldRow label="Full Description" value={INCIDENT.description} />
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* Custom Fields */}
-        <Card>
-          <CardHeader>
-            <CardTitle>Custom Fields</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="grid grid-cols-3 gap-x-6 gap-y-4">
-              <FieldRow label={INCIDENT.customField1Label} value={INCIDENT.customField1Value} />
-              <FieldRow label={INCIDENT.customField2Label} value={INCIDENT.customField2Value} />
-              <FieldRow label={INCIDENT.customField3Label} value={INCIDENT.customField3Value} />
             </div>
           </CardContent>
         </Card>
@@ -822,20 +883,20 @@ function ReportDetailsTab({
             <div className="flex items-center justify-between">
               <span className="text-[12px] text-[var(--text-tertiary)]">Total Losses</span>
               <span className="text-[13px] font-semibold text-red-500">
-                ${INCIDENT.totalLosses.toLocaleString("en-US", { minimumFractionDigits: 2 })}
+                ${totalLosses.toLocaleString("en-US", { minimumFractionDigits: 2 })}
               </span>
             </div>
             <div className="flex items-center justify-between">
               <span className="text-[12px] text-[var(--text-tertiary)]">Total Savings</span>
               <span className="text-[13px] font-semibold text-green-500">
-                ${INCIDENT.totalSavings.toLocaleString("en-US", { minimumFractionDigits: 2 })}
+                ${totalSavings.toLocaleString("en-US", { minimumFractionDigits: 2 })}
               </span>
             </div>
             <div className="h-px bg-[var(--border-default)]" />
             <div className="flex items-center justify-between">
               <span className="text-[12px] font-medium text-[var(--text-secondary)]">Net Impact</span>
-              <span className="text-[13px] font-bold text-red-500">
-                -${(INCIDENT.totalLosses - INCIDENT.totalSavings).toLocaleString("en-US", { minimumFractionDigits: 2 })}
+              <span className={`text-[13px] font-bold ${totalLosses - totalSavings > 0 ? "text-red-500" : "text-green-500"}`}>
+                {totalLosses - totalSavings > 0 ? "-" : "+"}${Math.abs(totalLosses - totalSavings).toLocaleString("en-US", { minimumFractionDigits: 2 })}
               </span>
             </div>
           </CardContent>
@@ -861,13 +922,13 @@ function ReportDetailsTab({
             <div className="flex items-center justify-between">
               <span className="text-[12px] text-[var(--text-secondary)]">Exclusive</span>
               <span className="text-[12px] text-[var(--text-tertiary)]">
-                {INCIDENT.isExclusive ? "ON" : "OFF"}
+                OFF
               </span>
             </div>
             <div className="flex items-center justify-between">
               <span className="text-[12px] text-[var(--text-secondary)]">Global</span>
               <span className="text-[12px] text-[var(--text-tertiary)]">
-                {INCIDENT.isGlobal ? "ON" : "OFF"}
+                OFF
               </span>
             </div>
           </CardContent>
@@ -895,9 +956,11 @@ function ReportDetailsTab({
    ═══════════════════════════════════════════════════════════════ */
 
 function NarrativeTab({
+  narratives,
   onAddNarrative,
   onEditNarrative,
 }: {
+  narratives: IncidentNarrative[];
   onAddNarrative: () => void;
   onEditNarrative: (n: { id: string; title: string; content: string }) => void;
 }) {
@@ -905,7 +968,7 @@ function NarrativeTab({
     <div className="max-w-4xl space-y-4">
       <div className="flex items-center justify-between">
         <h3 className="text-sm font-semibold text-[var(--text-primary)]">
-          Narrative Entries ({NARRATIVES.length})
+          Narrative Entries ({narratives.length})
         </h3>
         <Button variant="outline" size="sm" onClick={onAddNarrative}>
           <Plus className="h-3.5 w-3.5" />
@@ -913,56 +976,76 @@ function NarrativeTab({
         </Button>
       </div>
 
-      {NARRATIVES.map((n) => (
-        <Card key={n.id}>
-          <CardHeader>
-            <div className="flex items-start justify-between gap-3">
-              <div className="flex items-start gap-3">
-                <div className="h-8 w-8 rounded-full bg-[var(--surface-secondary)] flex items-center justify-center text-[11px] font-semibold text-[var(--text-secondary)] shrink-0">
-                  {n.initials}
-                </div>
-                <div>
-                  <div className="flex items-center gap-2">
-                    <span className="text-[13px] font-semibold text-[var(--text-primary)]">
-                      {n.author}
-                    </span>
-                  </div>
-                  <div className="text-[13px] font-medium text-[var(--text-primary)] mt-0.5">
-                    {n.title}
-                  </div>
-                  <div className="flex items-center gap-2 mt-0.5 text-[11px] text-[var(--text-tertiary)]">
-                    <span>{n.timestamp}</span>
-                    {n.isEdited && (
-                      <>
-                        <span>·</span>
-                        <span className="italic">
-                          Modified by {n.editedBy} on {n.editedAt}
-                        </span>
-                      </>
-                    )}
-                  </div>
-                </div>
-              </div>
-              <div className="flex items-center gap-1">
-                <button
-                  className="h-7 w-7 rounded-md hover:bg-[var(--surface-secondary)] flex items-center justify-center transition-colors"
-                  onClick={() => onEditNarrative({ id: n.id, title: n.title, content: n.content })}
-                >
-                  <Edit className="h-3.5 w-3.5 text-[var(--text-tertiary)]" />
-                </button>
-                <button className="h-7 w-7 rounded-md hover:bg-[var(--surface-secondary)] flex items-center justify-center transition-colors">
-                  <Trash2 className="h-3.5 w-3.5 text-[var(--text-tertiary)]" />
-                </button>
-              </div>
-            </div>
-          </CardHeader>
+      {narratives.length === 0 && (
+        <Card>
           <CardContent>
-            <p className="text-[13px] text-[var(--text-secondary)] leading-relaxed whitespace-pre-wrap">
-              {n.content}
+            <p className="text-[13px] text-[var(--text-tertiary)] text-center py-6">
+              No narrative entries yet. Add the first report.
             </p>
           </CardContent>
         </Card>
-      ))}
+      )}
+
+      {narratives.map((n) => {
+        const initials = (n.authorName || "?")
+          .split(" ")
+          .map((w) => w[0])
+          .join("")
+          .slice(0, 2)
+          .toUpperCase();
+        const isEdited = n.updatedAt !== n.createdAt;
+
+        return (
+          <Card key={n.id}>
+            <CardHeader>
+              <div className="flex items-start justify-between gap-3">
+                <div className="flex items-start gap-3">
+                  <div className="h-8 w-8 rounded-full bg-[var(--surface-secondary)] flex items-center justify-center text-[11px] font-semibold text-[var(--text-secondary)] shrink-0">
+                    {initials}
+                  </div>
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <span className="text-[13px] font-semibold text-[var(--text-primary)]">
+                        {n.authorName || "Unknown"}
+                      </span>
+                    </div>
+                    <div className="text-[13px] font-medium text-[var(--text-primary)] mt-0.5">
+                      {n.title}
+                    </div>
+                    <div className="flex items-center gap-2 mt-0.5 text-[11px] text-[var(--text-tertiary)]">
+                      <span>{formatDateTime(n.createdAt)}</span>
+                      {isEdited && (
+                        <>
+                          <span>·</span>
+                          <span className="italic">
+                            Edited {formatDateTime(n.updatedAt)}
+                          </span>
+                        </>
+                      )}
+                    </div>
+                  </div>
+                </div>
+                <div className="flex items-center gap-1">
+                  <button
+                    className="h-7 w-7 rounded-md hover:bg-[var(--surface-secondary)] flex items-center justify-center transition-colors"
+                    onClick={() => onEditNarrative({ id: n.id, title: n.title, content: n.content })}
+                  >
+                    <Edit className="h-3.5 w-3.5 text-[var(--text-tertiary)]" />
+                  </button>
+                  <button className="h-7 w-7 rounded-md hover:bg-[var(--surface-secondary)] flex items-center justify-center transition-colors">
+                    <Trash2 className="h-3.5 w-3.5 text-[var(--text-tertiary)]" />
+                  </button>
+                </div>
+              </div>
+            </CardHeader>
+            <CardContent>
+              <p className="text-[13px] text-[var(--text-secondary)] leading-relaxed whitespace-pre-wrap">
+                {n.content}
+              </p>
+            </CardContent>
+          </Card>
+        );
+      })}
     </div>
   );
 }
@@ -971,14 +1054,14 @@ function NarrativeTab({
    TAB 3: PARTICIPANTS
    ═══════════════════════════════════════════════════════════════ */
 
-function ParticipantsTab({ onAddParticipant }: { onAddParticipant: () => void }) {
+function ParticipantsTab({ participants, onAddParticipant }: { participants: IncidentParticipant[]; onAddParticipant: () => void }) {
   const [expanded, setExpanded] = useState<string | null>(null);
 
   return (
     <div className="max-w-5xl space-y-4">
       <div className="flex items-center justify-between">
         <h3 className="text-sm font-semibold text-[var(--text-primary)]">
-          Participants ({PARTICIPANTS.length})
+          Participants ({participants.length})
         </h3>
         <div className="flex items-center gap-2">
           <Button variant="outline" size="sm">
@@ -1017,7 +1100,7 @@ function ParticipantsTab({ onAddParticipant }: { onAddParticipant: () => void })
                 </tr>
               </thead>
               <tbody>
-                {PARTICIPANTS.map((p) => (
+                {participants.map((p) => (
                   <ParticipantRow
                     key={p.id}
                     participant={p}
@@ -1039,7 +1122,7 @@ function ParticipantRow({
   isExpanded,
   onToggle,
 }: {
-  participant: (typeof PARTICIPANTS)[0];
+  participant: IncidentParticipant;
   isExpanded: boolean;
   onToggle: () => void;
 }) {
@@ -1059,19 +1142,19 @@ function ParticipantRow({
         <td className="px-4 h-10">
           <div className="flex items-center gap-2">
             <span className="text-[13px] font-medium text-[var(--text-primary)]">
-              {p.name}
+              {p.firstName} {p.lastName}
             </span>
-            <TypeBadge type={p.type} id={p.patronId} />
+            <TypeBadge type={p.personType} id={null} />
           </div>
         </td>
         <td className="px-4 h-10">
           <div className="flex items-center gap-1.5">
-            <RoleBadge role={p.role} />
+            <RoleBadge role={p.primaryRole} />
             {p.secondaryRole && <RoleBadge role={p.secondaryRole} />}
           </div>
         </td>
         <td className="px-4 h-10 text-[13px] text-[var(--text-secondary)]">
-          {p.contact}
+          {p.email || p.phone || "—"}
         </td>
         <td className="px-4 h-10 text-center">
           <BooleanIndicator value={p.policeContacted} />
@@ -1092,20 +1175,20 @@ function ParticipantRow({
                   {p.description}
                 </p>
               </div>
-              {p.policeContacted && p.policeResult && (
+              {p.phone && (
                 <div>
                   <span className="text-[11px] font-medium text-[var(--text-tertiary)] uppercase tracking-wider block mb-1">
-                    Police Contact Result
+                    Phone
                   </span>
-                  <p className="text-[var(--text-secondary)]">{p.policeResult}</p>
+                  <p className="text-[var(--text-secondary)]">{p.phone}</p>
                 </div>
               )}
-              {p.medicalAttention && p.medicalDetails && (
-                <div className="col-span-2">
+              {p.email && (
+                <div>
                   <span className="text-[11px] font-medium text-[var(--text-tertiary)] uppercase tracking-wider block mb-1">
-                    Medical Details
+                    Email
                   </span>
-                  <p className="text-[var(--text-secondary)]">{p.medicalDetails}</p>
+                  <p className="text-[var(--text-secondary)]">{p.email}</p>
                 </div>
               )}
               <div className="col-span-2 flex items-center gap-2 pt-2 border-t border-[var(--border-subdued,var(--border-default))]">
@@ -1572,9 +1655,7 @@ function FormsTab() {
    TAB 8: SAVINGS & LOSSES
    ═══════════════════════════════════════════════════════════════ */
 
-function SavingsLossesTab({ onAddEntry }: { onAddEntry: () => void }) {
-  const totalLosses = SAVINGS_LOSSES.filter((sl) => !sl.isSaving).reduce((acc, sl) => acc + sl.value, 0);
-  const totalSavings = SAVINGS_LOSSES.filter((sl) => sl.isSaving).reduce((acc, sl) => acc + sl.value, 0);
+function SavingsLossesTab({ financials, totalLosses, totalSavings, onAddEntry }: { financials: IncidentFinancial[]; totalLosses: number; totalSavings: number; onAddEntry: () => void }) {
   const netImpact = totalLosses - totalSavings;
 
   return (
@@ -1655,41 +1736,44 @@ function SavingsLossesTab({ onAddEntry }: { onAddEntry: () => void }) {
                 </tr>
               </thead>
               <tbody>
-                {SAVINGS_LOSSES.map((sl) => (
-                  <tr
-                    key={sl.id}
-                    className="border-b border-[var(--border-subdued,var(--border-default))] hover:bg-[var(--surface-hover)] transition-colors"
-                  >
-                    <td className="px-4 h-10 text-[13px] font-medium text-[var(--text-primary)]">
-                      {sl.type}
-                    </td>
-                    <td className={`px-4 h-10 text-[13px] font-semibold text-right ${sl.isSaving ? "text-green-500" : "text-red-500"}`}>
-                      {sl.isSaving ? "+" : "-"}${sl.value.toLocaleString("en-US", { minimumFractionDigits: 2 })}
-                    </td>
-                    <td className="px-4 h-10 text-center">
-                      <span
-                        className={`inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-medium ${
-                          sl.isSaving
-                            ? "bg-green-500/10 text-green-600 dark:text-green-400"
-                            : "bg-red-500/10 text-red-600 dark:text-red-400"
-                        }`}
-                      >
-                        {sl.isSaving ? "Saving" : "Loss"}
-                      </span>
-                    </td>
-                    <td className="px-4 h-10 text-[13px] text-[var(--text-secondary)] max-w-[250px] truncate">
-                      {sl.description}
-                    </td>
-                    <td className="px-4 h-10 text-[12px] text-[var(--text-tertiary)]">
-                      {sl.createdBy}
-                    </td>
-                    <td className="px-4 h-10">
-                      <button className="h-7 w-7 rounded-md hover:bg-[var(--surface-secondary)] flex items-center justify-center transition-colors">
-                        <MoreHorizontal className="h-3.5 w-3.5 text-[var(--text-tertiary)]" />
-                      </button>
-                    </td>
-                  </tr>
-                ))}
+                {financials.map((f) => {
+                  const isSaving = f.entryType === "saving";
+                  return (
+                    <tr
+                      key={f.id}
+                      className="border-b border-[var(--border-subdued,var(--border-default))] hover:bg-[var(--surface-hover)] transition-colors"
+                    >
+                      <td className="px-4 h-10 text-[13px] font-medium text-[var(--text-primary)]">
+                        {f.entryType}
+                      </td>
+                      <td className={`px-4 h-10 text-[13px] font-semibold text-right ${isSaving ? "text-green-500" : "text-red-500"}`}>
+                        {isSaving ? "+" : "-"}${f.amount.toLocaleString("en-US", { minimumFractionDigits: 2 })}
+                      </td>
+                      <td className="px-4 h-10 text-center">
+                        <span
+                          className={`inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-medium ${
+                            isSaving
+                              ? "bg-green-500/10 text-green-600 dark:text-green-400"
+                              : "bg-red-500/10 text-red-600 dark:text-red-400"
+                          }`}
+                        >
+                          {isSaving ? "Saving" : "Loss"}
+                        </span>
+                      </td>
+                      <td className="px-4 h-10 text-[13px] text-[var(--text-secondary)] max-w-[250px] truncate">
+                        {f.description || "—"}
+                      </td>
+                      <td className="px-4 h-10 text-[12px] text-[var(--text-tertiary)]">
+                        {f.createdBy || "—"}
+                      </td>
+                      <td className="px-4 h-10">
+                        <button className="h-7 w-7 rounded-md hover:bg-[var(--surface-secondary)] flex items-center justify-center transition-colors">
+                          <MoreHorizontal className="h-3.5 w-3.5 text-[var(--text-tertiary)]" />
+                        </button>
+                      </td>
+                    </tr>
+                  );
+                })}
               </tbody>
               <tfoot>
                 <tr className="bg-[var(--surface-secondary)] border-t border-[var(--border-default)]">

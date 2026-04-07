@@ -1,25 +1,17 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect, useCallback } from "react";
 import Link from "next/link";
-import { Plus, Search, ArrowRight } from "lucide-react";
+import { Plus, Search, ArrowRight, Loader2, AlertCircle } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { Select } from "@/components/ui/Select";
 import { Badge } from "@/components/ui/Badge";
 import { Avatar } from "@/components/ui/Avatar";
 import { Card, CardContent, CardFooter } from "@/components/ui/Card";
 import { CreateBriefingModal } from "@/components/modals/briefings";
-
-/* ── Types ── */
-interface BriefingItem {
-  id: string;
-  title: string;
-  priority: "high" | "medium" | "low";
-  author: string;
-  timestamp: string;
-  preview: string;
-  acknowledgments: number;
-}
+import { fetchBriefings, type BriefingRow } from "@/lib/queries/briefings";
+import { formatRelativeTime } from "@/lib/utils/time";
+import { useToast } from "@/components/ui/Toast";
 
 /* ── Priority tone map ── */
 const priorityTone: Record<string, "critical" | "warning" | "info"> = {
@@ -27,60 +19,6 @@ const priorityTone: Record<string, "critical" | "warning" | "info"> = {
   medium: "warning",
   low: "info",
 };
-
-/* ── Mock Data ── */
-const MOCK_BRIEFINGS: BriefingItem[] = [
-  {
-    id: "1",
-    title: "Evening Shift Handoff",
-    priority: "high",
-    author: "Sgt. Maria Patel",
-    timestamp: "12 min ago",
-    preview:
-      "Gate B had two unresolved disturbance calls during day shift. VIP section requires additional patrol due to artist arrival at 7 PM. Medical tent reported low supply of cold packs.",
-    acknowledgments: 3,
-  },
-  {
-    id: "2",
-    title: "Weather Alert: Storm Warning",
-    priority: "high",
-    author: "Lt. James Nguyen",
-    timestamp: "45 min ago",
-    preview:
-      "NWS has issued a severe thunderstorm warning for our area from 6 PM to 10 PM. All outdoor stages may need evacuation protocol activation. Shelter points are marked on the updated venue map.",
-    acknowledgments: 8,
-  },
-  {
-    id: "3",
-    title: "VIP Arrival Protocol Update",
-    priority: "medium",
-    author: "Capt. Sarah Chen",
-    timestamp: "2 hr ago",
-    preview:
-      "Updated escort routes for tonight's headliner arrival. North entrance will be secured 30 minutes prior. Credential checks have been tightened for backstage access per artist management request.",
-    acknowledgments: 5,
-  },
-  {
-    id: "4",
-    title: "Medical Tent Location Change",
-    priority: "medium",
-    author: "Officer David Rivera",
-    timestamp: "3 hr ago",
-    preview:
-      "Secondary medical tent has been relocated from Lot C to the south lawn near Gate D due to drainage issues. Updated signage is being posted. Radio dispatch has been notified of the new coordinates.",
-    acknowledgments: 4,
-  },
-  {
-    id: "5",
-    title: "Radio Channel Assignment Update",
-    priority: "low",
-    author: "Dispatch Coordinator Kim",
-    timestamp: "5 hr ago",
-    preview:
-      "Channels 3 and 7 have been reassigned for the evening operations. Security ops moves to Channel 3, medical stays on Channel 5. See attached frequency table for full breakdown.",
-    acknowledgments: 11,
-  },
-];
 
 /* ── Filter Options ── */
 const PRIORITY_OPTIONS = [
@@ -91,12 +29,33 @@ const PRIORITY_OPTIONS = [
 ];
 
 export default function BriefingsPage() {
+  const { toast } = useToast();
+  const [briefings, setBriefings] = useState<BriefingRow[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [search, setSearch] = useState("");
   const [priorityFilter, setPriorityFilter] = useState("");
   const [createOpen, setCreateOpen] = useState(false);
 
+  const loadBriefings = useCallback(async () => {
+    try {
+      setLoading(true);
+      setError(null);
+      const data = await fetchBriefings();
+      setBriefings(data);
+    } catch (err: any) {
+      setError(err.message || "Failed to load briefings");
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    loadBriefings();
+  }, [loadBriefings]);
+
   const filtered = useMemo(() => {
-    let items = [...MOCK_BRIEFINGS];
+    let items = [...briefings];
     if (search) {
       const q = search.toLowerCase();
       items = items.filter(
@@ -110,7 +69,25 @@ export default function BriefingsPage() {
       items = items.filter((b) => b.priority === priorityFilter);
     }
     return items;
-  }, [search, priorityFilter]);
+  }, [search, priorityFilter, briefings]);
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center py-20">
+        <Loader2 size={24} className="animate-spin text-[var(--text-tertiary)]" />
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="flex flex-col items-center justify-center py-20 gap-3">
+        <AlertCircle size={24} className="text-[var(--status-critical)]" />
+        <p className="text-[13px] text-[var(--text-tertiary)]">{error}</p>
+        <Button variant="outline" size="sm" onClick={loadBriefings}>Retry</Button>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-5">
@@ -179,7 +156,7 @@ export default function BriefingsPage() {
                   {briefing.author}
                 </span>
                 <span className="text-[11px] text-[var(--text-tertiary)]">
-                  {briefing.timestamp}
+                  {formatRelativeTime(briefing.createdAt)}
                 </span>
               </div>
 
@@ -190,8 +167,7 @@ export default function BriefingsPage() {
 
             <CardFooter className="justify-between">
               <span className="text-[12px] text-[var(--text-tertiary)]">
-                {briefing.acknowledgments} acknowledgment
-                {briefing.acknowledgments !== 1 ? "s" : ""}
+                Briefing
               </span>
               <Link
                 href={`/briefings/${briefing.id}`}
@@ -216,8 +192,9 @@ export default function BriefingsPage() {
         open={createOpen}
         onClose={() => setCreateOpen(false)}
         onSubmit={async (data) => {
-          console.log("Create briefing:", data);
+          toast("Briefing created", { variant: "success" });
           setCreateOpen(false);
+          loadBriefings();
         }}
       />
     </div>

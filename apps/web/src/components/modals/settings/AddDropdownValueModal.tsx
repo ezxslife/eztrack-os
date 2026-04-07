@@ -3,15 +3,13 @@
 import { useState } from "react";
 import { FormModal } from "@/components/modals/FormModal";
 import { Input } from "@/components/ui/Input";
+import { useFormState } from "@/hooks/useFormState";
+import { addDropdownValueSchema, type AddDropdownValues } from "@/lib/validations/settings";
 
 interface AddDropdownValueModalProps {
   open: boolean;
   onClose: () => void;
-  onSubmit: (data: {
-    value: string;
-    displayLabel: string;
-    sortOrder: number;
-  }) => void | Promise<void>;
+  onSubmit: (data: AddDropdownValues & { sortOrder: number }) => void | Promise<void>;
   dropdownCategory?: string;
 }
 
@@ -21,28 +19,21 @@ export function AddDropdownValueModal({
   onSubmit,
   dropdownCategory = "",
 }: AddDropdownValueModalProps) {
-  const [value, setValue] = useState("");
-  const [displayLabel, setDisplayLabel] = useState("");
-  const [sortOrder, setSortOrder] = useState("");
+  const form = useFormState({
+    initialValues: { value: "", displayLabel: "", sortOrder: "" },
+    schema: addDropdownValueSchema,
+  });
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const isValid = value.trim().length > 0 && displayLabel.trim().length > 0;
-
-  const resetForm = () => {
-    setValue("");
-    setDisplayLabel("");
-    setSortOrder("");
-  };
-
   const handleSubmit = async () => {
+    if (!form.validate()) return;
     setIsSubmitting(true);
     try {
       await onSubmit({
-        value: value.trim(),
-        displayLabel: displayLabel.trim(),
-        sortOrder: parseInt(sortOrder) || 0,
-      });
-      resetForm();
+        ...form.values,
+        sortOrder: parseInt(form.values.sortOrder ?? "0") || 0,
+      } as AddDropdownValues & { sortOrder: number });
+      form.reset();
       onClose();
     } finally {
       setIsSubmitting(false);
@@ -50,7 +41,7 @@ export function AddDropdownValueModal({
   };
 
   const handleClose = () => {
-    resetForm();
+    form.reset();
     onClose();
   };
 
@@ -63,7 +54,7 @@ export function AddDropdownValueModal({
       size="sm"
       submitLabel="Add Value"
       isSubmitting={isSubmitting}
-      isValid={isValid}
+      isValid={form.isValid}
     >
       {dropdownCategory && (
         <div className="text-[13px]">
@@ -75,23 +66,25 @@ export function AddDropdownValueModal({
       <Input
         label="Value"
         placeholder="Internal value (e.g. high_priority)"
-        value={value}
-        onChange={(e) => setValue(e.target.value)}
+        value={form.values.value}
+        onChange={(e) => form.setValue("value", e.target.value)}
+        error={form.touched.value ? form.errors.value : undefined}
       />
 
       <Input
         label="Display Label"
         placeholder="Display text (e.g. High Priority)"
-        value={displayLabel}
-        onChange={(e) => setDisplayLabel(e.target.value)}
+        value={form.values.displayLabel}
+        onChange={(e) => form.setValue("displayLabel", e.target.value)}
+        error={form.touched.displayLabel ? form.errors.displayLabel : undefined}
       />
 
       <Input
         label="Sort Order"
         type="number"
         placeholder="0"
-        value={sortOrder}
-        onChange={(e) => setSortOrder(e.target.value)}
+        value={form.values.sortOrder}
+        onChange={(e) => form.setValue("sortOrder", e.target.value)}
       />
     </FormModal>
   );

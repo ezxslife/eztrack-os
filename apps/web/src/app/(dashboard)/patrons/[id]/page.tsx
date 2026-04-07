@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, use } from "react";
+import { useState, use, useEffect, useCallback } from "react";
 import Link from "next/link";
 import {
   ArrowLeft,
@@ -17,7 +17,10 @@ import { Button } from "@/components/ui/Button";
 import { Badge } from "@/components/ui/Badge";
 import { StatusBadge } from "@/components/ui/Badge";
 import { Tabs } from "@/components/ui/Tabs";
+import { Loader2, AlertCircle } from "lucide-react";
 import dynamic from "next/dynamic";
+import { fetchPatronById, updatePatron, updatePatronFlag, deletePatron, type PatronDetail as PatronDetailType } from "@/lib/queries/patrons";
+import { useToast } from "@/components/ui/Toast";
 
 const EditPatronModal = dynamic(() => import("@/components/modals/patrons/EditPatronModal").then(m => ({ default: m.EditPatronModal })), { ssr: false });
 const PatronFlagModal = dynamic(() => import("@/components/modals/patrons/PatronFlagModal").then(m => ({ default: m.PatronFlagModal })), { ssr: false });
@@ -218,6 +221,10 @@ export default function PatronDetailPage({
   params: Promise<{ id: string }>;
 }) {
   const { id } = use(params);
+  const { toast } = useToast();
+  const [patronData, setPatronData] = useState<PatronDetailType | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState("overview");
   const [showEditModal, setShowEditModal] = useState(false);
   const [showFlagModal, setShowFlagModal] = useState(false);
@@ -225,29 +232,63 @@ export default function PatronDetailPage({
   const [showNoteModal, setShowNoteModal] = useState(false);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
 
-  const patron = MOCK_PATRONS[id] ?? {
-    id,
-    firstName: "Unknown",
-    lastName: "Patron",
-    dob: "-",
-    gender: "-",
-    phone: "-",
-    email: "-",
-    height: "-",
-    hair: "-",
-    eyes: "-",
-    build: "-",
-    distinguishing: "-",
-    idType: "-",
-    idNumber: "-",
-    idState: "-",
+  const loadPatron = useCallback(async () => {
+    try {
+      setLoading(true);
+      setError(null);
+      const data = await fetchPatronById(id);
+      setPatronData(data);
+    } catch (err: any) {
+      setError(err.message || "Failed to load patron");
+    } finally {
+      setLoading(false);
+    }
+  }, [id]);
+
+  useEffect(() => {
+    loadPatron();
+  }, [loadPatron]);
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center py-20">
+        <Loader2 size={24} className="animate-spin text-[var(--text-tertiary)]" />
+      </div>
+    );
+  }
+
+  if (error || !patronData) {
+    return (
+      <div className="flex flex-col items-center justify-center py-20 gap-3">
+        <AlertCircle size={24} className="text-[var(--status-critical)]" />
+        <p className="text-[13px] text-[var(--text-tertiary)]">{error || "Patron not found"}</p>
+        <Link href="/patrons"><Button variant="outline" size="sm">Back to Patrons</Button></Link>
+      </div>
+    );
+  }
+
+  // Map real data to the shape the existing UI expects
+  const patron = {
+    id: patronData.id,
+    firstName: patronData.firstName,
+    lastName: patronData.lastName,
+    dob: patronData.dob || "",
+    gender: "",
+    phone: patronData.phone || "",
+    email: patronData.email || "",
+    height: "", hair: "", eyes: "", build: "", distinguishing: "",
+    idType: patronData.idType || "",
+    idNumber: patronData.idNumber || "",
+    idState: "",
     idVerified: false,
-    flag: "none" as PatronFlag,
-    flagReason: "",
-    flagSetBy: "-",
-    flagDate: "-",
-    flagExpiry: "-",
+    flag: (patronData.flag || "none") as PatronFlag,
+    flagReason: patronData.notes || "",
+    flagSetBy: "",
+    flagDate: "",
+    flagExpiry: "",
   };
+
+  // Entry history and incidents remain on mock — no dedicated patron entry/incident tables yet
 
   const cfg = FLAG_CONFIG[patron.flag];
   const entries = MOCK_ENTRIES[id] ?? [

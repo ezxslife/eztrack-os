@@ -6,24 +6,14 @@ import { Input } from "@/components/ui/Input";
 import { Select } from "@/components/ui/Select";
 import { Textarea } from "@/components/ui/Textarea";
 import { Toggle } from "@/components/ui/Toggle";
+import { useFormState } from "@/hooks/useFormState";
+import { editDispatchSchema, type EditDispatchValues } from "@/lib/validations/dispatches";
 
 interface EditDispatchModalProps {
   open: boolean;
   onClose: () => void;
-  onSubmit: (data: DispatchFormData) => void | Promise<void>;
-  initialData: DispatchFormData | null;
-}
-
-interface DispatchFormData {
-  priority: string;
-  dispatchCode: string;
-  location: string;
-  sublocation: string;
-  reporterName: string;
-  reporterPhone: string;
-  anonymous: boolean;
-  callSource: string;
-  synopsis: string;
+  onSubmit: (data: EditDispatchValues) => void | Promise<void>;
+  initialData: EditDispatchValues | null;
 }
 
 const PRIORITY_OPTIONS = [
@@ -65,47 +55,48 @@ export function EditDispatchModal({
   onSubmit,
   initialData,
 }: EditDispatchModalProps) {
-  const [priority, setPriority] = useState("P3");
-  const [dispatchCode, setDispatchCode] = useState("");
-  const [location, setLocation] = useState("");
-  const [sublocation, setSublocation] = useState("");
-  const [reporterName, setReporterName] = useState("");
-  const [reporterPhone, setReporterPhone] = useState("");
-  const [anonymous, setAnonymous] = useState(false);
-  const [callSource, setCallSource] = useState("");
-  const [synopsis, setSynopsis] = useState("");
+  const form = useFormState({
+    initialValues: {
+      priority: "P3",
+      dispatchCode: "",
+      location: "",
+      sublocation: "",
+      reporterName: "",
+      reporterPhone: "",
+      anonymous: false as boolean,
+      callSource: "",
+      synopsis: "",
+    },
+    schema: editDispatchSchema,
+  });
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   useEffect(() => {
     if (initialData && open) {
-      setPriority(initialData.priority);
-      setDispatchCode(initialData.dispatchCode);
-      setLocation(initialData.location);
-      setSublocation(initialData.sublocation);
-      setReporterName(initialData.reporterName);
-      setReporterPhone(initialData.reporterPhone);
-      setAnonymous(initialData.anonymous);
-      setCallSource(initialData.callSource);
-      setSynopsis(initialData.synopsis);
+      form.setValues({
+        priority: initialData.priority ?? "P3",
+        dispatchCode: initialData.dispatchCode ?? "",
+        location: initialData.location ?? "",
+        sublocation: initialData.sublocation ?? "",
+        reporterName: initialData.reporterName ?? "",
+        reporterPhone: initialData.reporterPhone ?? "",
+        anonymous: initialData.anonymous ?? false,
+        callSource: initialData.callSource ?? "",
+        synopsis: initialData.synopsis ?? "",
+      });
     }
-  }, [initialData, open]);
-
-  const isValid = dispatchCode !== "" && location !== "" && synopsis.trim() !== "";
+  }, [initialData, open]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleSubmit = async () => {
+    if (!form.validate()) return;
     setIsSubmitting(true);
     try {
-      await onSubmit({
-        priority,
-        dispatchCode,
-        location,
-        sublocation,
-        reporterName: anonymous ? "" : reporterName,
-        reporterPhone: anonymous ? "" : reporterPhone,
-        anonymous,
-        callSource,
-        synopsis,
-      });
+      const data = {
+        ...form.values,
+        reporterName: form.values.anonymous ? "" : form.values.reporterName,
+        reporterPhone: form.values.anonymous ? "" : form.values.reporterPhone,
+      };
+      await onSubmit(data as EditDispatchValues);
       onClose();
     } finally {
       setIsSubmitting(false);
@@ -122,21 +113,23 @@ export function EditDispatchModal({
       size="lg"
       submitLabel="Save Changes"
       isSubmitting={isSubmitting}
-      isValid={isValid}
+      isValid={form.isValid}
     >
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
         <Select
           label="Priority"
           options={PRIORITY_OPTIONS}
-          value={priority}
-          onChange={(e) => setPriority(e.target.value)}
+          value={form.values.priority}
+          onChange={(e) => form.setValue("priority", e.target.value)}
+          error={form.touched.priority ? form.errors.priority : undefined}
         />
         <Select
           label="Dispatch Code"
           options={DISPATCH_CODE_OPTIONS}
-          value={dispatchCode}
-          onChange={(e) => setDispatchCode(e.target.value)}
+          value={form.values.dispatchCode}
+          onChange={(e) => form.setValue("dispatchCode", e.target.value)}
           placeholder="Select code..."
+          error={form.touched.dispatchCode ? form.errors.dispatchCode : undefined}
         />
       </div>
 
@@ -144,15 +137,16 @@ export function EditDispatchModal({
         <Select
           label="Location"
           options={LOCATION_OPTIONS}
-          value={location}
-          onChange={(e) => setLocation(e.target.value)}
+          value={form.values.location}
+          onChange={(e) => form.setValue("location", e.target.value)}
           placeholder="Select location..."
+          error={form.touched.location ? form.errors.location : undefined}
         />
         <Input
           label="Sub-location"
           placeholder="Room, floor, area..."
-          value={sublocation}
-          onChange={(e) => setSublocation(e.target.value)}
+          value={form.values.sublocation}
+          onChange={(e) => form.setValue("sublocation", e.target.value)}
         />
       </div>
 
@@ -162,25 +156,25 @@ export function EditDispatchModal({
             Reporter Information
           </span>
           <Toggle
-            checked={anonymous}
-            onChange={setAnonymous}
+            checked={!!form.values.anonymous}
+            onChange={(val) => form.setValue("anonymous", val)}
             label="Anonymous"
             size="sm"
           />
         </div>
-        {!anonymous && (
+        {!form.values.anonymous && (
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <Input
               label="Reporter Name"
               placeholder="Full name"
-              value={reporterName}
-              onChange={(e) => setReporterName(e.target.value)}
+              value={form.values.reporterName}
+              onChange={(e) => form.setValue("reporterName", e.target.value)}
             />
             <Input
               label="Phone"
               placeholder="(555) 000-0000"
-              value={reporterPhone}
-              onChange={(e) => setReporterPhone(e.target.value)}
+              value={form.values.reporterPhone}
+              onChange={(e) => form.setValue("reporterPhone", e.target.value)}
             />
           </div>
         )}
@@ -189,17 +183,18 @@ export function EditDispatchModal({
       <Select
         label="Call Source"
         options={CALL_SOURCE_OPTIONS}
-        value={callSource}
-        onChange={(e) => setCallSource(e.target.value)}
+        value={form.values.callSource}
+        onChange={(e) => form.setValue("callSource", e.target.value)}
         placeholder="Select source..."
       />
 
       <Textarea
         label="Synopsis"
         placeholder="Describe the situation..."
-        value={synopsis}
-        onChange={(e) => setSynopsis(e.target.value)}
+        value={form.values.synopsis}
+        onChange={(e) => form.setValue("synopsis", e.target.value)}
         rows={3}
+        error={form.touched.synopsis ? form.errors.synopsis : undefined}
       />
     </FormModal>
   );

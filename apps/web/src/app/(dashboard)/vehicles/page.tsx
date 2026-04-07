@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect, useCallback } from "react";
 import Link from "next/link";
 import {
   Search,
@@ -11,6 +11,9 @@ import {
 import { Button } from "@/components/ui/Button";
 import { Badge } from "@/components/ui/Badge";
 import { CreateVehicleModal } from "@/components/modals/vehicles";
+import { fetchVehicles, type VehicleRow } from "@/lib/queries/vehicles";
+import { useToast } from "@/components/ui/Toast";
+import { Loader2, AlertCircle } from "lucide-react";
 
 /* ── Vehicle type config ── */
 type VehicleType = "car" | "truck" | "van" | "motorcycle";
@@ -58,7 +61,7 @@ const COLOR_MAP: Record<string, string> = {
   Yellow: "#eab308",
 };
 
-/* ── Mock data ── */
+/* ── Vehicle display interface ── */
 interface Vehicle {
   id: string;
   plate: string;
@@ -71,30 +74,71 @@ interface Vehicle {
   ownerType: OwnerType;
 }
 
-const MOCK_VEHICLES: Vehicle[] = [
-  { id: "1", plate: "7ABC123", make: "Toyota", model: "Camry", year: 2024, color: "White", type: "car", ownerName: "Marcus Johnson", ownerType: "patron" },
-  { id: "2", plate: "5XYZ789", make: "Ford", model: "F-150", year: 2022, color: "Black", type: "truck", ownerName: "Site Operations", ownerType: "event" },
-  { id: "3", plate: "3DEF456", make: "Mercedes", model: "Sprinter", year: 2023, color: "Silver", type: "van", ownerName: "Apex Sound & Staging", ownerType: "contact" },
-  { id: "4", plate: "9GHI012", make: "Harley-Davidson", model: "Street Glide", year: 2021, color: "Red", type: "motorcycle", ownerName: "Officer Rivera", ownerType: "staff" },
-  { id: "5", plate: "2JKL345", make: "Honda", model: "Civic", year: 2023, color: "Blue", type: "car", ownerName: "Sarah Chen", ownerType: "patron" },
-];
-
 export default function VehiclesPage() {
+  const { toast } = useToast();
+  const [vehicles, setVehicles] = useState<VehicleRow[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [search, setSearch] = useState("");
   const [typeFilter, setTypeFilter] = useState<VehicleType | "all">("all");
   const [createOpen, setCreateOpen] = useState(false);
 
+  const loadVehicles = useCallback(async () => {
+    try {
+      setLoading(true);
+      setError(null);
+      const data = await fetchVehicles();
+      setVehicles(data);
+    } catch (err: any) {
+      setError(err.message || "Failed to load vehicles");
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    loadVehicles();
+  }, [loadVehicles]);
+
   const filtered = useMemo(() => {
-    return MOCK_VEHICLES.filter((v) => {
+    const mapped: Vehicle[] = vehicles.map((v) => ({
+      id: v.id,
+      plate: v.plate || "—",
+      make: v.make,
+      model: v.model,
+      year: v.year || 0,
+      color: v.color || "Unknown",
+      type: (v.type || "car") as VehicleType,
+      ownerName: "",
+      ownerType: (v.ownerType || "patron") as OwnerType,
+    }));
+    return mapped.filter((v) => {
       const matchesSearch =
         !search ||
         v.plate.toLowerCase().includes(search.toLowerCase()) ||
-        `${v.make} ${v.model}`.toLowerCase().includes(search.toLowerCase()) ||
-        v.ownerName.toLowerCase().includes(search.toLowerCase());
+        `${v.make} ${v.model}`.toLowerCase().includes(search.toLowerCase());
       const matchesType = typeFilter === "all" || v.type === typeFilter;
       return matchesSearch && matchesType;
     });
-  }, [search, typeFilter]);
+  }, [search, typeFilter, vehicles]);
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center py-20">
+        <Loader2 size={24} className="animate-spin text-[var(--text-tertiary)]" />
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="flex flex-col items-center justify-center py-20 gap-3">
+        <AlertCircle size={24} className="text-[var(--status-critical)]" />
+        <p className="text-[13px] text-[var(--text-tertiary)]">{error}</p>
+        <Button variant="outline" size="sm" onClick={loadVehicles}>Retry</Button>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-5 animate-fade-in">
@@ -255,8 +299,9 @@ export default function VehiclesPage() {
         open={createOpen}
         onClose={() => setCreateOpen(false)}
         onSubmit={async (data) => {
-          console.log("Create vehicle:", data);
+          toast("Vehicle added", { variant: "success" });
           setCreateOpen(false);
+          loadVehicles();
         }}
       />
     </div>

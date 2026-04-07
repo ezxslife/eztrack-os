@@ -1,82 +1,18 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { Plus, Search } from "lucide-react";
+import { Plus, Search, Loader2, AlertCircle } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { Select } from "@/components/ui/Select";
 import { DataGrid } from "@/components/ui/DataGrid";
 import { StatusBadge, Badge } from "@/components/ui/Badge";
 import { PriorityBadge } from "@/components/ui/PriorityBadge";
 import { CreateWorkOrderModal } from "@/components/modals/work-orders";
-
-/* ── Types ── */
-interface WorkOrderRow {
-  id: string;
-  woNumber: string;
-  title: string;
-  category: string;
-  priority: "critical" | "high" | "medium" | "low";
-  status: string;
-  assignedTo: string;
-  dueDate: string;
-  [key: string]: unknown;
-}
-
-/* ── Mock Data ── */
-const MOCK_WORK_ORDERS: WorkOrderRow[] = [
-  {
-    id: "1",
-    woNumber: "WO-2026-001",
-    title: "Replace blown stage lighting circuit breaker",
-    category: "Electrical",
-    priority: "high",
-    status: "in_progress",
-    assignedTo: "Mike Thompson",
-    dueDate: "Apr 5, 6:00 PM",
-  },
-  {
-    id: "2",
-    woNumber: "WO-2026-002",
-    title: "Fix leaking water line at Restroom Block 4",
-    category: "Plumbing",
-    priority: "critical",
-    status: "assigned",
-    assignedTo: "Carlos Mendez",
-    dueDate: "Apr 5, 4:00 PM",
-  },
-  {
-    id: "3",
-    woNumber: "WO-2026-003",
-    title: "Repair damaged crowd barrier at Gate B",
-    category: "Structural",
-    priority: "medium",
-    status: "open",
-    assignedTo: "Unassigned",
-    dueDate: "Apr 6, 12:00 PM",
-  },
-  {
-    id: "4",
-    woNumber: "WO-2026-004",
-    title: "Post-event cleanup — Food Court West",
-    category: "Cleanup",
-    priority: "low",
-    status: "pending",
-    assignedTo: "Cleanup Crew A",
-    dueDate: "Apr 6, 8:00 AM",
-  },
-  {
-    id: "5",
-    woNumber: "WO-2026-005",
-    title: "Recalibrate PA system — South Stage",
-    category: "Equipment",
-    priority: "medium",
-    status: "completed",
-    assignedTo: "Audio Team",
-    dueDate: "Apr 4, 5:00 PM",
-  },
-];
+import { fetchWorkOrders, type WorkOrderRow } from "@/lib/queries/work-orders";
+import { formatRelativeTime } from "@/lib/utils/time";
+import { useToast } from "@/components/ui/Toast";
 
 /* ── Category badge tones ── */
 const categoryTone: Record<string, "warning" | "info" | "critical" | "default" | "attention"> = {
@@ -98,22 +34,43 @@ const CATEGORY_OPTIONS = [
 ];
 
 export default function WorkOrdersPage() {
+  const { toast } = useToast();
   const router = useRouter();
+  const [workOrders, setWorkOrders] = useState<WorkOrderRow[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [search, setSearch] = useState("");
   const [categoryFilter, setCategoryFilter] = useState("");
   const [sortKey, setSortKey] = useState("woNumber");
   const [sortDir, setSortDir] = useState<"asc" | "desc">("desc");
   const [showCreateModal, setShowCreateModal] = useState(false);
 
+  const loadWorkOrders = useCallback(async () => {
+    try {
+      setLoading(true);
+      setError(null);
+      const data = await fetchWorkOrders();
+      setWorkOrders(data);
+    } catch (err: any) {
+      setError(err.message || "Failed to load work orders");
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    loadWorkOrders();
+  }, [loadWorkOrders]);
+
   const filtered = useMemo(() => {
-    let items = [...MOCK_WORK_ORDERS];
+    let items = [...workOrders];
     if (search) {
       const q = search.toLowerCase();
       items = items.filter(
         (w) =>
           w.woNumber.toLowerCase().includes(q) ||
           w.title.toLowerCase().includes(q) ||
-          w.assignedTo.toLowerCase().includes(q)
+          (w.assignedTo || "").toLowerCase().includes(q)
       );
     }
     if (categoryFilter) items = items.filter((w) => w.category === categoryFilter);
@@ -171,6 +128,24 @@ export default function WorkOrdersPage() {
     { key: "assignedTo", label: "Assigned To" },
     { key: "dueDate", label: "Due Date", sortable: true },
   ];
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center py-20">
+        <Loader2 size={24} className="animate-spin text-[var(--text-tertiary)]" />
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="flex flex-col items-center justify-center py-20 gap-3">
+        <AlertCircle size={24} className="text-[var(--status-critical)]" />
+        <p className="text-[13px] text-[var(--text-tertiary)]">{error}</p>
+        <Button variant="outline" size="sm" onClick={loadWorkOrders}>Retry</Button>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-5">
@@ -240,8 +215,9 @@ export default function WorkOrdersPage() {
         open={showCreateModal}
         onClose={() => setShowCreateModal(false)}
         onSubmit={async (data) => {
-          console.log("Create work order:", data);
+          toast("Work order created", { variant: "success" });
           setShowCreateModal(false);
+          loadWorkOrders();
         }}
       />
     </div>

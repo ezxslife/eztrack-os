@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect, useCallback } from "react";
 import {
   Plus,
   Radio,
@@ -13,11 +13,25 @@ import {
   Eye,
   Coffee,
   Filter,
+  Loader2,
+  AlertCircle,
 } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { Badge } from "@/components/ui/Badge";
 import { Avatar } from "@/components/ui/Avatar";
 import dynamic from "next/dynamic";
+import {
+  fetchDispatches,
+  fetchOnDutyOfficers,
+  createDispatch,
+  assignOfficerToDispatch,
+  clearDispatch as clearDispatchApi,
+  subscribeToDispatches,
+  type DispatchCard as DispatchCardType,
+  type OfficerOnDuty,
+} from "@/lib/queries/dispatches";
+import { getSupabaseBrowser } from "@/lib/supabase-browser";
+import { formatRelativeTime } from "@/lib/utils/time";
 
 const CreateDispatchModal = dynamic(() => import("@/components/modals/dispatch/CreateDispatchModal").then(m => ({ default: m.CreateDispatchModal })), { ssr: false });
 const AssignOfficerModal = dynamic(() => import("@/components/modals/dispatch/AssignOfficerModal").then(m => ({ default: m.AssignOfficerModal })), { ssr: false });
@@ -42,11 +56,12 @@ interface DispatchItem {
   location: string;
   synopsis: string;
   priority: Priority;
-  status: DispatchStatus;
+  status: string; // DB status values: pending, scheduled, in_progress, on_scene, overdue, cleared, completed
   officer?: string;
   activeSubStatus?: ActiveSubStatus;
   clearCode?: string;
   timeAgo: string;
+  _realId?: string; // Supabase UUID for API calls
 }
 
 interface Officer {
@@ -117,158 +132,23 @@ const OFFICER_STATUS_CONFIG: Record<
 
 /* ─── Mock Data ───────────────────────────────────────────────── */
 
-const MOCK_DISPATCHES: DispatchItem[] = [
-  // Pending
-  {
-    id: "DSP-2026-00045",
-    code: "Medical \u2014 Cardiac",
-    category: "Medical",
-    location: "Main Stage, North Pit",
-    synopsis: "Patron collapsed near front barricade. Bystander performing CPR. AED requested.",
-    priority: "critical",
-    status: "pending",
-    timeAgo: "30s ago",
-  },
-  {
-    id: "DSP-2026-00044",
-    code: "Security \u2014 Disruptive Patron",
-    category: "Security",
-    location: "VIP Tent A",
-    synopsis: "Intoxicated individual refusing to leave VIP area. Verbal altercation with staff.",
-    priority: "high",
-    status: "pending",
-    timeAgo: "2m ago",
-  },
-  {
-    id: "DSP-2026-00043",
-    code: "Lost Person \u2014 Child",
-    category: "Lost Person",
-    location: "Family Zone",
-    synopsis: "7-year-old male, blue shirt, separated from parents near bounce houses.",
-    priority: "medium",
-    status: "pending",
-    timeAgo: "5m ago",
-  },
-  {
-    id: "DSP-2026-00042",
-    code: "Equipment \u2014 Sound System",
-    category: "Equipment",
-    location: "West Stage",
-    synopsis: "Main PA system intermittent. Vendor requesting security escort for tech crew.",
-    priority: "low",
-    status: "pending",
-    timeAgo: "8m ago",
-  },
-  // Active
-  {
-    id: "DSP-2026-00041",
-    code: "Medical \u2014 Intoxicated",
-    category: "Medical",
-    location: "Campground B",
-    synopsis: "Unresponsive individual found in tent. Breathing but unresponsive to verbal.",
-    priority: "high",
-    status: "active",
-    officer: "Officer Martinez",
-    activeSubStatus: "en-route",
-    timeAgo: "12m ago",
-  },
-  {
-    id: "DSP-2026-00040",
-    code: "Noise \u2014 Complaint",
-    category: "Noise",
-    location: "East Perimeter",
-    synopsis: "Neighboring property complaining about bass levels. Third call tonight.",
-    priority: "medium",
-    status: "active",
-    officer: "Officer Rivera",
-    activeSubStatus: "on-scene",
-    timeAgo: "18m ago",
-  },
-  {
-    id: "DSP-2026-00039",
-    code: "Security \u2014 Trespasser",
-    category: "Security",
-    location: "South Gate",
-    synopsis: "Individual bypassed credentialing checkpoint. Last seen heading toward backstage.",
-    priority: "critical",
-    status: "active",
-    officer: "Sgt. Patel",
-    activeSubStatus: "on-scene",
-    timeAgo: "25m ago",
-  },
-  {
-    id: "DSP-2026-00038",
-    code: "Vendor \u2014 Permit Issue",
-    category: "Vendor",
-    location: "Food Court",
-    synopsis: "Unauthorized vendor set up without proper health permit. Refusing to shut down.",
-    priority: "medium",
-    status: "active",
-    officer: "Officer Davis",
-    activeSubStatus: "en-route",
-    timeAgo: "30m ago",
-  },
-  // Cleared
-  {
-    id: "DSP-2026-00037",
-    code: "Traffic \u2014 Parking",
-    category: "Traffic",
-    location: "Lot C",
-    synopsis: "Two vehicles blocking fire lane. Owners located and vehicles moved.",
-    priority: "low",
-    status: "cleared",
-    officer: "Officer Kim",
-    clearCode: "Resolved",
-    timeAgo: "45m ago",
-  },
-  {
-    id: "DSP-2026-00036",
-    code: "Medical \u2014 Minor Injury",
-    category: "Medical",
-    location: "Dance Tent",
-    synopsis: "Patron twisted ankle on uneven ground. Ambulatory, no transport needed.",
-    priority: "medium",
-    status: "cleared",
-    officer: "Officer Rivera",
-    clearCode: "Referred to Medical",
-    timeAgo: "1hr ago",
-  },
-  {
-    id: "DSP-2026-00035",
-    code: "Security \u2014 Theft",
-    category: "Security",
-    location: "Merchandise Area",
-    synopsis: "Vendor reports shoplifting. Suspect description obtained, CCTV footage pulled.",
-    priority: "high",
-    status: "cleared",
-    officer: "Sgt. Patel",
-    clearCode: "Escalated to Incident",
-    timeAgo: "1.5hr ago",
-  },
-  {
-    id: "DSP-2026-00034",
-    code: "Vendor \u2014 Cleanup",
-    category: "Vendor",
-    location: "Main Entrance",
-    synopsis: "Spill from food vendor blocking foot traffic. Cleanup crew dispatched.",
-    priority: "low",
-    status: "cleared",
-    officer: "Staff Hendricks",
-    clearCode: "Completed",
-    timeAgo: "2hr ago",
-  },
-];
+/* ─── Status Grouping for Kanban ─────────────────────────────── */
 
-const MOCK_OFFICERS: Officer[] = [
-  { name: "Officer Martinez", status: "en-route" },
-  { name: "Officer Rivera", status: "on-scene" },
-  { name: "Sgt. Patel", status: "on-scene", rank: "Sgt" },
-  { name: "Officer Davis", status: "en-route" },
-  { name: "Officer Kim", status: "available" },
-  { name: "Staff Hendricks", status: "available" },
-];
+const PENDING_STATUSES = ["pending", "scheduled"];
+const ACTIVE_STATUSES = ["in_progress", "on_scene", "overdue"];
+const CLEARED_STATUSES = ["cleared", "completed"];
 
-/* ─── Filter Chip Component ───────────────────────────────────── */
+/** Map DB officer_status to UI display status */
+const OFFICER_STATUS_MAP: Record<string, OfficerStatus> = {
+  available: "available",
+  on_break: "on-break",
+  dispatched: "en-route",
+  on_scene: "on-scene",
+  overdue: "on-scene",
+  break_overdue: "on-break",
+};
+
+/*─── Filter Chip Component ───────────────────────────────────── */
 
 function FilterChip({
   label,
@@ -318,6 +198,15 @@ function FilterChip({
 
 function DispatchCard({ dispatch, onClick }: { dispatch: DispatchItem; onClick?: () => void }) {
   const priority = PRIORITY_CONFIG[dispatch.priority];
+  const isActive = ACTIVE_STATUSES.includes(dispatch.status);
+  const isCleared = CLEARED_STATUSES.includes(dispatch.status);
+
+  // Map DB status to UI sub-status for active dispatches
+  const activeSubStatus: ActiveSubStatus | null = dispatch.status === "in_progress"
+    ? "en-route"
+    : dispatch.status === "on_scene"
+      ? "on-scene"
+      : null;
 
   return (
     <div
@@ -400,10 +289,10 @@ function DispatchCard({ dispatch, onClick }: { dispatch: DispatchItem; onClick?:
 
         {/* Status / Time */}
         <div className="flex items-center gap-1.5 shrink-0">
-          {dispatch.status === "active" && dispatch.activeSubStatus && (
-            <ActiveStatusPill status={dispatch.activeSubStatus} />
+          {isActive && activeSubStatus && (
+            <ActiveStatusPill status={activeSubStatus} />
           )}
-          {dispatch.status === "cleared" && dispatch.clearCode && (
+          {isCleared && (
             <span
               className="text-[10px] font-medium px-1.5 py-0.5 rounded-full"
               style={{
@@ -412,7 +301,7 @@ function DispatchCard({ dispatch, onClick }: { dispatch: DispatchItem; onClick?:
                 color: "var(--green-600)",
               }}
             >
-              {dispatch.clearCode}
+              {dispatch.status === "completed" ? "Completed" : "Cleared"}
             </span>
           )}
           <span
@@ -608,6 +497,12 @@ import { useToast } from "@/components/ui/Toast";
 
 export default function DispatchPage() {
   const { toast } = useToast();
+  const [dispatches, setDispatches] = useState<DispatchItem[]>([]);
+  const [officers, setOfficers] = useState<Officer[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [userProfile, setUserProfile] = useState<{ orgId: string; propertyId: string | null } | null>(null);
+
   const [priorityFilter, setPriorityFilter] = useState<PriorityFilter>("all");
   const [createModal, setCreateModal] = useState(false);
   const [editModal, setEditModal] = useState<{ open: boolean; data?: any }>({ open: false });
@@ -618,14 +513,109 @@ export default function DispatchPage() {
   const [bulkModal, setBulkModal] = useState<{ open: boolean; operation: "delete" | "assign" | "status_change" | "export" | "archive" }>({ open: false, operation: "export" });
   const [escalationChainModal, setEscalationChainModal] = useState<{ open: boolean; dispatchId?: string }>({ open: false });
 
-  const filtered = useMemo(() => {
-    if (priorityFilter === "all") return MOCK_DISPATCHES;
-    return MOCK_DISPATCHES.filter((d) => d.priority === priorityFilter);
-  }, [priorityFilter]);
+  // Map real Supabase data → DispatchItem shape for cards
+  const mapToCardItem = useCallback((d: DispatchCardType): DispatchItem => ({
+    id: d.recordNumber,
+    code: d.dispatchCode,
+    category: d.dispatchCode.split(/[\s—-]/)[0] || "General",
+    location: d.sublocation ? `${d.location}, ${d.sublocation}` : d.location,
+    synopsis: d.description || "",
+    priority: d.priority,
+    status: d.status,
+    officer: d.officerName || undefined,
+    timeAgo: formatRelativeTime(d.createdAt),
+    _realId: d.id, // preserve the UUID for API calls
+  } as DispatchItem), []);
 
-  const pending = filtered.filter((d) => d.status === "pending");
-  const active = filtered.filter((d) => d.status === "active");
-  const cleared = filtered.filter((d) => d.status === "cleared");
+  // Fetch dispatches + officers on mount
+  const loadData = useCallback(async () => {
+    try {
+      setLoading(true);
+      const [dispatchRows, officerRows] = await Promise.all([
+        fetchDispatches(),
+        fetchOnDutyOfficers(),
+      ]);
+
+      setDispatches(dispatchRows.map(mapToCardItem));
+
+      setOfficers(officerRows.map((o) => ({
+        name: o.name,
+        status: OFFICER_STATUS_MAP[o.status] || "available",
+      })));
+
+      // Get user profile for create dispatch
+      const supabase = getSupabaseBrowser();
+      const { data: { user } } = await supabase.auth.getUser();
+      if (user) {
+        const { data: profile } = await supabase
+          .from("profiles")
+          .select("org_id, property_id")
+          .eq("id", user.id)
+          .single();
+        if (profile) setUserProfile({ orgId: profile.org_id, propertyId: profile.property_id });
+      }
+    } catch (err: any) {
+      setError(err.message || "Failed to load dispatch board");
+    } finally {
+      setLoading(false);
+    }
+  }, [mapToCardItem]);
+
+  useEffect(() => {
+    loadData();
+  }, [loadData]);
+
+  // Supabase Realtime subscription for live updates
+  useEffect(() => {
+    if (!userProfile?.orgId) return;
+
+    const channel = subscribeToDispatches(userProfile.orgId, {
+      onInsert: () => {
+        // Reload all dispatches on any change (simple approach for MVP)
+        loadData();
+      },
+      onUpdate: () => {
+        loadData();
+      },
+      onDelete: () => {
+        loadData();
+      },
+    });
+
+    return () => {
+      getSupabaseBrowser().removeChannel(channel);
+    };
+  }, [userProfile?.orgId, loadData]);
+
+  const filtered = useMemo(() => {
+    if (priorityFilter === "all") return dispatches;
+    return dispatches.filter((d) => d.priority === priorityFilter);
+  }, [priorityFilter, dispatches]);
+
+  const pending = filtered.filter((d) => PENDING_STATUSES.includes(d.status));
+  const active = filtered.filter((d) => ACTIVE_STATUSES.includes(d.status));
+  const cleared = filtered.filter((d) => CLEARED_STATUSES.includes(d.status));
+
+  // Loading state
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center py-20">
+        <Loader2 className="h-6 w-6 animate-spin text-[var(--text-tertiary)]" />
+        <span className="ml-2 text-[13px] text-[var(--text-tertiary)]">Loading dispatch board…</span>
+      </div>
+    );
+  }
+
+  // Error state
+  if (error) {
+    return (
+      <div className="flex flex-col items-center justify-center py-20 gap-3">
+        <AlertCircle className="h-8 w-8 text-[var(--status-error)]" />
+        <p className="text-[13px] text-[var(--text-secondary)]">{error}</p>
+        <Button variant="outline" size="sm" onClick={() => window.location.reload()}>Retry</Button>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-4 animate-fade-in">
@@ -729,15 +719,37 @@ export default function DispatchPage() {
       </div>
 
       {/* ── Officer Status Panel ───────────────────────────────── */}
-      <OfficerStatusBar officers={MOCK_OFFICERS} />
+      <OfficerStatusBar officers={officers} />
 
       {/* ── Modals ──────────────────────────────────────────────── */}
       <CreateDispatchModal
         open={createModal}
         onClose={() => setCreateModal(false)}
         onSubmit={async (data) => {
-          toast("Dispatch created", { variant: "success" });
-          setCreateModal(false);
+          if (!userProfile) {
+            toast("Unable to determine your organization", { variant: "error" });
+            return;
+          }
+          try {
+            await createDispatch({
+              orgId: userProfile.orgId,
+              propertyId: userProfile.propertyId,
+              dispatchCode: data.dispatchCode || "GENERAL",
+              priority: data.priority || "medium",
+              locationId: null, // TODO: map location string to ID
+              sublocation: data.sublocation,
+              description: data.synopsis || "",
+              reporterName: data.reporterName,
+              reporterPhone: data.reporterPhone,
+              anonymous: data.anonymous,
+              callSource: data.callSource,
+            });
+            toast("Dispatch created", { variant: "success" });
+            setCreateModal(false);
+            loadData(); // Refresh board
+          } catch (err: any) {
+            toast(err.message || "Failed to create dispatch", { variant: "error" });
+          }
         }}
       />
 
@@ -755,8 +767,18 @@ export default function DispatchPage() {
         open={assignModal.open}
         onClose={() => setAssignModal({ open: false })}
         onSubmit={async (officerId) => {
-          toast("Officer assigned to dispatch", { variant: "success" });
-          setAssignModal({ open: false });
+          if (!assignModal.dispatchId) return;
+          try {
+            // Find the real UUID from the dispatch record number
+            const realDispatch = dispatches.find((d) => d.id === assignModal.dispatchId);
+            const realId = (realDispatch as any)?._realId || assignModal.dispatchId;
+            await assignOfficerToDispatch(realId, officerId);
+            toast("Officer assigned to dispatch", { variant: "success" });
+            setAssignModal({ open: false });
+            loadData();
+          } catch (err: any) {
+            toast(err.message || "Failed to assign officer", { variant: "error" });
+          }
         }}
       />
 
@@ -764,8 +786,17 @@ export default function DispatchPage() {
         open={clearModal.open}
         onClose={() => setClearModal({ open: false })}
         onConfirm={async (data) => {
-          toast("Dispatch cleared", { variant: "success" });
-          setClearModal({ open: false });
+          if (!clearModal.dispatchId) return;
+          try {
+            const realDispatch = dispatches.find((d) => d.id === clearModal.dispatchId);
+            const realId = (realDispatch as any)?._realId || clearModal.dispatchId;
+            await clearDispatchApi(realId, { clearCode: data.clearCode, reason: data.reason });
+            toast("Dispatch cleared", { variant: "success" });
+            setClearModal({ open: false });
+            loadData();
+          } catch (err: any) {
+            toast(err.message || "Failed to clear dispatch", { variant: "error" });
+          }
         }}
         dispatchId={clearModal.dispatchId}
       />

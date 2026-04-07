@@ -1,15 +1,17 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { ArrowLeft, CheckCircle } from "lucide-react";
+import { ArrowLeft, CheckCircle, Loader2 } from "lucide-react";
 import { INCIDENT_TYPES } from "@eztrack/shared";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { Select } from "@/components/ui/Select";
 import { Textarea } from "@/components/ui/Textarea";
 import { useToast } from "@/components/ui/Toast";
+import { createIncident, fetchLocations } from "@/lib/queries/incidents";
+import { getSupabaseBrowser } from "@/lib/supabase-browser";
 
 /* ── Constants ── */
 const SEVERITY_OPTIONS = [
@@ -20,27 +22,6 @@ const SEVERITY_OPTIONS = [
 ];
 
 const TYPE_OPTIONS = INCIDENT_TYPES.map((t) => ({ value: t, label: t }));
-
-const LOCATION_OPTIONS = [
-  { value: "main-stage", label: "Main Stage" },
-  { value: "gate-a", label: "Gate A Entrance" },
-  { value: "gate-b", label: "Gate B Entrance" },
-  { value: "gate-c", label: "Gate C Entrance" },
-  { value: "vip-tent-a", label: "VIP Tent A" },
-  { value: "vip-tent-b", label: "VIP Tent B" },
-  { value: "family-zone", label: "Family Zone" },
-  { value: "food-court-west", label: "Food Court West" },
-  { value: "food-court-east", label: "Food Court East" },
-  { value: "campground-c", label: "Campground Lot C" },
-  { value: "parking-d", label: "Parking Lot D" },
-  { value: "backstage", label: "Backstage Area" },
-  { value: "vendor-row", label: "Vendor Row East" },
-  { value: "restroom-4", label: "Restroom Block 4" },
-  { value: "south-lawn", label: "South Lawn" },
-  { value: "north-perimeter", label: "Perimeter Fence North" },
-  { value: "east-perimeter", label: "East Perimeter" },
-  { value: "medical-tent", label: "Medical Tent" },
-];
 
 interface FormData {
   incidentType: string;
@@ -62,7 +43,10 @@ export default function CreateIncidentPage() {
   const router = useRouter();
   const { toast } = useToast();
   const [submitted, setSubmitted] = useState(false);
+  const [createdRecord, setCreatedRecord] = useState<{ id: string; record_number: string } | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [locationOptions, setLocationOptions] = useState<{ value: string; label: string }[]>([]);
+  const [userProfile, setUserProfile] = useState<{ orgId: string; propertyId: string | null } | null>(null);
 
   const [form, setForm] = useState<FormData>({
     incidentType: "",
@@ -74,6 +58,36 @@ export default function CreateIncidentPage() {
   });
 
   const [errors, setErrors] = useState<FormErrors>({});
+
+  // Load locations and user profile on mount
+  useEffect(() => {
+    async function load() {
+      try {
+        // Fetch real locations from Supabase
+        const locations = await fetchLocations();
+        setLocationOptions(
+          locations.map((loc: any) => ({ value: loc.id, label: loc.name }))
+        );
+
+        // Get current user's org_id and property_id
+        const supabase = getSupabaseBrowser();
+        const { data: { user } } = await supabase.auth.getUser();
+        if (user) {
+          const { data: profile } = await supabase
+            .from("profiles")
+            .select("org_id, property_id")
+            .eq("id", user.id)
+            .single();
+          if (profile) {
+            setUserProfile({ orgId: profile.org_id, propertyId: profile.property_id });
+          }
+        }
+      } catch (err) {
+        console.error("Failed to load form data:", err);
+      }
+    }
+    load();
+  }, []);
 
   const updateField = (field: keyof FormData, value: string) => {
     setForm((prev) => ({ ...prev, [field]: value }));
@@ -95,13 +109,31 @@ export default function CreateIncidentPage() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!validate()) return;
+    if (!userProfile) {
+      toast("Unable to determine your organization. Please refresh.", { variant: "error" });
+      return;
+    }
 
     setIsSubmitting(true);
-    // Simulate API call
-    await new Promise((r) => setTimeout(r, 800));
-    toast("Incident created successfully", { variant: "success" });
-    setIsSubmitting(false);
-    setSubmitted(true);
+    try {
+      const result = await createIncident({
+        orgId: userProfile.orgId,
+        propertyId: userProfile.propertyId,
+        incidentType: form.incidentType,
+        severity: form.severity,
+        locationId: form.location || null,
+        synopsis: form.synopsis,
+        description: form.description || undefined,
+        reportedBy: form.reporterName || undefined,
+      });
+      setCreatedRecord(result);
+      toast("Incident created successfully", { variant: "success" });
+      setSubmitted(true);
+    } catch (err: any) {
+      toast(err.message || "Failed to create incident", { variant: "error" });
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   if (submitted) {
@@ -114,17 +146,26 @@ export default function CreateIncidentPage() {
           <h2 className="text-base font-semibold text-[var(--text-primary)] mb-1">
             Incident Created
           </h2>
-          <p className="text-[13px] text-[var(--text-tertiary)] mb-5">
-            The incident has been logged and is ready for assignment.
+          <p className="text-[13px] text-[var(--text-tertiary)] mb-1">
+            {createdRecord?.record_number
+              ? `Record ${createdRecord.record_number} has been logged and is ready for assignment.`
+              : "The incident has been logged and is ready for assignment."}
           </p>
-          <div className="flex items-center justify-center gap-3">
+          <div className="flex items-center justify-center gap-3 mt-5">
+            {createdRecord && (
+              <Button variant="default" size="md" onClick={() => router.push(`/incidents/${createdRecord.id}`)}>
+                View Incident
+              </Button>
+            )}
             <Button variant="outline" size="md" onClick={() => router.push("/incidents")}>
               Back to Incidents
             </Button>
             <Button
+              variant="secondary"
               size="md"
               onClick={() => {
                 setSubmitted(false);
+                setCreatedRecord(null);
                 setForm({
                   incidentType: "",
                   severity: "",
@@ -186,10 +227,10 @@ export default function CreateIncidentPage() {
           {/* Location */}
           <Select
             label="Location"
-            options={LOCATION_OPTIONS}
+            options={locationOptions}
             value={form.location}
             onChange={(e) => updateField("location", e.target.value)}
-            placeholder="Select zone or area..."
+            placeholder={locationOptions.length === 0 ? "Loading locations…" : "Select zone or area..."}
             error={errors.location}
           />
 

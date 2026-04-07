@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect, useCallback } from "react";
 import Link from "next/link";
 import {
   Search,
@@ -9,13 +9,16 @@ import {
   List,
   MapPin,
   Clock,
+  Loader2,
+  AlertCircle,
 } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { Badge } from "@/components/ui/Badge";
 import { CreatePatronModal } from "@/components/modals/patrons";
-
-/* ── Flag config ── */
-type PatronFlag = "banned" | "watch" | "vip" | "warning" | "none";
+import { fetchPatrons, createPatron, type PatronRow, type PatronFlag } from "@/lib/queries/patrons";
+import { formatRelativeTime } from "@/lib/utils/time";
+import { getSupabaseBrowser } from "@/lib/supabase-browser";
+import { useToast } from "@/components/ui/Toast";
 
 const FLAG_CONFIG: Record<
   PatronFlag,
@@ -37,7 +40,6 @@ const FLAG_FILTERS: { value: PatronFlag | "all"; label: string }[] = [
   { value: "none", label: "None" },
 ];
 
-/* ── Mock data ── */
 interface Patron {
   id: string;
   firstName: string;
@@ -48,17 +50,6 @@ interface Patron {
   lastSeen: string;
   photo?: string;
 }
-
-const MOCK_PATRONS: Patron[] = [
-  { id: "1", firstName: "Marcus", lastName: "Johnson", flag: "banned", flagReason: "Repeat disruptive behavior", lastLocation: "Main Stage", lastSeen: "2hr ago" },
-  { id: "2", firstName: "Sarah", lastName: "Chen", flag: "vip", flagReason: "Artist performer", lastLocation: "VIP Lounge", lastSeen: "30m ago" },
-  { id: "3", firstName: "Jake", lastName: "Williams", flag: "watch", flagReason: "Previous noise complaint", lastLocation: "Campground A", lastSeen: "1hr ago" },
-  { id: "4", firstName: "Maria", lastName: "Rodriguez", flag: "none", flagReason: "", lastLocation: "Family Zone", lastSeen: "45m ago" },
-  { id: "5", firstName: "Tyler", lastName: "Brooks", flag: "warning", flagReason: "ID mismatch flagged", lastLocation: "North Gate", lastSeen: "15m ago" },
-  { id: "6", firstName: "Aisha", lastName: "Patel", flag: "vip", flagReason: "Sponsor guest", lastLocation: "VIP Tent A", lastSeen: "1hr ago" },
-  { id: "7", firstName: "David", lastName: "Kim", flag: "none", flagReason: "", lastLocation: "West Field", lastSeen: "3hr ago" },
-  { id: "8", firstName: "Lisa", lastName: "Thompson", flag: "banned", flagReason: "Drug violation, ejected", lastLocation: "South Gate", lastSeen: "5hr ago" },
-];
 
 /* ── Initials avatar ── */
 function Avatar({ firstName, lastName, color }: { firstName: string; lastName: string; color: string }) {
@@ -74,21 +65,79 @@ function Avatar({ firstName, lastName, color }: { firstName: string; lastName: s
 }
 
 export default function PatronsPage() {
+  const { toast } = useToast();
+  const [patrons, setPatrons] = useState<PatronRow[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [orgId, setOrgId] = useState<string | null>(null);
   const [search, setSearch] = useState("");
   const [flagFilter, setFlagFilter] = useState<PatronFlag | "all">("all");
   const [view, setView] = useState<"grid" | "list">("grid");
   const [showCreateModal, setShowCreateModal] = useState(false);
 
+  const loadPatrons = useCallback(async () => {
+    try {
+      setLoading(true);
+      setError(null);
+      const data = await fetchPatrons();
+      setPatrons(data);
+      // Get orgId for creating patrons
+      const supabase = getSupabaseBrowser();
+      const { data: { user } } = await supabase.auth.getUser();
+      if (user) {
+        const { data: profile } = await supabase
+          .from("profiles")
+          .select("org_id")
+          .eq("id", user.id)
+          .single();
+        if (profile) setOrgId(profile.org_id);
+      }
+    } catch (err: any) {
+      setError(err.message || "Failed to load patrons");
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    loadPatrons();
+  }, [loadPatrons]);
+
   const filtered = useMemo(() => {
-    return MOCK_PATRONS.filter((p) => {
+    return patrons.filter((p) => {
       const matchesSearch =
         !search ||
-        `${p.firstName} ${p.lastName}`.toLowerCase().includes(search.toLowerCase()) ||
-        p.lastLocation.toLowerCase().includes(search.toLowerCase());
+        `${p.firstName} ${p.lastName}`.toLowerCase().includes(search.toLowerCase());
       const matchesFlag = flagFilter === "all" || p.flag === flagFilter;
       return matchesSearch && matchesFlag;
-    });
-  }, [search, flagFilter]);
+    }).map((p) => ({
+      id: p.id,
+      firstName: p.firstName,
+      lastName: p.lastName,
+      flag: p.flag as PatronFlag,
+      flagReason: (p.notes || "") as string,
+      lastLocation: "",
+      lastSeen: formatRelativeTime(p.createdAt),
+    }));
+  }, [search, flagFilter, patrons]);
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center py-20">
+        <Loader2 size={24} className="animate-spin text-[var(--text-tertiary)]" />
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="flex flex-col items-center justify-center py-20 gap-3">
+        <AlertCircle size={24} className="text-[var(--status-critical)]" />
+        <p className="text-[13px] text-[var(--text-tertiary)]">{error}</p>
+        <Button variant="outline" size="sm" onClick={loadPatrons}>Retry</Button>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-5 animate-fade-in">
@@ -304,8 +353,25 @@ export default function PatronsPage() {
         open={showCreateModal}
         onClose={() => setShowCreateModal(false)}
         onSubmit={async (data) => {
-          console.log("Create patron:", data);
-          setShowCreateModal(false);
+          try {
+            if (!orgId) throw new Error("Organization not found");
+            await createPatron({
+              orgId,
+              firstName: data.firstName,
+              lastName: data.lastName,
+              email: data.email || undefined,
+              phone: data.phone || undefined,
+              dob: data.dob || undefined,
+              ticketType: data.ticketType || undefined,
+              idType: data.idType || undefined,
+              idNumber: data.idNumber || undefined,
+            });
+            toast("Patron created", { variant: "success" });
+            setShowCreateModal(false);
+            loadPatrons();
+          } catch (err: any) {
+            toast(err.message || "Failed to create patron", { variant: "error" });
+          }
         }}
       />
     </div>

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import {
   Plus,
@@ -16,6 +16,8 @@ import {
   UserSearch,
   Flame,
   Lock,
+  Loader2,
+  AlertCircle,
 } from "lucide-react";
 import Link from "next/link";
 import { Button } from "@/components/ui/Button";
@@ -24,6 +26,8 @@ import { Select } from "@/components/ui/Select";
 import { DataGrid } from "@/components/ui/DataGrid";
 import { StatusBadge } from "@/components/ui/Badge";
 import { PriorityBadge } from "@/components/ui/PriorityBadge";
+import { fetchIncidents, type IncidentRow } from "@/lib/queries/incidents";
+import { formatRelativeTime } from "@/lib/utils/time";
 
 /* ── Types ── */
 interface Incident {
@@ -51,130 +55,6 @@ const TYPE_ICONS: Record<string, React.ReactNode> = {
   "Fire/Hazard": <Flame className="h-3.5 w-3.5" />,
   "Security Breach": <Lock className="h-3.5 w-3.5" />,
 };
-
-/* ── Mock Data ── */
-const MOCK_INCIDENTS: Incident[] = [
-  {
-    id: "1",
-    recordNumber: "INC-2026-00001",
-    type: "Medical",
-    location: "Main Stage",
-    severity: "critical",
-    status: "in_progress",
-    assignedTo: "Officer Rivera",
-    reportedAt: "4 min ago",
-  },
-  {
-    id: "2",
-    recordNumber: "INC-2026-00002",
-    type: "Theft",
-    location: "VIP Tent A",
-    severity: "high",
-    status: "assigned",
-    assignedTo: "Officer Martinez",
-    reportedAt: "12 min ago",
-  },
-  {
-    id: "3",
-    recordNumber: "INC-2026-00003",
-    type: "Assault",
-    location: "Gate B Entrance",
-    severity: "critical",
-    status: "investigation",
-    assignedTo: "Sgt. Patel",
-    reportedAt: "28 min ago",
-  },
-  {
-    id: "4",
-    recordNumber: "INC-2026-00004",
-    type: "Missing Person",
-    location: "Family Zone",
-    severity: "high",
-    status: "in_progress",
-    assignedTo: "Officer Davis",
-    reportedAt: "35 min ago",
-  },
-  {
-    id: "5",
-    recordNumber: "INC-2026-00005",
-    type: "Drug/Alcohol",
-    location: "Campground Lot C",
-    severity: "medium",
-    status: "assigned",
-    assignedTo: "Officer Chen",
-    reportedAt: "52 min ago",
-  },
-  {
-    id: "6",
-    recordNumber: "INC-2026-00006",
-    type: "Disturbance",
-    location: "Food Court West",
-    severity: "low",
-    status: "open",
-    assignedTo: "Unassigned",
-    reportedAt: "1 hr ago",
-  },
-  {
-    id: "7",
-    recordNumber: "INC-2026-00007",
-    type: "Vandalism",
-    location: "Restroom Block 4",
-    severity: "medium",
-    status: "follow_up",
-    assignedTo: "Officer Rivera",
-    reportedAt: "1.5 hr ago",
-  },
-  {
-    id: "8",
-    recordNumber: "INC-2026-00008",
-    type: "Fire/Hazard",
-    location: "Vendor Row East",
-    severity: "critical",
-    status: "completed",
-    assignedTo: "Lt. Nguyen",
-    reportedAt: "2 hr ago",
-  },
-  {
-    id: "9",
-    recordNumber: "INC-2026-00009",
-    type: "Security Breach",
-    location: "Backstage Area",
-    severity: "high",
-    status: "closed",
-    assignedTo: "Sgt. Patel",
-    reportedAt: "3 hr ago",
-  },
-  {
-    id: "10",
-    recordNumber: "INC-2026-00010",
-    type: "Medical",
-    location: "South Lawn",
-    severity: "medium",
-    status: "completed",
-    assignedTo: "Officer Martinez",
-    reportedAt: "4 hr ago",
-  },
-  {
-    id: "11",
-    recordNumber: "INC-2026-00011",
-    type: "Trespassing",
-    location: "Perimeter Fence North",
-    severity: "low",
-    status: "closed",
-    assignedTo: "Officer Chen",
-    reportedAt: "5 hr ago",
-  },
-  {
-    id: "12",
-    recordNumber: "INC-2026-00012",
-    type: "Disturbance",
-    location: "Parking Lot D",
-    severity: "low",
-    status: "open",
-    assignedTo: "Unassigned",
-    reportedAt: "6 hr ago",
-  },
-];
 
 /* ── Filter Options ── */
 const TYPE_OPTIONS = [
@@ -212,6 +92,9 @@ const STATUS_OPTIONS = [
 
 export default function IncidentsPage() {
   const router = useRouter();
+  const [incidents, setIncidents] = useState<Incident[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [search, setSearch] = useState("");
   const [typeFilter, setTypeFilter] = useState("");
   const [severityFilter, setSeverityFilter] = useState("");
@@ -219,8 +102,38 @@ export default function IncidentsPage() {
   const [sortKey, setSortKey] = useState("recordNumber");
   const [sortDir, setSortDir] = useState<"asc" | "desc">("desc");
 
+  // Fetch incidents from Supabase on mount
+  useEffect(() => {
+    let cancelled = false;
+    async function load() {
+      try {
+        setLoading(true);
+        const rows = await fetchIncidents();
+        if (cancelled) return;
+        setIncidents(
+          rows.map((r) => ({
+            id: r.id,
+            recordNumber: r.recordNumber,
+            type: r.type,
+            location: r.location,
+            severity: r.severity as Incident["severity"],
+            status: r.status,
+            assignedTo: r.assignedTo || "Unassigned",
+            reportedAt: formatRelativeTime(r.reportedAt),
+          }))
+        );
+      } catch (err: any) {
+        if (!cancelled) setError(err.message || "Failed to load incidents");
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    }
+    load();
+    return () => { cancelled = true; };
+  }, []);
+
   const filtered = useMemo(() => {
-    let items = [...MOCK_INCIDENTS];
+    let items = [...incidents];
 
     if (search) {
       const q = search.toLowerCase();
@@ -300,6 +213,29 @@ export default function IncidentsPage() {
       sortable: true,
     },
   ];
+
+  // Loading state
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center py-20">
+        <Loader2 className="h-6 w-6 animate-spin text-[var(--text-tertiary)]" />
+        <span className="ml-2 text-[13px] text-[var(--text-tertiary)]">Loading incidents…</span>
+      </div>
+    );
+  }
+
+  // Error state
+  if (error) {
+    return (
+      <div className="flex flex-col items-center justify-center py-20 gap-3">
+        <AlertCircle className="h-8 w-8 text-[var(--status-error)]" />
+        <p className="text-[13px] text-[var(--text-secondary)]">{error}</p>
+        <Button variant="outline" size="sm" onClick={() => window.location.reload()}>
+          Retry
+        </Button>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-5">

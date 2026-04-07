@@ -5,8 +5,8 @@ import clsx from "clsx";
 import { FormModal } from "@/components/modals/FormModal";
 import { Select } from "@/components/ui/Select";
 import { Textarea } from "@/components/ui/Textarea";
-
-type EntryKind = "loss" | "saving";
+import { useFormState } from "@/hooks/useFormState";
+import { addFinancialEntrySchema, type AddFinancialEntryValues } from "@/lib/validations/incidents";
 
 const TYPE_OPTIONS = [
   { value: "property_damage", label: "Property Damage" },
@@ -22,7 +22,7 @@ interface AddFinancialEntryModalProps {
   open: boolean;
   onClose: () => void;
   onSubmit: (data: {
-    kind: EntryKind;
+    kind: string;
     type: string;
     amount: number;
     description: string;
@@ -34,39 +34,36 @@ export function AddFinancialEntryModal({
   onClose,
   onSubmit,
 }: AddFinancialEntryModalProps) {
-  const [kind, setKind] = useState<EntryKind>("loss");
-  const [type, setType] = useState("property_damage");
-  const [amount, setAmount] = useState("");
-  const [description, setDescription] = useState("");
+  const form = useFormState({
+    initialValues: {
+      kind: "loss",
+      type: "property_damage",
+      amount: "",
+      description: "",
+    },
+    schema: addFinancialEntrySchema,
+  });
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const isValid = parseFloat(amount) > 0;
-
   const handleSubmit = async () => {
+    if (!form.validate()) return;
     setIsSubmitting(true);
     try {
       await onSubmit({
-        kind,
-        type,
-        amount: parseFloat(amount),
-        description: description.trim(),
+        kind: form.values.kind,
+        type: form.values.type,
+        amount: parseFloat(form.values.amount),
+        description: form.values.description ?? "",
       });
-      handleReset();
+      form.reset();
       onClose();
     } finally {
       setIsSubmitting(false);
     }
   };
 
-  const handleReset = () => {
-    setKind("loss");
-    setType("property_damage");
-    setAmount("");
-    setDescription("");
-  };
-
   const handleClose = () => {
-    handleReset();
+    form.reset();
     onClose();
   };
 
@@ -79,7 +76,7 @@ export function AddFinancialEntryModal({
       size="sm"
       submitLabel="Add Entry"
       isSubmitting={isSubmitting}
-      isValid={isValid}
+      isValid={form.isValid}
     >
       {/* Loss / Saving radio group */}
       <div>
@@ -91,10 +88,10 @@ export function AddFinancialEntryModal({
             <button
               key={option}
               type="button"
-              onClick={() => setKind(option)}
+              onClick={() => form.setValue("kind", option)}
               className={clsx(
                 "flex-1 py-2 rounded-lg border text-[13px] font-medium transition-all duration-150",
-                kind === option
+                form.values.kind === option
                   ? option === "loss"
                     ? "border-red-500 bg-red-500/10 text-red-600"
                     : "border-green-500 bg-green-500/10 text-green-600"
@@ -110,8 +107,9 @@ export function AddFinancialEntryModal({
       <Select
         label="Category"
         options={TYPE_OPTIONS}
-        value={type}
-        onChange={(e) => setType(e.target.value)}
+        value={form.values.type}
+        onChange={(e) => form.setValue("type", e.target.value)}
+        error={form.touched.type ? form.errors.type : undefined}
       />
 
       {/* Amount with $ prefix */}
@@ -128,18 +126,21 @@ export function AddFinancialEntryModal({
             min="0"
             step="0.01"
             placeholder="0.00"
-            value={amount}
-            onChange={(e) => setAmount(e.target.value)}
+            value={form.values.amount}
+            onChange={(e) => form.setValue("amount", e.target.value)}
             className="w-full h-9 rounded-lg border border-[var(--border-default)] bg-[var(--surface-primary)] pl-7 pr-3 text-[13px] text-[var(--text-primary)] placeholder:text-[var(--text-tertiary)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--focus-ring)]"
           />
         </div>
+        {form.touched.amount && form.errors.amount && (
+          <p className="text-[11px] text-red-500 mt-1">{form.errors.amount}</p>
+        )}
       </div>
 
       <Textarea
         label="Description"
         placeholder="Describe this financial entry..."
-        value={description}
-        onChange={(e) => setDescription(e.target.value)}
+        value={form.values.description}
+        onChange={(e) => form.setValue("description", e.target.value)}
         rows={3}
       />
     </FormModal>

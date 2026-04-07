@@ -9,7 +9,8 @@
     "clean": "rm -rf dist"
   },
   "dependencies": {
-    "@supabase/supabase-js": "^2.49.0"
+    "@supabase/supabase-js": "^2.49.0",
+    "@supabase/ssr": "^0.7.0"
   },
   "devDependencies": {
     "typescript": "^5.8.0"

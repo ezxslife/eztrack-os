@@ -1,15 +1,18 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { Plus, Search, UserCog } from "lucide-react";
+import { Plus, Search, UserCog, Loader2, AlertCircle } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { Select } from "@/components/ui/Select";
 import { DataGrid } from "@/components/ui/DataGrid";
 import { Badge, StatusBadge } from "@/components/ui/Badge";
 import { Avatar } from "@/components/ui/Avatar";
 import { CreatePersonnelModal } from "@/components/modals/personnel";
+import { fetchPersonnel, type PersonnelRow } from "@/lib/queries/personnel";
+import { formatRelativeTime } from "@/lib/utils/time";
+import { useToast } from "@/components/ui/Toast";
 
 /* ── Types ── */
 interface StaffRow {
@@ -47,74 +50,6 @@ const roleTone: Record<string, "info" | "warning" | "critical" | "default"> = {
   Staff: "default",
 };
 
-/* ── Mock Data ── */
-const MOCK_STAFF: StaffRow[] = [
-  {
-    id: "1",
-    name: "Sgt. Maria Patel",
-    role: "Supervisor",
-    status: "available",
-    phone: "(555) 234-5678",
-    lastActive: "2 min ago",
-  },
-  {
-    id: "2",
-    name: "Officer James Rivera",
-    role: "Staff",
-    status: "dispatched",
-    phone: "(555) 345-6789",
-    lastActive: "Just now",
-  },
-  {
-    id: "3",
-    name: "Lt. Sarah Nguyen",
-    role: "Manager",
-    status: "available",
-    phone: "(555) 456-7890",
-    lastActive: "5 min ago",
-  },
-  {
-    id: "4",
-    name: "Officer Lisa Chen",
-    role: "Staff",
-    status: "on_break",
-    phone: "(555) 567-8901",
-    lastActive: "15 min ago",
-  },
-  {
-    id: "5",
-    name: "Capt. David Kim",
-    role: "Manager",
-    status: "available",
-    phone: "(555) 678-9012",
-    lastActive: "8 min ago",
-  },
-  {
-    id: "6",
-    name: "Coordinator Emily Park",
-    role: "Dispatcher",
-    status: "available",
-    phone: "(555) 789-0123",
-    lastActive: "1 min ago",
-  },
-  {
-    id: "7",
-    name: "Officer Marcus Johnson",
-    role: "Staff",
-    status: "off_duty",
-    phone: "(555) 890-1234",
-    lastActive: "3 hr ago",
-  },
-  {
-    id: "8",
-    name: "Officer Ana Martinez",
-    role: "Staff",
-    status: "on_scene",
-    phone: "(555) 901-2345",
-    lastActive: "Just now",
-  },
-];
-
 /* ── Filter Options ── */
 const ROLE_OPTIONS = [
   { value: "", label: "All Roles" },
@@ -126,12 +61,36 @@ const ROLE_OPTIONS = [
 
 export default function PersonnelPage() {
   const router = useRouter();
+  const { toast } = useToast();
+  const [staff, setStaff] = useState<StaffRow[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [search, setSearch] = useState("");
   const [roleFilter, setRoleFilter] = useState("");
   const [createOpen, setCreateOpen] = useState(false);
 
+  const loadPersonnel = useCallback(async () => {
+    try {
+      setLoading(true);
+      setError(null);
+      const data = await fetchPersonnel();
+      setStaff(data.map((p) => ({
+        ...p,
+        lastActive: formatRelativeTime(p.lastActive),
+      })));
+    } catch (err: any) {
+      setError(err.message || "Failed to load personnel");
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    loadPersonnel();
+  }, [loadPersonnel]);
+
   const filtered = useMemo(() => {
-    let items = [...MOCK_STAFF];
+    let items = [...staff];
     if (search) {
       const q = search.toLowerCase();
       items = items.filter(
@@ -184,6 +143,24 @@ export default function PersonnelPage() {
     { key: "phone", label: "Phone" },
     { key: "lastActive", label: "Last Active", sortable: true },
   ];
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center py-20">
+        <Loader2 size={24} className="animate-spin text-[var(--text-tertiary)]" />
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="flex flex-col items-center justify-center py-20 gap-3">
+        <AlertCircle size={24} className="text-[var(--status-critical)]" />
+        <p className="text-[13px] text-[var(--text-tertiary)]">{error}</p>
+        <Button variant="outline" size="sm" onClick={loadPersonnel}>Retry</Button>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-5">
@@ -248,8 +225,9 @@ export default function PersonnelPage() {
         open={createOpen}
         onClose={() => setCreateOpen(false)}
         onSubmit={async (data) => {
-          console.log("Create personnel:", data);
+          toast("Staff member added", { variant: "success" });
           setCreateOpen(false);
+          loadPersonnel();
         }}
       />
     </div>

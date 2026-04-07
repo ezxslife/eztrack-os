@@ -4,11 +4,13 @@ import { useState } from "react";
 import { FormModal } from "@/components/modals/FormModal";
 import { Input } from "@/components/ui/Input";
 import { Textarea } from "@/components/ui/Textarea";
+import { useFormState } from "@/hooks/useFormState";
+import { addNarrativeSchema, type AddNarrativeValues } from "@/lib/validations/incidents";
 
 interface AddNarrativeModalProps {
   open: boolean;
   onClose: () => void;
-  onSubmit: (data: { title: string; content: string }) => void | Promise<void>;
+  onSubmit: (data: AddNarrativeValues) => void | Promise<void>;
 }
 
 export function AddNarrativeModal({
@@ -16,18 +18,18 @@ export function AddNarrativeModal({
   onClose,
   onSubmit,
 }: AddNarrativeModalProps) {
-  const [title, setTitle] = useState("");
-  const [content, setContent] = useState("");
+  const form = useFormState({
+    initialValues: { title: "", content: "" },
+    schema: addNarrativeSchema,
+  });
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const isValid = content.trim().length > 0;
-
   const handleSubmit = async () => {
+    if (!form.validate()) return;
     setIsSubmitting(true);
     try {
-      await onSubmit({ title: title.trim(), content: content.trim() });
-      setTitle("");
-      setContent("");
+      await onSubmit(form.values as AddNarrativeValues);
+      form.reset();
       onClose();
     } finally {
       setIsSubmitting(false);
@@ -35,8 +37,7 @@ export function AddNarrativeModal({
   };
 
   const handleClose = () => {
-    setTitle("");
-    setContent("");
+    form.reset();
     onClose();
   };
 
@@ -50,22 +51,22 @@ export function AddNarrativeModal({
       size="md"
       submitLabel="Add Entry"
       isSubmitting={isSubmitting}
-      isValid={isValid}
+      isValid={form.isValid}
     >
       <Input
         label="Title (optional)"
         placeholder="Brief title for this entry..."
-        value={title}
-        onChange={(e) => setTitle(e.target.value)}
+        value={form.values.title}
+        onChange={(e) => form.setValue("title", e.target.value)}
       />
 
       <Textarea
         label="Content"
         placeholder="Describe what happened..."
-        value={content}
-        onChange={(e) => setContent(e.target.value)}
+        value={form.values.content}
+        onChange={(e) => form.setValue("content", e.target.value)}
         rows={4}
-        error={content.length === 0 ? undefined : undefined}
+        error={form.touched.content ? form.errors.content : undefined}
       />
 
       <p className="text-[11px] text-[var(--text-tertiary)]">

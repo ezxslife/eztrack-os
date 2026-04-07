@@ -5,17 +5,13 @@ import { FormModal } from "@/components/modals/FormModal";
 import { Input } from "@/components/ui/Input";
 import { Select } from "@/components/ui/Select";
 import { Textarea } from "@/components/ui/Textarea";
+import { useFormState } from "@/hooks/useFormState";
+import { addLocationSchema, type AddLocationValues } from "@/lib/validations/settings";
 
 interface AddLocationModalProps {
   open: boolean;
   onClose: () => void;
-  onSubmit: (data: {
-    name: string;
-    parentPropertyId: string;
-    zone: string;
-    locationType: string;
-    description: string;
-  }) => void | Promise<void>;
+  onSubmit: (data: AddLocationValues) => void | Promise<void>;
   properties?: { value: string; label: string }[];
 }
 
@@ -34,34 +30,24 @@ export function AddLocationModal({
   onSubmit,
   properties = [],
 }: AddLocationModalProps) {
-  const [name, setName] = useState("");
-  const [parentPropertyId, setParentPropertyId] = useState("");
-  const [zone, setZone] = useState("");
-  const [locationType, setLocationType] = useState("");
-  const [description, setDescription] = useState("");
+  const form = useFormState({
+    initialValues: {
+      name: "",
+      parentPropertyId: "",
+      zone: "",
+      locationType: "",
+      description: "",
+    },
+    schema: addLocationSchema,
+  });
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const isValid = name.trim().length > 0;
-
-  const resetForm = () => {
-    setName("");
-    setParentPropertyId("");
-    setZone("");
-    setLocationType("");
-    setDescription("");
-  };
-
   const handleSubmit = async () => {
+    if (!form.validate()) return;
     setIsSubmitting(true);
     try {
-      await onSubmit({
-        name: name.trim(),
-        parentPropertyId,
-        zone: zone.trim(),
-        locationType,
-        description: description.trim(),
-      });
-      resetForm();
+      await onSubmit(form.values as AddLocationValues);
+      form.reset();
       onClose();
     } finally {
       setIsSubmitting(false);
@@ -69,7 +55,7 @@ export function AddLocationModal({
   };
 
   const handleClose = () => {
-    resetForm();
+    form.reset();
     onClose();
   };
 
@@ -82,20 +68,21 @@ export function AddLocationModal({
       size="md"
       submitLabel="Add Location"
       isSubmitting={isSubmitting}
-      isValid={isValid}
+      isValid={form.isValid}
     >
       <Input
         label="Name"
         placeholder="Location name"
-        value={name}
-        onChange={(e) => setName(e.target.value)}
+        value={form.values.name}
+        onChange={(e) => form.setValue("name", e.target.value)}
+        error={form.touched.name ? form.errors.name : undefined}
       />
 
       <Select
         label="Parent Property"
         options={properties}
-        value={parentPropertyId}
-        onChange={(e) => setParentPropertyId(e.target.value)}
+        value={form.values.parentPropertyId}
+        onChange={(e) => form.setValue("parentPropertyId", e.target.value)}
         placeholder="Select property"
       />
 
@@ -103,14 +90,14 @@ export function AddLocationModal({
         <Input
           label="Zone / Area"
           placeholder="e.g. North Wing"
-          value={zone}
-          onChange={(e) => setZone(e.target.value)}
+          value={form.values.zone}
+          onChange={(e) => form.setValue("zone", e.target.value)}
         />
         <Select
           label="Location Type"
           options={LOCATION_TYPE_OPTIONS}
-          value={locationType}
-          onChange={(e) => setLocationType(e.target.value)}
+          value={form.values.locationType}
+          onChange={(e) => form.setValue("locationType", e.target.value)}
           placeholder="Select type"
         />
       </div>
@@ -118,8 +105,8 @@ export function AddLocationModal({
       <Textarea
         label="Description"
         placeholder="Description of this location..."
-        value={description}
-        onChange={(e) => setDescription(e.target.value)}
+        value={form.values.description}
+        onChange={(e) => form.setValue("description", e.target.value)}
         rows={2}
       />
     </FormModal>

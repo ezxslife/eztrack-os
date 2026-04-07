@@ -1,33 +1,23 @@
 "use client";
 
-import { useState, type FormEvent } from "react";
+import { useState, useEffect, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
-import { ArrowLeft, CheckCircle } from "lucide-react";
+import { ArrowLeft, CheckCircle, Loader2 } from "lucide-react";
 import Link from "next/link";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { Select } from "@/components/ui/Select";
 import { Textarea } from "@/components/ui/Textarea";
 import { useToast } from "@/components/ui/Toast";
-
-const LOCATION_OPTIONS = [
-  { value: "main-stage", label: "Main Stage" },
-  { value: "north-gate", label: "North Gate" },
-  { value: "south-gate", label: "South Gate" },
-  { value: "vip-lot-a", label: "VIP Lot A" },
-  { value: "vip-lot-b", label: "VIP Lot B" },
-  { value: "family-zone", label: "Family Zone" },
-  { value: "west-field", label: "West Field" },
-  { value: "east-perimeter", label: "East Perimeter" },
-  { value: "command-post", label: "Command Post" },
-  { value: "vendor-row", label: "Vendor Row" },
-  { value: "main-entrance", label: "Main Entrance" },
-];
+import { createDailyLog } from "@/lib/queries/daily-logs";
+import { fetchLocations } from "@/lib/queries/incidents";
+import { getSupabaseBrowser } from "@/lib/supabase-browser";
 
 const PRIORITY_OPTIONS = [
   { value: "low", label: "Low" },
   { value: "medium", label: "Medium" },
   { value: "high", label: "High" },
+  { value: "critical", label: "Critical" },
 ];
 
 export default function NewDailyLogPage() {
@@ -38,15 +28,67 @@ export default function NewDailyLogPage() {
   const [priority, setPriority] = useState("medium");
   const [synopsis, setSynopsis] = useState("");
   const [submitted, setSubmitted] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
+  const [recordNumber, setRecordNumber] = useState("");
+  const [locationOptions, setLocationOptions] = useState<{ value: string; label: string }[]>([]);
+  const [orgId, setOrgId] = useState<string | null>(null);
+  const [propertyId, setPropertyId] = useState<string | null>(null);
 
-  function handleSubmit(e: FormEvent) {
+  useEffect(() => {
+    async function loadFormData() {
+      try {
+        const [locations, supabase] = await Promise.all([
+          fetchLocations(),
+          Promise.resolve(getSupabaseBrowser()),
+        ]);
+        setLocationOptions(locations.map((l) => ({ value: l.id, label: l.name })));
+
+        const { data: { user } } = await supabase.auth.getUser();
+        if (user) {
+          const { data: profile } = await supabase
+            .from("profiles")
+            .select("org_id, property_id")
+            .eq("id", user.id)
+            .single();
+          if (profile) {
+            setOrgId(profile.org_id);
+            setPropertyId(profile.property_id);
+          }
+        }
+      } catch {
+        // Locations will fall back to empty
+      }
+    }
+    loadFormData();
+  }, []);
+
+  async function handleSubmit(e: FormEvent) {
     e.preventDefault();
-    const data = { topic, location, priority, synopsis };
-    toast("Daily log entry created successfully", { variant: "success" });
-    setSubmitted(true);
-    setTimeout(() => {
-      router.push("/daily-log");
-    }, 1500);
+    if (!orgId) {
+      toast("Unable to determine organization", { variant: "error" });
+      return;
+    }
+    try {
+      setSubmitting(true);
+      const result = await createDailyLog({
+        orgId,
+        propertyId,
+        topic,
+        synopsis: synopsis || undefined,
+        priority,
+        locationId: location || null,
+      });
+      setRecordNumber(result.record_number);
+      toast("Daily log entry created successfully", { variant: "success" });
+      setSubmitted(true);
+      setTimeout(() => {
+        router.push("/daily-log");
+      }, 1500);
+    } catch (err: any) {
+      toast(err.message || "Failed to create daily log", { variant: "error" });
+    } finally {
+      setSubmitting(false);
+    }
   }
 
   if (submitted) {
@@ -59,7 +101,7 @@ export default function NewDailyLogPage() {
           Entry Created
         </h2>
         <p className="mt-1 text-[13px] text-[var(--text-tertiary)]">
-          Redirecting to Daily Log...
+          {recordNumber ? `${recordNumber} — ` : ""}Redirecting to Daily Log...
         </p>
       </div>
     );
@@ -98,7 +140,7 @@ export default function NewDailyLogPage() {
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <Select
               label="Location"
-              options={LOCATION_OPTIONS}
+              options={locationOptions}
               placeholder="Select zone..."
               value={location}
               onChange={(e) => setLocation(e.target.value)}
@@ -126,8 +168,9 @@ export default function NewDailyLogPage() {
                 Cancel
               </Button>
             </Link>
-            <Button variant="default" size="md" type="submit">
-              Submit Entry
+            <Button variant="default" size="md" type="submit" disabled={submitting}>
+              {submitting && <Loader2 size={14} className="animate-spin" />}
+              {submitting ? "Creating..." : "Submit Entry"}
             </Button>
           </div>
         </form>
