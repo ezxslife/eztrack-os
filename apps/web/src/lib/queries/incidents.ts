@@ -216,6 +216,161 @@ export async function fetchIncidentFinancials(incidentId: string) {
   })) as IncidentFinancial[];
 }
 
+/* ─── Sub-resource types ─────────────────────── */
+
+export interface RelatedIncident {
+  id: string;
+  relatedIncidentId: string;
+  recordNumber: string;
+  type: string;
+  status: string;
+  relationshipType: string;
+  reason: string | null;
+  linkedBy: string | null;
+  linkedAt: string;
+}
+
+export interface IncidentShare {
+  id: string;
+  sharedWithUserId: string | null;
+  sharedWithRole: string | null;
+  sharedWithName: string | null;
+  permissionLevel: string;
+  sharedByName: string | null;
+  sharedAt: string;
+  expiresAt: string | null;
+  isExpired: boolean;
+}
+
+export interface IncidentForm {
+  id: string;
+  formType: string;
+  formData: unknown;
+  completedAt: string | null;
+  completedByName: string | null;
+  isOfficial: boolean;
+  createdAt: string;
+}
+
+export interface IncidentDocLogEntry {
+  id: string;
+  action: string;
+  details: string | null;
+  actorName: string | null;
+  createdAt: string;
+}
+
+/** Fetch related incidents */
+export async function fetchRelatedIncidents(incidentId: string) {
+  const supabase = getSupabaseBrowser();
+
+  const { data, error } = await supabase
+    .from("related_incidents")
+    .select(`
+      id, incident_id_related, relationship_type, reason, linked_at,
+      linker:profiles!linked_by(full_name),
+      related:incidents!incident_id_related(id, record_number, incident_type, status)
+    `)
+    .eq("incident_id_primary", incidentId)
+    .order("linked_at", { ascending: false });
+
+  if (error) throw error;
+
+  return (data || []).map((row: any) => ({
+    id: row.id,
+    relatedIncidentId: row.incident_id_related,
+    recordNumber: row.related?.record_number || "—",
+    type: row.related?.incident_type || "Unknown",
+    status: row.related?.status || "unknown",
+    relationshipType: row.relationship_type,
+    reason: row.reason,
+    linkedBy: row.linker?.full_name || null,
+    linkedAt: row.linked_at,
+  })) as RelatedIncident[];
+}
+
+/** Fetch shares for an incident */
+export async function fetchIncidentShares(incidentId: string) {
+  const supabase = getSupabaseBrowser();
+
+  const { data, error } = await supabase
+    .from("incident_shares")
+    .select(`
+      id, shared_with_user_id, shared_with_role, permission_level, shared_at, expires_at,
+      sharedBy:profiles!shared_by_id(full_name),
+      sharedWithUser:profiles!shared_with_user_id(full_name)
+    `)
+    .eq("incident_id", incidentId)
+    .order("shared_at", { ascending: false });
+
+  if (error) throw error;
+
+  const now = new Date();
+  return (data || []).map((row: any) => ({
+    id: row.id,
+    sharedWithUserId: row.shared_with_user_id,
+    sharedWithRole: row.shared_with_role,
+    sharedWithName: row.sharedWithUser?.full_name || row.shared_with_role || "Unknown",
+    permissionLevel: row.permission_level,
+    sharedByName: row.sharedBy?.full_name || null,
+    sharedAt: row.shared_at,
+    expiresAt: row.expires_at,
+    isExpired: row.expires_at ? new Date(row.expires_at) < now : false,
+  })) as IncidentShare[];
+}
+
+/** Fetch forms for an incident */
+export async function fetchIncidentForms(incidentId: string) {
+  const supabase = getSupabaseBrowser();
+
+  const { data, error } = await supabase
+    .from("incident_forms")
+    .select(`
+      id, form_type, form_data, completed_at, is_official, created_at,
+      completedBy:profiles!completed_by(full_name)
+    `)
+    .eq("incident_id", incidentId)
+    .order("created_at", { ascending: false });
+
+  if (error) throw error;
+
+  return (data || []).map((row: any) => ({
+    id: row.id,
+    formType: row.form_type,
+    formData: row.form_data,
+    completedAt: row.completed_at,
+    completedByName: row.completedBy?.full_name || null,
+    isOfficial: row.is_official,
+    createdAt: row.created_at,
+  })) as IncidentForm[];
+}
+
+/** Fetch document log (activity_log) for an incident */
+export async function fetchIncidentDocLog(incidentId: string) {
+  const supabase = getSupabaseBrowser();
+
+  const { data, error } = await supabase
+    .from("activity_log")
+    .select(`
+      id, action, changes, created_at,
+      actor:profiles!actor_id(full_name)
+    `)
+    .eq("entity_type", "incident")
+    .eq("entity_id", incidentId)
+    .order("created_at", { ascending: false })
+    .limit(50);
+
+  if (error) throw error;
+
+  return (data || []).map((row: any) => ({
+    id: row.id,
+    action: row.action,
+    details: row.changes ? JSON.stringify(row.changes) : null,
+    actorName: row.actor?.full_name || null,
+    createdAt: row.created_at,
+  })) as IncidentDocLogEntry[];
+}
+
 /** Create a new incident */
 export async function createIncident(input: {
   orgId: string;

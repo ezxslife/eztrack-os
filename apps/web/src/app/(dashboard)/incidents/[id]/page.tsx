@@ -57,10 +57,18 @@ import {
   fetchIncidentNarratives,
   fetchIncidentParticipants,
   fetchIncidentFinancials,
+  fetchRelatedIncidents,
+  fetchIncidentShares,
+  fetchIncidentForms,
+  fetchIncidentDocLog,
   type IncidentDetail,
   type IncidentNarrative,
   type IncidentParticipant,
   type IncidentFinancial,
+  type RelatedIncident,
+  type IncidentShare,
+  type IncidentForm,
+  type IncidentDocLogEntry,
 } from "@/lib/queries/incidents";
 import { createCase } from "@/lib/queries/cases";
 import { getSupabaseBrowser } from "@/lib/supabase-browser";
@@ -79,383 +87,13 @@ const DeleteIncidentModal = dynamic(() => import("@/components/modals/incidents/
 const LockIncidentModal = dynamic(() => import("@/components/modals/incidents/LockIncidentModal").then(m => ({ default: m.LockIncidentModal })), { ssr: false });
 const EscalationChainModal = dynamic(() => import("@/components/modals/workflows/EscalationChainModal").then(m => ({ default: m.EscalationChainModal })), { ssr: false });
 
-/* ═══════════════════════════════════════════════════════════════
-   MOCK DATA — ALL 11 TABS
-   ═══════════════════════════════════════════════════════════════ */
+type ChecklistItem = { id: string; label: string; checked: boolean; completedBy: string | null; completedAt: string | null };
 
-const INCIDENT = {
-  id: "1",
-  recordNumber: "2026-04-00042",
-  type: "Medical",
-  specific: "Overdose",
-  category: "Heroin",
-  severity: "critical" as const,
-  status: "in_progress",
-  riskLevel: "high",
-  riskAssessmentNotes:
-    "Active unconsciousness, multiple ODs same event — elevated to high risk per protocol.",
-  location: "North Camping Area",
-  specificLocation: "Tent C12, near bar counter",
-  zone: "Campgrounds",
-  event: "Magnetic World Music Festival",
-  synopsis:
-    "19-year-old patron collapsed near campground tent C12. Appeared unresponsive, pale complexion, shallow breathing. Medics on scene immediately administered Narcan. Transported to County Hospital.",
-  description:
-    "Patient found lying on ground by tent C12, unresponsive. Pale skin, diaphoretic, shallow respirations approximately 8/min. Pinpoint pupils noted. Narcan 2mg IN administered at 2:18 PM with improvement in respirations within 2 minutes. Patient became semi-conscious. EMS called for transport.",
-  occurrenceDateTime: "Apr 5, 2026 2:15 PM",
-  reportedDateTime: "Apr 5, 2026 2:30 PM",
-  assignedTo: "Officer Mike Torres",
-  createdBy: "Officer Sarah Chen",
-  owner: "Officer Sarah Chen",
-  createdAt: "Apr 5, 2026 2:30 PM",
-  updatedAt: "Apr 5, 2026 4:30 PM",
-  totalLosses: 2650.0,
-  totalSavings: 800.0,
-  isExclusive: false,
-  isGlobal: false,
-  isLocked: false,
-  customField1Label: "Hospital Case #",
-  customField1Value: "MRH-123456",
-  customField2Label: "Insurance Claim #",
-  customField2Value: "IC-2026-0891",
-  customField3Label: "Badge # (Primary)",
-  customField3Value: "B-4421",
-};
 
-const CHECKLIST = [
-  { id: "c1", label: "Initial medical assessment", checked: true, completedBy: "Officer Sarah", completedAt: "2:32 PM" },
-  { id: "c2", label: "Narcan administered (if needed)", checked: true, completedBy: "EMT-4 Williams", completedAt: "2:35 PM" },
-  { id: "c3", label: "Police notified", checked: true, completedBy: "Officer Sarah", completedAt: "3:00 PM" },
-  { id: "c4", label: "Family contacted", checked: false, completedBy: null, completedAt: null },
-  { id: "c5", label: "Toxicology results reviewed", checked: false, completedBy: null, completedAt: null },
-  { id: "c6", label: "Medical records obtained", checked: false, completedBy: null, completedAt: null },
-];
 
-const NARRATIVES = [
-  {
-    id: "n1",
-    title: "Initial Report",
-    author: "Officer Sarah Chen",
-    initials: "SC",
-    timestamp: "Apr 5, 2:30 PM",
-    isEdited: false,
-    editedBy: null,
-    editedAt: null,
-    content:
-      "At 2:15 PM, patron collapsed near campground tent C12. Appeared unresponsive, pale complexion, shallow breathing. Medics on scene immediately administered Narcan. Patient responded after approximately 2 minutes, became semi-conscious. EMS dispatched at 2:20 PM for transport. Patron's companion (Jennifer R.) identified and provided contact information for family. Scene secured, evidence collected (see Media tab).",
-  },
-  {
-    id: "n2",
-    title: "Medical Follow-Up",
-    author: "Officer Mike Torres",
-    initials: "MT",
-    timestamp: "Apr 5, 4:10 PM",
-    isEdited: true,
-    editedBy: "Officer Mike Torres",
-    editedAt: "Apr 5, 4:15 PM",
-    content:
-      "Hospital confirmed opioid overdose (heroin). Patient conscious, stable, admitted to ICU for observation. Vitals stabilizing: BP 118/72, HR 88, O2 sat 97%. Mother (Maria Thompson) contacted and arrived at hospital at 3:45 PM. Hospital social worker assigned. Patient cooperative and willing to provide statement when recovered.",
-  },
-  {
-    id: "n3",
-    title: "Investigation Status",
-    author: "Officer Sarah Chen",
-    initials: "SC",
-    timestamp: "Apr 5, 3:25 PM",
-    isEdited: false,
-    editedBy: null,
-    editedAt: null,
-    content:
-      "Reviewing circumstantial evidence of narcotics source. Witness Jennifer R. identified as present in tent at time of overdose. Follow-up interviews scheduled with 3 additional witnesses who were in the campground area. Coordinating with narcotics unit regarding potential distribution investigation. Evidence bag #E-0042-01 submitted to secure storage.",
-  },
-];
 
-const PARTICIPANTS = [
-  {
-    id: "p1",
-    name: "Alex Thompson",
-    type: "Patron",
-    patronId: "#2890",
-    role: "Victim",
-    secondaryRole: "Witness",
-    contact: "alex.t@email.com",
-    description: "19-year-old male, found unresponsive near tent C12. Treated for heroin overdose.",
-    policeContacted: true,
-    policeResult: "Statement taken, no charges filed",
-    medicalAttention: true,
-    medicalDetails: "Narcan administered on scene, transported to County Hospital ICU",
-  },
-  {
-    id: "p2",
-    name: "Jennifer R.",
-    type: "Patron",
-    patronId: "#3102",
-    role: "Witness",
-    secondaryRole: null,
-    contact: "(555) 234-5678",
-    description: "Patron's companion, present in tent at time of overdose. Flagged security.",
-    policeContacted: true,
-    policeResult: "Interview scheduled",
-    medicalAttention: false,
-    medicalDetails: null,
-  },
-  {
-    id: "p3",
-    name: "Officer Sarah Chen",
-    type: "Staff",
-    patronId: null,
-    role: "Respondent",
-    secondaryRole: null,
-    contact: "schen@eztrack.io",
-    description: "First responder, administered initial aid and secured scene",
-    policeContacted: false,
-    policeResult: null,
-    medicalAttention: false,
-    medicalDetails: null,
-  },
-  {
-    id: "p4",
-    name: "EMT-4 Williams",
-    type: "Staff",
-    patronId: null,
-    role: "Respondent",
-    secondaryRole: null,
-    contact: "rwilliams@ems.io",
-    description: "Paramedic, administered Narcan 2mg IN and monitored vitals until transport",
-    policeContacted: false,
-    policeResult: null,
-    medicalAttention: false,
-    medicalDetails: null,
-  },
-  {
-    id: "p5",
-    name: "Sam Ortiz",
-    type: "Contact",
-    patronId: null,
-    role: "Reporting Party",
-    secondaryRole: null,
-    contact: "(555) 876-5432",
-    description: "Festival staff member who called in the medical alert to dispatch",
-    policeContacted: false,
-    policeResult: null,
-    medicalAttention: false,
-    medicalDetails: null,
-  },
-];
 
-const MEDIA = [
-  {
-    id: "m1",
-    type: "photo",
-    title: "Evidence: Needle",
-    description: "Discarded syringe found at scene near tent C12",
-    uploadedBy: "Officer Sarah Chen",
-    uploadedAt: "Apr 5, 3:45 PM",
-    size: "2.3 MB",
-    isPrimary: true,
-    isProtected: true,
-    tags: ["evidence", "narcotics"],
-  },
-  {
-    id: "m2",
-    type: "photo",
-    title: "Scene Overview",
-    description: "Wide shot of tent C12 area showing scene layout",
-    uploadedBy: "Officer Sarah Chen",
-    uploadedAt: "Apr 5, 2:40 PM",
-    size: "3.1 MB",
-    isPrimary: false,
-    isProtected: false,
-    tags: ["scene", "location"],
-  },
-  {
-    id: "m3",
-    type: "video",
-    title: "Witness Interview - Jennifer R.",
-    description: "Initial statement from witness present in tent",
-    uploadedBy: "Officer Mike Torres",
-    uploadedAt: "Apr 5, 4:30 PM",
-    size: "48.6 MB",
-    isPrimary: false,
-    isProtected: true,
-    tags: ["witness", "interview"],
-  },
-  {
-    id: "m4",
-    type: "document",
-    title: "EMS Run Sheet (Scanned)",
-    description: "Scanned copy of EMS run sheet from transport",
-    uploadedBy: "EMT-4 Williams",
-    uploadedAt: "Apr 5, 5:10 PM",
-    size: "1.8 MB",
-    isPrimary: false,
-    isProtected: false,
-    tags: ["medical", "documentation"],
-  },
-];
 
-const RELATED_INCIDENTS = [
-  {
-    id: "ri1",
-    incidentNumber: "2026-04-00040",
-    type: "Medical",
-    specific: "Overdose",
-    status: "completed",
-    riskLevel: "high",
-    relationship: "parent" as const,
-    notes: "Same patron — previous OD incident earlier in the day at east campground",
-    createdBy: "Lt. Nguyen",
-    createdAt: "Apr 5, 12:15 PM",
-  },
-  {
-    id: "ri2",
-    incidentNumber: "2026-04-00045",
-    type: "Drugs",
-    specific: "Distribution",
-    status: "in_progress",
-    riskLevel: "critical",
-    relationship: "related" as const,
-    notes: "Suspected distribution source for narcotics in campground area",
-    createdBy: "Detective Lee",
-    createdAt: "Apr 5, 6:00 PM",
-  },
-];
-
-const ATTACHED_RECORDS = {
-  dailyLogs: [
-    { id: "dl1", number: "DL-042", title: "Campus medical alert — overdose reported", date: "Apr 5, 2:30 PM", escalated: true },
-  ],
-  dispatches: [
-    { id: "dsp1", number: "DSP-156", title: "EMS Response - Overdose", assignedTo: "Officer Sarah, EMT Williams", date: "Apr 5, 2:35 PM" },
-  ],
-  cases: [
-    { id: "cs1", number: "CS-0012", title: "Investigation: Heroin Distribution", status: "open", date: "Apr 6" },
-  ],
-  foundItems: [] as { id: string; number: string; title: string }[],
-  briefings: [
-    { id: "br1", number: "BRF-89", title: "Incident Follow-Up Alert", recipients: "All Managers", date: "Apr 5, 4:30 PM" },
-    { id: "br2", number: "BRF-91", title: "Shared: Medical Overdose Investigation", recipients: "Legal Team", date: "Apr 5, 5:00 PM" },
-  ],
-};
-
-const FORMS = [
-  {
-    id: "f1",
-    name: "Injury Report",
-    completed: true,
-    completedAt: "Apr 5, 3:25 PM",
-    completedBy: "Officer Sarah",
-    fields: [
-      { label: "Patient Name", value: "Alex Thompson" },
-      { label: "Injury Type", value: "Overdose — Opioid" },
-      { label: "Location on Body", value: "N/A (systemic)" },
-      { label: "Mechanism", value: "Heroin ingestion (suspected IV)" },
-      { label: "Pain Level", value: "N/A (unconscious on arrival)" },
-      { label: "Medical Responders", value: "Officer Sarah Chen, EMT-4 Williams" },
-      { label: "Hospital Transferred", value: "County Hospital" },
-      { label: "Medical Record #", value: "MRH-123456" },
-    ],
-  },
-  {
-    id: "f2",
-    name: "Witness Statement",
-    completed: false,
-    completedAt: null,
-    completedBy: null,
-    lastSaved: "Apr 5, 4:00 PM",
-    fields: [
-      { label: "Witness Name", value: "Jennifer R." },
-      { label: "What did you see?", value: "I was in the tent with Alex when he started acting strange..." },
-    ],
-  },
-  {
-    id: "f3",
-    name: "Medical Run Sheet",
-    completed: true,
-    completedAt: "Apr 5, 5:15 PM",
-    completedBy: "EMT-4 Williams",
-    fields: [
-      { label: "Patient", value: "Alex Thompson, M, 19" },
-      { label: "Vitals (Initial)", value: "BP 90/60, HR 52, RR 8, O2 88%" },
-      { label: "Vitals (Post-Narcan)", value: "BP 118/72, HR 88, RR 16, O2 97%" },
-      { label: "Medications", value: "Narcan (Naloxone) 2mg IN at 2:18 PM" },
-      { label: "Procedures", value: "Nasal Narcan, IV access established, O2 NRB 15L" },
-      { label: "Destination", value: "County Hospital ER" },
-    ],
-  },
-];
-
-const SAVINGS_LOSSES = [
-  { id: "sl1", type: "Medical Cost", isSaving: false, value: 350.0, description: "Paramedic EMS response and transport to County Hospital", createdBy: "Officer Sarah", createdAt: "Apr 5, 6:00 PM" },
-  { id: "sl2", type: "Property Damage", isSaving: false, value: 1500.0, description: "Tent C12 canvas torn during emergency response, table overturned", createdBy: "Officer Sarah", createdAt: "Apr 5, 6:00 PM" },
-  { id: "sl3", type: "Theft", isSaving: false, value: 800.0, description: "DJ equipment reported missing from adjacent tent during commotion", createdBy: "Officer Mike Torres", createdAt: "Apr 5, 7:00 PM" },
-  { id: "sl4", type: "Recovery", isSaving: true, value: 800.0, description: "Stolen DJ equipment recovered from suspect vehicle", createdBy: "Officer Mike Torres", createdAt: "Apr 6, 10:00 AM" },
-];
-
-const SHARES = [
-  {
-    id: "s1",
-    sharedWith: "Officer Mike Torres",
-    sharedWithType: "user" as const,
-    permission: "contributor" as const,
-    instructions: "Conduct follow-up interviews with campground witnesses",
-    expiresAt: "Apr 12, 2026",
-    expireOnClose: false,
-    isExpired: false,
-    sharedBy: "Officer Sarah Chen",
-    sharedAt: "Apr 5, 3:00 PM",
-  },
-  {
-    id: "s2",
-    sharedWith: "Legal Team",
-    sharedWithType: "role" as const,
-    permission: "view" as const,
-    instructions: "Review for liability assessment — hospital costs may be claimable",
-    expiresAt: null,
-    expireOnClose: false,
-    isExpired: false,
-    sharedBy: "Officer Sarah Chen",
-    sharedAt: "Apr 5, 5:00 PM",
-  },
-  {
-    id: "s3",
-    sharedWith: "Detective Sarah Lee",
-    sharedWithType: "user" as const,
-    permission: "co_author" as const,
-    instructions: "Help with narcotics distribution investigation",
-    expiresAt: null,
-    expireOnClose: true,
-    isExpired: false,
-    sharedBy: "Officer Sarah Chen",
-    sharedAt: "Apr 5, 6:30 PM",
-  },
-  {
-    id: "s4",
-    sharedWith: "Officer John D.",
-    sharedWithType: "user" as const,
-    permission: "contributor" as const,
-    instructions: "Assist with initial evidence collection",
-    expiresAt: "Apr 4, 2026",
-    expireOnClose: false,
-    isExpired: true,
-    sharedBy: "Officer Sarah Chen",
-    sharedAt: "Mar 28, 2026",
-  },
-];
-
-const DOCUMENT_LOG = [
-  { id: "dl1", action: "Status Changed", detail: "IN_PROGRESS → FOLLOW_UP_REQUIRED", reason: "Investigation continuing, requires follow-up with witnesses", user: "Officer Sarah Chen", timestamp: "Apr 5, 4:30 PM", auto: "Auto-created briefing: BRF-89", icon: "status" as const },
-  { id: "dl2", action: "Narrative Edited", detail: "\"Medical Follow-Up\" by Officer Mike Torres", reason: "Added hospital vitals update", user: "Officer Mike Torres", timestamp: "Apr 5, 4:15 PM", auto: null, icon: "narrative" as const },
-  { id: "dl3", action: "Media Added", detail: "Photo: \"Evidence: Needle\" (2.3 MB)", reason: null, user: "Officer Sarah Chen", timestamp: "Apr 5, 3:45 PM", auto: null, icon: "media" as const },
-  { id: "dl4", action: "Form Completed", detail: "Injury Report — submitted", reason: null, user: "Officer Sarah Chen", timestamp: "Apr 5, 3:25 PM", auto: null, icon: "form" as const },
-  { id: "dl5", action: "Participant Added", detail: "Jennifer R. (Patron) — Role: Witness", reason: null, user: "Officer Sarah Chen", timestamp: "Apr 5, 3:15 PM", auto: null, icon: "participant" as const },
-  { id: "dl6", action: "Shared", detail: "Shared with Officer Mike Torres (Contributor)", reason: "Conduct follow-up interviews", user: "Officer Sarah Chen", timestamp: "Apr 5, 3:00 PM", auto: null, icon: "share" as const },
-  { id: "dl7", action: "Checklist Updated", detail: "Police notified — marked complete", reason: null, user: "Officer Sarah Chen", timestamp: "Apr 5, 3:00 PM", auto: null, icon: "checklist" as const },
-  { id: "dl8", action: "Narrative Added", detail: "\"Investigation Status\" by Officer Sarah Chen", reason: null, user: "Officer Sarah Chen", timestamp: "Apr 5, 3:25 PM", auto: null, icon: "narrative" as const },
-  { id: "dl9", action: "Dispatch Linked", detail: "DSP-156 (EMS Response)", reason: "Auto-linked on escalation", user: "System", timestamp: "Apr 5, 2:35 PM", auto: "Officers added: Sarah Chen (respondent), Williams (respondent)", icon: "link" as const },
-  { id: "dl10", action: "Status Changed", detail: "OPEN → IN_PROGRESS", reason: null, user: "Officer Sarah Chen", timestamp: "Apr 5, 2:33 PM", auto: null, icon: "status" as const },
-  { id: "dl11", action: "Incident Created", detail: "Medical - Overdose — Risk: High", reason: null, user: "Officer Sarah Chen", timestamp: "Apr 5, 2:30 PM", auto: "Status: OPEN", icon: "create" as const },
-];
 
 /* ═══════════════════════════════════════════════════════════════
    MAIN COMPONENT
@@ -472,11 +110,15 @@ export default function IncidentDetailPage() {
   const [narratives, setNarratives] = useState<IncidentNarrative[]>([]);
   const [participants, setParticipants] = useState<IncidentParticipant[]>([]);
   const [financials, setFinancials] = useState<IncidentFinancial[]>([]);
+  const [relatedIncidents, setRelatedIncidents] = useState<RelatedIncident[]>([]);
+  const [shares, setShares] = useState<IncidentShare[]>([]);
+  const [forms, setForms] = useState<IncidentForm[]>([]);
+  const [docLog, setDocLog] = useState<IncidentDocLogEntry[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   const [activeTab, setActiveTab] = useState("report");
-  const [checklist, setChecklist] = useState(CHECKLIST);
+  const [checklist, setChecklist] = useState<ChecklistItem[]>([]);
 
   // Modal states
   const [narrativeModal, setNarrativeModal] = useState(false);
@@ -498,17 +140,25 @@ export default function IncidentDetailPage() {
     async function load() {
       try {
         setLoading(true);
-        const [inc, narr, parts, fins] = await Promise.all([
+        const [inc, narr, parts, fins, related, shareData, formData, logData] = await Promise.all([
           fetchIncidentById(incidentId),
           fetchIncidentNarratives(incidentId),
           fetchIncidentParticipants(incidentId),
           fetchIncidentFinancials(incidentId),
+          fetchRelatedIncidents(incidentId).catch(() => [] as RelatedIncident[]),
+          fetchIncidentShares(incidentId).catch(() => [] as IncidentShare[]),
+          fetchIncidentForms(incidentId).catch(() => [] as IncidentForm[]),
+          fetchIncidentDocLog(incidentId).catch(() => [] as IncidentDocLogEntry[]),
         ]);
         if (cancelled) return;
         setIncident(inc);
         setNarratives(narr);
         setParticipants(parts);
         setFinancials(fins);
+        setRelatedIncidents(related);
+        setShares(shareData);
+        setForms(formData);
+        setDocLog(logData);
       } catch (err: any) {
         if (!cancelled) setError(err.message || "Failed to load incident");
       } finally {
@@ -558,12 +208,12 @@ export default function IncidentDetailPage() {
     { id: "report", label: "Report Details" },
     { id: "narrative", label: "Narrative", count: narratives.length },
     { id: "participants", label: "Participants", count: participants.length },
-    { id: "media", label: "Media", count: MEDIA.length },
-    { id: "related", label: "Related", count: RELATED_INCIDENTS.length },
+    { id: "media", label: "Media" },
+    { id: "related", label: "Related", count: relatedIncidents.length },
     { id: "attached", label: "Attached Records" },
-    { id: "forms", label: "Forms", count: FORMS.length },
+    { id: "forms", label: "Forms", count: forms.length },
     { id: "financial", label: "Savings & Losses" },
-    { id: "sharing", label: "Sharing", count: SHARES.filter((s) => !s.isExpired).length },
+    { id: "sharing", label: "Sharing", count: shares.filter((s) => !s.isExpired).length },
     { id: "doccontrol", label: "Doc Control" },
     { id: "doclog", label: "Document Log" },
   ];
@@ -638,25 +288,26 @@ export default function IncidentDetailPage() {
           <MediaTab onUploadMedia={() => setMediaModal(true)} />
         )}
         {activeTab === "related" && (
-          <RelatedIncidentsTab onLinkIncident={() => setLinkModal(true)} />
+          <RelatedIncidentsTab relatedIncidents={relatedIncidents} onLinkIncident={() => setLinkModal(true)} />
         )}
         {activeTab === "attached" && <AttachedRecordsTab />}
-        {activeTab === "forms" && <FormsTab />}
+        {activeTab === "forms" && <FormsTab forms={forms} />}
         {activeTab === "financial" && (
           <SavingsLossesTab financials={financials} totalLosses={totalLosses} totalSavings={totalSavings} onAddEntry={() => setFinancialModal(true)} />
         )}
         {activeTab === "sharing" && (
-          <SharingTab onShare={() => setShareModal(true)} />
+          <SharingTab shares={shares} onShare={() => setShareModal(true)} />
         )}
         {activeTab === "doccontrol" && (
           <DocumentControlTab
+            incident={incident}
             onTransferOwnership={() => setTransferModal(true)}
             onDeleteIncident={() => setDeleteModal(true)}
             onLockIncident={() => setLockModal(true)}
             onRiskAssessment={() => setRiskModal(true)}
           />
         )}
-        {activeTab === "doclog" && <DocumentLogTab />}
+        {activeTab === "doclog" && <DocumentLogTab docLog={docLog} />}
       </div>
 
       {/* ── Modals ── */}
@@ -768,7 +419,7 @@ function ReportDetailsTab({
   incident: IncidentDetail;
   totalLosses: number;
   totalSavings: number;
-  checklist: typeof CHECKLIST;
+  checklist: ChecklistItem[];
   onToggle: (id: string) => void;
 }) {
   const completed = checklist.filter((c) => c.checked).length;
@@ -932,7 +583,7 @@ function ReportDetailsTab({
               </div>
               <div>
                 <div className="text-[13px] font-medium text-[var(--text-primary)]">
-                  {INCIDENT.owner}
+                  {incident.creator?.fullName || "Unknown"}
                 </div>
                 <div className="text-[11px] text-[var(--text-tertiary)]">Document Owner</div>
               </div>
@@ -961,7 +612,7 @@ function ReportDetailsTab({
             <LinkedRecordRow label="Daily Log" value="DL-042" href="/daily-log" />
             <LinkedRecordRow label="Dispatch" value="DSP-156" href="/dispatch" />
             <LinkedRecordRow label="Case" value="CS-0012" href="/cases" />
-            <LinkedRecordRow label="Related" value={`${RELATED_INCIDENTS.length} incidents`} href="#" />
+            <LinkedRecordRow label="Related" value="View all" href="#" />
           </CardContent>
         </Card>
       </div>
@@ -1236,7 +887,7 @@ function MediaTab({ onUploadMedia }: { onUploadMedia: () => void }) {
     <div className="max-w-5xl space-y-4">
       <div className="flex items-center justify-between">
         <h3 className="text-sm font-semibold text-[var(--text-primary)]">
-          Media ({MEDIA.length})
+          Media
         </h3>
         <div className="flex items-center gap-2">
           <Button variant="outline" size="sm" onClick={onUploadMedia}>
@@ -1254,81 +905,15 @@ function MediaTab({ onUploadMedia }: { onUploadMedia: () => void }) {
         </div>
       </div>
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        {MEDIA.map((m) => (
-          <Card key={m.id} className="overflow-hidden group">
-            {/* Thumbnail Placeholder */}
-            <div className="aspect-square bg-[var(--surface-secondary)] relative flex items-center justify-center">
-              {m.type === "photo" && (
-                <ImageIcon className="h-10 w-10 text-[var(--text-tertiary)] opacity-40" />
-              )}
-              {m.type === "video" && (
-                <Video className="h-10 w-10 text-[var(--text-tertiary)] opacity-40" />
-              )}
-              {m.type === "document" && (
-                <File className="h-10 w-10 text-[var(--text-tertiary)] opacity-40" />
-              )}
-
-              {/* Badges overlay */}
-              <div className="absolute top-2 left-2 flex items-center gap-1">
-                {m.isPrimary && (
-                  <span className="h-5 w-5 rounded-full bg-yellow-500/90 flex items-center justify-center">
-                    <Star className="h-3 w-3 text-white" />
-                  </span>
-                )}
-                {m.isProtected && (
-                  <span className="h-5 w-5 rounded-full bg-red-500/90 flex items-center justify-center">
-                    <Lock className="h-3 w-3 text-white" />
-                  </span>
-                )}
-              </div>
-
-              {/* Type badge */}
-              <div className="absolute top-2 right-2">
-                <span className="px-1.5 py-0.5 rounded text-[10px] font-medium bg-black/50 text-white uppercase">
-                  {m.type}
-                </span>
-              </div>
-
-              {/* Hover overlay */}
-              <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2">
-                <button className="h-8 w-8 rounded-full bg-white/90 flex items-center justify-center">
-                  <Eye className="h-4 w-4 text-gray-800" />
-                </button>
-                <button className="h-8 w-8 rounded-full bg-white/90 flex items-center justify-center">
-                  <Download className="h-4 w-4 text-gray-800" />
-                </button>
-                <button className="h-8 w-8 rounded-full bg-white/90 flex items-center justify-center">
-                  <Trash2 className="h-4 w-4 text-gray-800" />
-                </button>
-              </div>
-            </div>
-
-            <CardContent className="p-3">
-              <p className="text-[13px] font-medium text-[var(--text-primary)] truncate">
-                {m.title}
-              </p>
-              <p className="text-[11px] text-[var(--text-tertiary)] truncate mt-0.5">
-                {m.description}
-              </p>
-              <div className="flex items-center justify-between mt-2 text-[11px] text-[var(--text-tertiary)]">
-                <span>{m.uploadedBy}</span>
-                <span>{m.size}</span>
-              </div>
-              <div className="flex items-center gap-1 mt-2 flex-wrap">
-                {m.tags.map((tag) => (
-                  <span
-                    key={tag}
-                    className="px-1.5 py-0.5 rounded text-[10px] bg-[var(--surface-secondary)] text-[var(--text-tertiary)]"
-                  >
-                    {tag}
-                  </span>
-                ))}
-              </div>
-            </CardContent>
-          </Card>
-        ))}
-      </div>
+      <Card>
+        <CardContent className="py-12 text-center">
+          <ImageIcon className="h-8 w-8 mx-auto text-[var(--text-tertiary)] opacity-40 mb-3" />
+          <p className="text-[13px] text-[var(--text-secondary)]">No media files yet</p>
+          <p className="text-[12px] text-[var(--text-tertiary)] mt-1">
+            Upload photos, videos, or documents related to this incident
+          </p>
+        </CardContent>
+      </Card>
     </div>
   );
 }
@@ -1337,12 +922,12 @@ function MediaTab({ onUploadMedia }: { onUploadMedia: () => void }) {
    TAB 5: RELATED INCIDENTS
    ═══════════════════════════════════════════════════════════════ */
 
-function RelatedIncidentsTab({ onLinkIncident }: { onLinkIncident: () => void }) {
+function RelatedIncidentsTab({ relatedIncidents, onLinkIncident }: { relatedIncidents: RelatedIncident[]; onLinkIncident: () => void }) {
   return (
     <div className="max-w-4xl space-y-4">
       <div className="flex items-center justify-between">
         <h3 className="text-sm font-semibold text-[var(--text-primary)]">
-          Related Incidents ({RELATED_INCIDENTS.length})
+          Related Incidents ({relatedIncidents.length})
         </h3>
         <div className="flex items-center gap-2">
           <Button variant="outline" size="sm" onClick={onLinkIncident}>
@@ -1356,52 +941,49 @@ function RelatedIncidentsTab({ onLinkIncident }: { onLinkIncident: () => void })
         </div>
       </div>
 
-      {RELATED_INCIDENTS.map((ri) => (
+      {relatedIncidents.map((ri) => (
         <Card key={ri.id}>
           <CardContent className="p-4">
             <div className="flex items-start justify-between gap-4">
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-2 mb-1.5">
                   <Link
-                    href={`/incidents/${ri.id}`}
+                    href={`/incidents/${ri.relatedIncidentId}`}
                     className="text-[13px] font-semibold text-[var(--action-primary)] hover:underline"
                   >
-                    #{ri.incidentNumber}
+                    #{ri.recordNumber}
                   </Link>
                   <StatusBadge status={ri.status} dot />
-                  <RiskBadge level={ri.riskLevel} />
                 </div>
                 <p className="text-[13px] text-[var(--text-primary)]">
-                  {ri.type} — {ri.specific}
+                  {ri.type}
                 </p>
                 <div className="flex items-center gap-2 mt-1">
-                  <RelationshipBadge type={ri.relationship} />
+                  <RelationshipBadge type={ri.relationshipType} />
                   <span className="text-[12px] text-[var(--text-tertiary)]">
-                    Linked by {ri.createdBy} on {ri.createdAt}
+                    Linked by {ri.linkedBy || "Unknown"} on {formatDateTime(ri.linkedAt)}
                   </span>
                 </div>
-                {ri.notes && (
+                {ri.reason && (
                   <p className="text-[12px] text-[var(--text-tertiary)] mt-2 italic">
-                    &ldquo;{ri.notes}&rdquo;
+                    &ldquo;{ri.reason}&rdquo;
                   </p>
                 )}
               </div>
               <div className="flex items-center gap-1 shrink-0">
-                <Button variant="ghost" size="sm">
-                  <ExternalLink className="h-3.5 w-3.5" />
-                  View
-                </Button>
-                <Button variant="ghost" size="sm">
-                  <X className="h-3.5 w-3.5" />
-                  Unlink
-                </Button>
+                <Link href={`/incidents/${ri.relatedIncidentId}`}>
+                  <Button variant="ghost" size="sm">
+                    <ExternalLink className="h-3.5 w-3.5" />
+                    View
+                  </Button>
+                </Link>
               </div>
             </div>
           </CardContent>
         </Card>
       ))}
 
-      {RELATED_INCIDENTS.length === 0 && (
+      {relatedIncidents.length === 0 && (
         <Card>
           <CardContent className="py-12 text-center">
             <Link2 className="h-8 w-8 mx-auto text-[var(--text-tertiary)] opacity-40 mb-3" />
@@ -1422,60 +1004,10 @@ function RelatedIncidentsTab({ onLinkIncident }: { onLinkIncident: () => void })
 
 function AttachedRecordsTab() {
   const sections = [
-    {
-      title: "Daily Logs",
-      icon: <ScrollText className="h-4 w-4" />,
-      items: ATTACHED_RECORDS.dailyLogs.map((dl) => ({
-        id: dl.id,
-        label: dl.number,
-        description: dl.title,
-        meta: dl.date,
-        badge: dl.escalated ? "Escalated" : null,
-        href: "/daily-log",
-      })),
-    },
-    {
-      title: "Dispatches",
-      icon: <Paperclip className="h-4 w-4" />,
-      items: ATTACHED_RECORDS.dispatches.map((d) => ({
-        id: d.id,
-        label: d.number,
-        description: `${d.title} — Assigned: ${d.assignedTo}`,
-        meta: d.date,
-        badge: null,
-        href: "/dispatch",
-      })),
-    },
-    {
-      title: "Cases",
-      icon: <FileText className="h-4 w-4" />,
-      items: ATTACHED_RECORDS.cases.map((c) => ({
-        id: c.id,
-        label: c.number,
-        description: c.title,
-        meta: `Status: ${c.status.toUpperCase()} — ${c.date}`,
-        badge: null,
-        href: "/cases",
-      })),
-    },
-    {
-      title: "Found Items",
-      icon: <Search className="h-4 w-4" />,
-      items: [] as { id: string; label: string; description: string; meta: string; badge: string | null; href: string }[],
-      emptyAction: "Link Found Item",
-    },
-    {
-      title: "Briefings",
-      icon: <FileText className="h-4 w-4" />,
-      items: ATTACHED_RECORDS.briefings.map((b) => ({
-        id: b.id,
-        label: b.number,
-        description: `${b.title} — Recipients: ${b.recipients}`,
-        meta: b.date,
-        badge: null,
-        href: "/briefings",
-      })),
-    },
+    { title: "Daily Logs", icon: <ScrollText className="h-4 w-4" /> },
+    { title: "Dispatches", icon: <Paperclip className="h-4 w-4" /> },
+    { title: "Cases", icon: <FileText className="h-4 w-4" /> },
+    { title: "Briefings", icon: <FileText className="h-4 w-4" /> },
   ];
 
   return (
@@ -1491,59 +1023,16 @@ function AttachedRecordsTab() {
               <span className="text-[var(--text-tertiary)]">{section.icon}</span>
               <CardTitle>{section.title}</CardTitle>
               <span className="text-[11px] text-[var(--text-tertiary)] bg-[var(--surface-secondary)] rounded-full px-1.5 py-0.5">
-                {section.items.length}
+                0
               </span>
             </div>
           </CardHeader>
-          <CardContent className="space-y-3">
-            {section.items.length > 0 ? (
-              section.items.map((item) => (
-                <div
-                  key={item.id}
-                  className="flex items-start justify-between gap-3 py-2 border-b border-[var(--border-subdued,var(--border-default))] last:border-b-0"
-                >
-                  <div className="min-w-0">
-                    <div className="flex items-center gap-2">
-                      <Link
-                        href={item.href}
-                        className="text-[13px] font-medium text-[var(--action-primary)] hover:underline"
-                      >
-                        {item.label}
-                      </Link>
-                      {item.badge && (
-                        <span className="px-1.5 py-0.5 rounded text-[10px] font-medium bg-yellow-500/10 text-yellow-600 dark:text-yellow-400">
-                          {item.badge}
-                        </span>
-                      )}
-                    </div>
-                    <p className="text-[12px] text-[var(--text-secondary)] mt-0.5">
-                      {item.description}
-                    </p>
-                    <p className="text-[11px] text-[var(--text-tertiary)] mt-0.5">
-                      {item.meta}
-                    </p>
-                  </div>
-                  <div className="flex items-center gap-1 shrink-0">
-                    <Button variant="ghost" size="sm">
-                      <Eye className="h-3.5 w-3.5" />
-                      View
-                    </Button>
-                  </div>
-                </div>
-              ))
-            ) : (
-              <div className="py-4 text-center">
-                <p className="text-[12px] text-[var(--text-tertiary)]">
-                  No {section.title.toLowerCase()} linked
-                </p>
-                {section.emptyAction && (
-                  <Button variant="ghost" size="sm" className="mt-2">
-                    <Plus className="h-3.5 w-3.5" />
-                    {section.emptyAction}
-                  </Button>
-                )}
-              </div>
-            )}
+          <CardContent>
+            <div className="py-4 text-center">
+              <p className="text-[12px] text-[var(--text-tertiary)]">
+                No {section.title.toLowerCase()} linked
+              </p>
+            </div>
           </CardContent>
         </Card>
       ))}
@@ -1555,14 +1044,12 @@ function AttachedRecordsTab() {
    TAB 7: FORMS
    ═══════════════════════════════════════════════════════════════ */
 
-function FormsTab() {
-  const [expandedForm, setExpandedForm] = useState<string | null>(null);
-
+function FormsTab({ forms }: { forms: IncidentForm[] }) {
   return (
     <div className="max-w-4xl space-y-4">
       <div className="flex items-center justify-between">
         <h3 className="text-sm font-semibold text-[var(--text-primary)]">
-          Supplemental Forms ({FORMS.length})
+          Supplemental Forms ({forms.length})
         </h3>
         <Button variant="outline" size="sm">
           <Plus className="h-3.5 w-3.5" />
@@ -1570,96 +1057,42 @@ function FormsTab() {
         </Button>
       </div>
 
-      {FORMS.map((form) => (
-        <Card key={form.id}>
-          <CardContent className="p-0">
-            {/* Form header row */}
-            <button
-              className="w-full flex items-center justify-between px-5 py-3.5 hover:bg-[var(--surface-hover)] transition-colors text-left"
-              onClick={() =>
-                setExpandedForm(expandedForm === form.id ? null : form.id)
-              }
-            >
-              <div className="flex items-center gap-3">
-                {expandedForm === form.id ? (
-                  <ChevronDown className="h-4 w-4 text-[var(--text-tertiary)]" />
-                ) : (
-                  <ChevronRight className="h-4 w-4 text-[var(--text-tertiary)]" />
-                )}
+      {forms.length > 0 ? (
+        forms.map((form) => (
+          <Card key={form.id}>
+            <CardContent className="p-4">
+              <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
-                  {form.completed ? (
+                  {form.completedAt ? (
                     <CheckSquare className="h-4 w-4 text-[var(--status-success,#059669)]" />
                   ) : (
                     <ClipboardList className="h-4 w-4 text-yellow-500" />
                   )}
                   <span className="text-[13px] font-medium text-[var(--text-primary)]">
-                    {form.name}
+                    {form.formType.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase())}
                   </span>
+                  {form.isOfficial && (
+                    <span className="px-1.5 py-0.5 rounded text-[10px] font-medium bg-blue-500/10 text-blue-600">Official</span>
+                  )}
                 </div>
+                <span className="text-[11px] text-[var(--text-tertiary)]">
+                  {form.completedAt
+                    ? `Completed ${formatDateTime(form.completedAt)} by ${form.completedByName || "Unknown"}`
+                    : `Created ${formatDateTime(form.createdAt)}`}
+                </span>
               </div>
-              <div className="flex items-center gap-3">
-                {form.completed ? (
-                  <span className="text-[11px] text-[var(--text-tertiary)]">
-                    Completed {form.completedAt} by {form.completedBy}
-                  </span>
-                ) : (
-                  <span className="text-[11px] text-yellow-600 dark:text-yellow-400 font-medium">
-                    Draft — Last saved {form.lastSaved}
-                  </span>
-                )}
-                <div className="flex items-center gap-1">
-                  <button
-                    className="h-7 px-2 rounded-md hover:bg-[var(--surface-secondary)] text-[12px] text-[var(--text-secondary)] transition-colors"
-                    onClick={(e) => e.stopPropagation()}
-                  >
-                    {form.completed ? "View" : "Resume"}
-                  </button>
-                  <button
-                    className="h-7 px-2 rounded-md hover:bg-[var(--surface-secondary)] text-[12px] text-[var(--text-secondary)] transition-colors"
-                    onClick={(e) => e.stopPropagation()}
-                  >
-                    <Download className="h-3.5 w-3.5" />
-                  </button>
-                </div>
-              </div>
-            </button>
-
-            {/* Expanded form fields */}
-            {expandedForm === form.id && (
-              <div className="px-5 pb-4 border-t border-[var(--border-default)]">
-                <div className="mt-3 space-y-2.5">
-                  {form.fields.map((field, idx) => (
-                    <div key={idx} className="grid grid-cols-[180px_1fr] gap-2">
-                      <span className="text-[12px] font-medium text-[var(--text-tertiary)]">
-                        {field.label}
-                      </span>
-                      <span className="text-[13px] text-[var(--text-primary)]">
-                        {field.value}
-                      </span>
-                    </div>
-                  ))}
-                </div>
-                <div className="flex items-center gap-2 mt-4 pt-3 border-t border-[var(--border-subdued,var(--border-default))]">
-                  <Button variant="ghost" size="sm">
-                    <Edit className="h-3.5 w-3.5" />
-                    Edit
-                  </Button>
-                  <Button variant="ghost" size="sm">
-                    <Download className="h-3.5 w-3.5" />
-                    Download PDF
-                  </Button>
-                  <Button variant="ghost" size="sm" className="text-red-500 hover:text-red-600">
-                    <Trash2 className="h-3.5 w-3.5" />
-                    Delete
-                  </Button>
-                </div>
-              </div>
-            )}
+            </CardContent>
+          </Card>
+        ))
+      ) : (
+        <Card>
+          <CardContent className="py-12 text-center">
+            <ClipboardList className="h-8 w-8 mx-auto text-[var(--text-tertiary)] opacity-40 mb-3" />
+            <p className="text-[13px] text-[var(--text-secondary)]">No forms attached yet</p>
           </CardContent>
         </Card>
-      ))}
+      )}
 
-      {/* Available forms hint */}
       <div className="p-4 rounded-lg border border-dashed border-[var(--border-default)] text-center">
         <p className="text-[12px] text-[var(--text-tertiary)]">
           Available: Accident Report, Property Damage, Use of Force, Evidence Log, Hazard Report, Environmental Report, Vehicle Accident Report, + Custom Forms
@@ -1818,9 +1251,9 @@ function SavingsLossesTab({ financials, totalLosses, totalSavings, onAddEntry }:
    TAB 9: SHARING
    ═══════════════════════════════════════════════════════════════ */
 
-function SharingTab({ onShare }: { onShare: () => void }) {
-  const active = SHARES.filter((s) => !s.isExpired);
-  const expired = SHARES.filter((s) => s.isExpired);
+function SharingTab({ shares, onShare }: { shares: IncidentShare[]; onShare: () => void }) {
+  const active = shares.filter((s) => !s.isExpired);
+  const expired = shares.filter((s) => s.isExpired);
 
   return (
     <div className="max-w-4xl space-y-5">
@@ -1845,11 +1278,11 @@ function SharingTab({ onShare }: { onShare: () => void }) {
               <div className="flex items-start justify-between gap-4">
                 <div className="flex items-start gap-3 flex-1 min-w-0">
                   <div className="h-8 w-8 rounded-full bg-[var(--surface-secondary)] flex items-center justify-center shrink-0">
-                    {share.sharedWithType === "role" ? (
+                    {share.sharedWithRole ? (
                       <Users className="h-4 w-4 text-[var(--text-tertiary)]" />
                     ) : (
                       <span className="text-[11px] font-medium text-[var(--text-secondary)]">
-                        {share.sharedWith
+                        {(share.sharedWithName || "?")
                           .split(" ")
                           .map((w) => w[0])
                           .join("")
@@ -1860,31 +1293,23 @@ function SharingTab({ onShare }: { onShare: () => void }) {
                   <div className="min-w-0">
                     <div className="flex items-center gap-2">
                       <span className="text-[13px] font-medium text-[var(--text-primary)]">
-                        {share.sharedWith}
+                        {share.sharedWithName}
                       </span>
-                      {share.sharedWithType === "role" && (
+                      {share.sharedWithRole && (
                         <span className="px-1.5 py-0.5 rounded text-[10px] font-medium bg-purple-500/10 text-purple-600 dark:text-purple-400">
                           Role
                         </span>
                       )}
                     </div>
                     <div className="flex items-center gap-2 mt-1">
-                      <PermissionBadge level={share.permission} />
+                      <PermissionBadge level={share.permissionLevel} />
                       <span className="text-[11px] text-[var(--text-tertiary)]">
-                        Shared {share.sharedAt}
+                        Shared {formatDateTime(share.sharedAt)}
                       </span>
                     </div>
-                    {share.instructions && (
-                      <p className="text-[12px] text-[var(--text-secondary)] mt-2 italic">
-                        &ldquo;{share.instructions}&rdquo;
-                      </p>
-                    )}
                     <div className="flex items-center gap-3 mt-2 text-[11px] text-[var(--text-tertiary)]">
                       <span>
-                        Expires:{" "}
-                        {share.expireOnClose
-                          ? "On incident close"
-                          : share.expiresAt ?? "Never"}
+                        Expires: {share.expiresAt ? formatDateTime(share.expiresAt) : "Never"}
                       </span>
                     </div>
                   </div>
@@ -1893,11 +1318,6 @@ function SharingTab({ onShare }: { onShare: () => void }) {
                   <Button variant="ghost" size="sm">
                     Revoke
                   </Button>
-                  {share.expiresAt && (
-                    <Button variant="ghost" size="sm">
-                      Extend
-                    </Button>
-                  )}
                 </div>
               </div>
             </CardContent>
@@ -1918,7 +1338,7 @@ function SharingTab({ onShare }: { onShare: () => void }) {
                   <div className="flex items-center gap-3">
                     <div className="h-8 w-8 rounded-full bg-[var(--surface-secondary)] flex items-center justify-center">
                       <span className="text-[11px] font-medium text-[var(--text-tertiary)]">
-                        {share.sharedWith
+                        {(share.sharedWithName || "?")
                           .split(" ")
                           .map((w) => w[0])
                           .join("")
@@ -1927,12 +1347,12 @@ function SharingTab({ onShare }: { onShare: () => void }) {
                     </div>
                     <div>
                       <span className="text-[13px] text-[var(--text-secondary)]">
-                        {share.sharedWith}
+                        {share.sharedWithName}
                       </span>
                       <div className="flex items-center gap-2 mt-0.5">
-                        <PermissionBadge level={share.permission} />
+                        <PermissionBadge level={share.permissionLevel} />
                         <span className="text-[11px] text-[var(--text-tertiary)]">
-                          Expired {share.expiresAt}
+                          Expired {share.expiresAt ? formatDateTime(share.expiresAt) : ""}
                         </span>
                       </div>
                     </div>
@@ -1955,11 +1375,13 @@ function SharingTab({ onShare }: { onShare: () => void }) {
    ═══════════════════════════════════════════════════════════════ */
 
 function DocumentControlTab({
+  incident,
   onTransferOwnership,
   onDeleteIncident,
   onLockIncident,
   onRiskAssessment,
 }: {
+  incident: IncidentDetail;
   onTransferOwnership: () => void;
   onDeleteIncident: () => void;
   onLockIncident: () => void;
@@ -1978,7 +1400,7 @@ function DocumentControlTab({
           </Button>
           <Button variant="outline" size="sm" onClick={onLockIncident}>
             <Lock className="h-3.5 w-3.5" />
-            {INCIDENT.isLocked ? "Unlock" : "Lock"} Incident
+            Lock Incident
           </Button>
           <Button variant="destructive" size="sm" onClick={onDeleteIncident}>
             <Trash2 className="h-3.5 w-3.5" />
@@ -2000,10 +1422,10 @@ function DocumentControlTab({
               </div>
               <div>
                 <p className="text-[13px] font-medium text-[var(--text-primary)]">
-                  {INCIDENT.owner}
+                  {incident.creator?.fullName || "Unknown"}
                 </p>
                 <p className="text-[11px] text-[var(--text-tertiary)]">
-                  Document Owner · Created {INCIDENT.createdAt}
+                  Document Owner · Created {formatDateTime(incident.createdAt)}
                 </p>
               </div>
             </div>
@@ -2030,17 +1452,17 @@ function DocumentControlTab({
                 When enabled, only listed users/roles can view this incident
               </p>
             </div>
-            <ToggleSwitch enabled={INCIDENT.isExclusive} />
+            <ToggleSwitch enabled={false} />
           </div>
 
-          {INCIDENT.isExclusive && (
+          {false && (
             <div className="space-y-2 pl-4 border-l-2 border-[var(--border-default)]">
               <p className="text-[12px] font-medium text-[var(--text-secondary)]">
                 Authorized access:
               </p>
               <div className="flex items-center gap-2">
                 <span className="text-[12px] text-[var(--text-primary)]">
-                  {INCIDENT.owner} (Owner — implicit)
+                  {incident.creator?.fullName || "Unknown"} (Owner — implicit)
                 </span>
               </div>
               <Button variant="ghost" size="sm">
@@ -2070,10 +1492,10 @@ function DocumentControlTab({
                 When enabled, visible across all organizations
               </p>
             </div>
-            <ToggleSwitch enabled={INCIDENT.isGlobal} />
+            <ToggleSwitch enabled={false} />
           </div>
 
-          {INCIDENT.isGlobal && (
+          {false && (
             <div className="p-3 rounded-lg bg-yellow-500/10 border border-yellow-500/20">
               <div className="flex items-start gap-2">
                 <AlertTriangle className="h-4 w-4 text-yellow-600 dark:text-yellow-400 shrink-0 mt-0.5" />
@@ -2093,7 +1515,7 @@ function DocumentControlTab({
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="grid grid-cols-2 gap-4">
-            <FieldRow label="Current Status" value={<StatusBadge status={INCIDENT.status} dot />} />
+            <FieldRow label="Current Status" value={<StatusBadge status={incident.status} dot />} />
             <FieldRow label="Is Archived" value="No" />
           </div>
           <div className="p-3 rounded-lg bg-[var(--surface-secondary)]">
@@ -2124,24 +1546,12 @@ function DocumentControlTab({
    TAB 11: DOCUMENT LOG
    ═══════════════════════════════════════════════════════════════ */
 
-function DocumentLogTab() {
-  const iconMap: Record<string, React.ReactNode> = {
-    status: <div className="h-2.5 w-2.5 rounded-full bg-blue-500" />,
-    narrative: <FileText className="h-3.5 w-3.5 text-[var(--text-tertiary)]" />,
-    media: <ImageIcon className="h-3.5 w-3.5 text-[var(--text-tertiary)]" />,
-    form: <ClipboardList className="h-3.5 w-3.5 text-[var(--text-tertiary)]" />,
-    participant: <UserPlus className="h-3.5 w-3.5 text-[var(--text-tertiary)]" />,
-    share: <Share2 className="h-3.5 w-3.5 text-[var(--text-tertiary)]" />,
-    checklist: <CheckSquare className="h-3.5 w-3.5 text-[var(--text-tertiary)]" />,
-    link: <Link2 className="h-3.5 w-3.5 text-[var(--text-tertiary)]" />,
-    create: <Plus className="h-3.5 w-3.5 text-[var(--text-tertiary)]" />,
-  };
-
+function DocumentLogTab({ docLog }: { docLog: IncidentDocLogEntry[] }) {
   return (
     <div className="max-w-4xl space-y-4">
       <div className="flex items-center justify-between">
         <h3 className="text-sm font-semibold text-[var(--text-primary)]">
-          Document Log ({DOCUMENT_LOG.length} entries)
+          Document Log ({docLog.length} entries)
         </h3>
         <div className="flex items-center gap-2">
           <Button variant="outline" size="sm">
@@ -2153,57 +1563,46 @@ function DocumentLogTab() {
 
       <Card>
         <CardContent className="p-0">
-          <div className="relative">
-            {/* Vertical timeline line */}
-            <div className="absolute left-[29px] top-4 bottom-4 w-px bg-[var(--border-default)]" />
-
-            <div className="divide-y divide-[var(--border-subdued,var(--border-default))]">
-              {DOCUMENT_LOG.map((entry) => (
-                <div
-                  key={entry.id}
-                  className="flex items-start gap-3 px-4 py-3 hover:bg-[var(--surface-hover)] transition-colors"
-                >
-                  {/* Icon */}
-                  <div className="relative z-10 mt-1 h-6 w-6 rounded-full bg-[var(--surface-primary)] border border-[var(--border-default)] flex items-center justify-center shrink-0">
-                    {iconMap[entry.icon]}
-                  </div>
-
-                  {/* Content */}
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-start justify-between gap-3">
-                      <div>
+          {docLog.length > 0 ? (
+            <div className="relative">
+              <div className="absolute left-[29px] top-4 bottom-4 w-px bg-[var(--border-default)]" />
+              <div className="divide-y divide-[var(--border-subdued,var(--border-default))]">
+                {docLog.map((entry) => (
+                  <div
+                    key={entry.id}
+                    className="flex items-start gap-3 px-4 py-3 hover:bg-[var(--surface-hover)] transition-colors"
+                  >
+                    <div className="relative z-10 mt-1 h-6 w-6 rounded-full bg-[var(--surface-primary)] border border-[var(--border-default)] flex items-center justify-center shrink-0">
+                      <Clock className="h-3 w-3 text-[var(--text-tertiary)]" />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-start justify-between gap-3">
                         <span className="text-[13px] font-medium text-[var(--text-primary)]">
                           {entry.action}
                         </span>
-                        <span className="text-[13px] text-[var(--text-secondary)] ml-1.5">
-                          — {entry.detail}
+                        <span className="text-[11px] text-[var(--text-tertiary)] whitespace-nowrap shrink-0">
+                          {formatDateTime(entry.createdAt)}
                         </span>
                       </div>
-                      <span className="text-[11px] text-[var(--text-tertiary)] whitespace-nowrap shrink-0">
-                        {entry.timestamp}
-                      </span>
+                      <p className="text-[12px] text-[var(--text-tertiary)] mt-0.5">
+                        by {entry.actorName || "System"}
+                      </p>
+                      {entry.details && (
+                        <p className="text-[12px] text-[var(--text-secondary)] mt-1">
+                          {entry.details}
+                        </p>
+                      )}
                     </div>
-
-                    <p className="text-[12px] text-[var(--text-tertiary)] mt-0.5">
-                      by {entry.user}
-                    </p>
-
-                    {entry.reason && (
-                      <p className="text-[12px] text-[var(--text-secondary)] mt-1 italic">
-                        Reason: &ldquo;{entry.reason}&rdquo;
-                      </p>
-                    )}
-
-                    {entry.auto && (
-                      <p className="text-[11px] text-[var(--action-primary)] mt-1">
-                        ⤷ {entry.auto}
-                      </p>
-                    )}
                   </div>
-                </div>
-              ))}
+                ))}
+              </div>
             </div>
-          </div>
+          ) : (
+            <div className="py-12 text-center">
+              <Clock className="h-8 w-8 mx-auto text-[var(--text-tertiary)] opacity-40 mb-3" />
+              <p className="text-[13px] text-[var(--text-secondary)]">No activity logged yet</p>
+            </div>
+          )}
         </CardContent>
       </Card>
     </div>

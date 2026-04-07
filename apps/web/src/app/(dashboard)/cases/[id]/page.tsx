@@ -66,7 +66,24 @@ const CreateWorkOrderFromCaseModal = dynamic(() => import("@/components/modals/w
 
 import { Loader2, AlertCircle } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { fetchCaseById, updateCaseStatus, deleteCase, type CaseDetail } from "@/lib/queries/cases";
+import {
+  fetchCaseById,
+  updateCaseStatus,
+  deleteCase,
+  fetchCaseEvidence,
+  fetchCaseTasks,
+  fetchCaseNarratives,
+  fetchCaseCosts,
+  fetchCaseRelatedRecords,
+  fetchCaseAudit,
+  type CaseDetail,
+  type CaseEvidenceItem,
+  type CaseTask,
+  type CaseNarrativeItem,
+  type CaseCostEntry,
+  type CaseRelatedRecord,
+  type CaseAuditEntry,
+} from "@/lib/queries/cases";
 import { createBriefing } from "@/lib/queries/briefings";
 import { createWorkOrder } from "@/lib/queries/work-orders";
 import { formatDateTime, formatRelativeTime } from "@/lib/utils/time";
@@ -85,225 +102,16 @@ const STAGES = [
   { key: "resulting_actions", label: "Resulting Actions", number: 7 },
 ] as const;
 
-const CASE_DATA = {
-  id: "CASE-2026-000012",
-  title: "Investigation: Heroin Distribution at Campgrounds",
-  stage: "detailed_investigation",
-  status: "open",
-  priority: "high" as const,
-  daysOpen: 45,
-  createdBy: "Officer Sarah Chen",
-  caseManager: "Detective Sarah Lee",
-  createdAt: "Feb 19, 2026 at 10:22 AM",
-  updatedAt: "Apr 4, 2026 at 3:48 PM",
-  location: "Campground Section D, Lots 42-48",
-  category: "Narcotics Distribution",
-  description:
-    "Ongoing investigation into suspected heroin distribution activity centered around Campground Section D. Multiple tips from park visitors and undercover observations indicate a distribution network operating from lots 42 through 48. Suspected individuals have been identified through surveillance and informant reports. Evidence collection is underway, including physical evidence from controlled buys, digital communications intercepts, and photographic surveillance documentation.",
-  evidenceCount: 23,
-  taskCount: 18,
-  tasksCompleted: 11,
-  resourceCount: 6,
-  narrativeCount: 14,
-};
 
-const RESOURCES = [
-  { id: 1, name: "Det. Sarah Lee", alias: "Lead-1", role: "case_manager", rate: 85, hours: 124, status: "active" },
-  { id: 2, name: "Off. James Park", alias: "UC-7", role: "investigator", rate: 65, hours: 88, status: "active" },
-  { id: 3, name: "Off. Maria Santos", alias: "UC-12", role: "investigator", rate: 65, hours: 72, status: "active" },
-  { id: 4, name: "Tech. Ryan Nguyen", alias: null, role: "investigator", rate: 55, hours: 36, status: "active" },
-  { id: 5, name: "Lt. David Kim", alias: null, role: "view_only", rate: 95, hours: 8, status: "active" },
-  { id: 6, name: "Off. Emily Torres", alias: "UC-3", role: "investigator", rate: 65, hours: 44, status: "inactive" },
-];
 
-const RELATED_RECORDS = [
-  { id: "INC-2026-000089", type: "incident", title: "Suspicious activity near Lot 44", date: "Feb 18, 2026", status: "closed" },
-  { id: "INC-2026-000102", type: "incident", title: "Drug paraphernalia found at Lot 42", date: "Feb 25, 2026", status: "closed" },
-  { id: "INC-2026-000134", type: "incident", title: "Patron overdose near Section D restrooms", date: "Mar 8, 2026", status: "closed" },
-  { id: "DSP-2026-000245", type: "dispatch", title: "Welfare check Lot 46 occupant", date: "Mar 3, 2026", status: "completed" },
-  { id: "DSP-2026-000271", type: "dispatch", title: "Backup request for controlled buy", date: "Mar 15, 2026", status: "completed" },
-  { id: "DL-2026-000412", type: "daily_log", title: "Surveillance notes - Section D overnight", date: "Mar 20, 2026", status: "closed" },
-  { id: "DL-2026-000438", type: "daily_log", title: "Informant debrief summary", date: "Mar 28, 2026", status: "closed" },
-];
 
-const EVIDENCE = [
-  { id: "EV-001", description: "Ziplock bag with white powder residue", type: "physical", storageLocation: "Evidence Locker B-14", custodian: "Off. Park", collectedDate: "Feb 25, 2026", daysHeld: 39, chainOfCustody: 3 },
-  { id: "EV-002", description: "Cell phone - Samsung Galaxy S25", type: "digital", storageLocation: "Digital Lab Safe 2", custodian: "Tech. Nguyen", collectedDate: "Mar 1, 2026", daysHeld: 35, chainOfCustody: 2 },
-  { id: "EV-003", description: "Surveillance photos - Lot 44 (32 images)", type: "photo", storageLocation: "Digital Evidence Server", custodian: "Off. Santos", collectedDate: "Mar 5, 2026", daysHeld: 31, chainOfCustody: 1 },
-  { id: "EV-004", description: "Body cam footage - controlled buy #1", type: "video", storageLocation: "Digital Evidence Server", custodian: "Off. Park", collectedDate: "Mar 10, 2026", daysHeld: 26, chainOfCustody: 2 },
-  { id: "EV-005", description: "Recorded informant statement", type: "audio", storageLocation: "Digital Evidence Server", custodian: "Det. Lee", collectedDate: "Mar 12, 2026", daysHeld: 24, chainOfCustody: 1 },
-  { id: "EV-006", description: "Search warrant - Lot 46", type: "document", storageLocation: "Case File Cabinet 3", custodian: "Det. Lee", collectedDate: "Mar 14, 2026", daysHeld: 22, chainOfCustody: 2 },
-  { id: "EV-007", description: "Scale with residue", type: "physical", storageLocation: "Evidence Locker B-14", custodian: "Off. Park", collectedDate: "Mar 15, 2026", daysHeld: 21, chainOfCustody: 4 },
-  { id: "EV-008", description: "Cash bundle ($2,340)", type: "physical", storageLocation: "Evidence Safe A-1", custodian: "Det. Lee", collectedDate: "Mar 15, 2026", daysHeld: 21, chainOfCustody: 3 },
-  { id: "EV-009", description: "Text message extraction report", type: "document", storageLocation: "Digital Lab Safe 2", custodian: "Tech. Nguyen", collectedDate: "Mar 18, 2026", daysHeld: 18, chainOfCustody: 1 },
-  { id: "EV-010", description: "Drone aerial footage - Section D", type: "video", storageLocation: "Digital Evidence Server", custodian: "Off. Santos", collectedDate: "Mar 22, 2026", daysHeld: 14, chainOfCustody: 1 },
-];
 
-const TASKS = [
-  {
-    id: "T-001", title: "Initial assessment and case opening", assignedTo: "Det. Lee", dueDate: "Feb 20, 2026",
-    percentComplete: 100, critical: false, hoursLogged: 4, subtasks: [
-      { title: "Review incident reports", complete: true },
-      { title: "Assign case number", complete: true },
-      { title: "Initial briefing with team", complete: true },
-    ],
-  },
-  {
-    id: "T-002", title: "Establish surveillance on Section D", assignedTo: "Off. Santos", dueDate: "Mar 1, 2026",
-    percentComplete: 100, critical: true, hoursLogged: 48, subtasks: [
-      { title: "Deploy covert cameras", complete: true },
-      { title: "Schedule rotation coverage", complete: true },
-      { title: "Document vehicle traffic patterns", complete: true },
-    ],
-  },
-  {
-    id: "T-003", title: "Controlled buy operation #1", assignedTo: "Off. Park", dueDate: "Mar 10, 2026",
-    percentComplete: 100, critical: true, hoursLogged: 16, subtasks: [
-      { title: "Pre-operation briefing", complete: true },
-      { title: "Execute controlled buy", complete: true },
-      { title: "Evidence processing", complete: true },
-      { title: "Post-operation debrief", complete: true },
-    ],
-  },
-  {
-    id: "T-004", title: "Digital forensics - seized phone", assignedTo: "Tech. Nguyen", dueDate: "Mar 20, 2026",
-    percentComplete: 100, critical: false, hoursLogged: 24, subtasks: [
-      { title: "Image device", complete: true },
-      { title: "Extract messages and contacts", complete: true },
-      { title: "Analyze call records", complete: true },
-      { title: "Generate forensics report", complete: true },
-    ],
-  },
-  {
-    id: "T-005", title: "Informant management and debriefs", assignedTo: "Det. Lee", dueDate: "Apr 1, 2026",
-    percentComplete: 75, critical: true, hoursLogged: 32, subtasks: [
-      { title: "Initial informant interview", complete: true },
-      { title: "Verify informant claims", complete: true },
-      { title: "Second debrief session", complete: true },
-      { title: "Final corroboration report", complete: false },
-    ],
-  },
-  {
-    id: "T-006", title: "Obtain and execute search warrant", assignedTo: "Det. Lee", dueDate: "Mar 18, 2026",
-    percentComplete: 100, critical: true, hoursLogged: 20, subtasks: [
-      { title: "Draft warrant affidavit", complete: true },
-      { title: "Submit to judge", complete: true },
-      { title: "Execute search", complete: true },
-    ],
-  },
-  {
-    id: "T-007", title: "Controlled buy operation #2", assignedTo: "Off. Park", dueDate: "Apr 5, 2026",
-    percentComplete: 60, critical: true, hoursLogged: 8, subtasks: [
-      { title: "Pre-operation briefing", complete: true },
-      { title: "Execute controlled buy", complete: true },
-      { title: "Evidence processing", complete: false },
-      { title: "Post-operation debrief", complete: false },
-      { title: "Comparative analysis with buy #1", complete: false },
-    ],
-  },
-  {
-    id: "T-008", title: "Compile evidence summary report", assignedTo: "Det. Lee", dueDate: "Apr 15, 2026",
-    percentComplete: 20, critical: false, hoursLogged: 6, subtasks: [
-      { title: "Organize all physical evidence", complete: true },
-      { title: "Compile digital evidence index", complete: false },
-      { title: "Write narrative summary", complete: false },
-      { title: "Legal review", complete: false },
-    ],
-  },
-  {
-    id: "T-009", title: "Interview suspect associates", assignedTo: "Off. Santos", dueDate: "Apr 10, 2026",
-    percentComplete: 33, critical: false, hoursLogged: 12, subtasks: [
-      { title: "Identify associates from surveillance", complete: true },
-      { title: "Conduct interviews", complete: false },
-      { title: "Cross-reference statements", complete: false },
-    ],
-  },
-  {
-    id: "T-010", title: "Financial records analysis", assignedTo: "Tech. Nguyen", dueDate: "Apr 12, 2026",
-    percentComplete: 0, critical: false, hoursLogged: 0, subtasks: [
-      { title: "Obtain financial records", complete: false },
-      { title: "Trace cash flow patterns", complete: false },
-    ],
-  },
-];
-
-const NARRATIVES = [
-  { id: "N-001", author: "Det. Lee", date: "Feb 19, 2026 10:45 AM", highlight: "yellow", title: "Case Opening Notes", content: "Case opened based on three separate incident reports filed in a 7-day period, all involving narcotics activity in Campground Section D. Pattern analysis suggests organized distribution rather than isolated incidents." },
-  { id: "N-002", author: "Off. Santos", date: "Mar 2, 2026 6:15 PM", highlight: "blue", title: "Surveillance Day 1 Observations", content: "Observed consistent foot traffic to Lot 44 between 1800-2200 hours. Approximately 12-15 unique visitors, most staying less than 5 minutes. One individual appears to be the primary point of contact. Vehicle with plate [REDACTED] seen multiple times." },
-  { id: "N-003", author: "Off. Park", date: "Mar 10, 2026 9:30 PM", highlight: "green", title: "Controlled Buy #1 Debrief", content: "Controlled buy successfully executed at 2015 hours. Subject sold approximately 0.5g of suspected heroin for $80. Transaction recorded on body camera. Subject identified as [REDACTED], WM, approx 35 years old. Buy money serial numbers recorded." },
-  { id: "N-004", author: "Det. Lee", date: "Mar 12, 2026 2:00 PM", highlight: "pink", title: "Informant Reliability Assessment", content: "CI has provided 3 actionable tips in the past 6 months, 2 of which resulted in successful operations. Reliability rating: B (usually reliable). Information provided regarding the distribution network has been partially corroborated through surveillance." },
-  { id: "N-005", author: "Tech. Nguyen", date: "Mar 18, 2026 11:00 AM", highlight: "blue", title: "Digital Forensics Preliminary", content: "Initial analysis of seized Samsung device reveals 47 text conversations potentially related to drug transactions. Common code words identified: 'camping gear' (heroin), 'tent stakes' (needles), 'firewood' (cash). Contact list cross-referenced with known associates." },
-  { id: "N-006", author: "Off. Santos", date: "Mar 22, 2026 4:30 PM", highlight: "yellow", title: "Aerial Surveillance Summary", content: "Drone footage captured over 3 hours reveals consistent foot traffic patterns matching ground surveillance. Identified secondary staging area at Lot 47 not previously known. Footage archived as EV-010." },
-  { id: "N-007", author: "Det. Lee", date: "Mar 28, 2026 10:15 AM", highlight: "green", title: "Network Mapping Update", content: "Based on combined intelligence from surveillance, digital forensics, and informant debriefs, we have identified 4 primary suspects and 8-10 peripheral associates. Distribution appears to follow a hub-and-spoke model with Lot 44 as the central node." },
-  { id: "N-008", author: "Off. Park", date: "Apr 3, 2026 8:45 PM", highlight: "blue", title: "Controlled Buy #2 Planning", content: "Pre-operation planning complete for second controlled buy. Target: secondary distributor at Lot 47. Buy amount: $160 for 1g. Backup team positioned per operational plan. Equipment check completed." },
-];
-
-const FINANCIAL = {
-  ale: 12500,
-  incidentalCosts: 3420,
-  timeCosts: 24180,
-  totalSavings: 0,
-  totalLosses: 2340,
-  entries: [
-    { id: "FIN-001", date: "Feb 25, 2026", category: "Buy Money", description: "Controlled buy #1 - buy money", amount: 80, type: "expense" as const },
-    { id: "FIN-002", date: "Mar 1, 2026", category: "Equipment", description: "Covert camera rental (2 units x 30 days)", amount: 1800, type: "expense" as const },
-    { id: "FIN-003", date: "Mar 5, 2026", category: "Equipment", description: "Drone operation - aerial surveillance", amount: 450, type: "expense" as const },
-    { id: "FIN-004", date: "Mar 10, 2026", category: "Overtime", description: "Off. Park - controlled buy operation OT", amount: 520, type: "expense" as const },
-    { id: "FIN-005", date: "Mar 15, 2026", category: "Evidence", description: "Evidence storage and processing fees", amount: 230, type: "expense" as const },
-    { id: "FIN-006", date: "Mar 15, 2026", category: "Seizure", description: "Cash seizure from search warrant", amount: -2340, type: "recovery" as const },
-    { id: "FIN-007", date: "Mar 18, 2026", category: "Lab", description: "Digital forensics lab time", amount: 680, type: "expense" as const },
-    { id: "FIN-008", date: "Mar 22, 2026", category: "Equipment", description: "Drone rental - additional surveillance", amount: 200, type: "expense" as const },
-    { id: "FIN-009", date: "Apr 3, 2026", category: "Buy Money", description: "Controlled buy #2 - buy money", amount: 160, type: "expense" as const },
-    { id: "FIN-010", date: "Apr 4, 2026", category: "Overtime", description: "Off. Santos - interview OT", amount: 340, type: "expense" as const },
-  ],
-};
-
-const OUTCOME_DATA = {
-  outcomeType: null as string | null,
-  classification: "Narcotics - Distribution (Felony)",
-  formalNotes: "Investigation ongoing. Sufficient evidence gathered to support probable cause for primary suspect. Awaiting completion of second controlled buy and financial analysis before proceeding to disposition stage.",
-  findings: [
-    "Identified primary distribution point at Campground Section D, Lot 44",
-    "Confirmed heroin distribution through controlled buy with recorded evidence",
-    "Digital forensics revealed communication network involving 4 primary suspects",
-    "Secondary distribution point discovered at Lot 47 via aerial surveillance",
-    "Informant testimony partially corroborated through independent surveillance",
-  ],
-};
-
-const AUDIT_LOG = [
-  { id: 1, action: "Case Created", user: "Off. Sarah Chen", timestamp: "Feb 19, 2026 10:22 AM", details: "Case opened from incident reports INC-2026-000089, INC-2026-000102" },
-  { id: 2, action: "Resource Assigned", user: "Det. Sarah Lee", timestamp: "Feb 19, 2026 10:35 AM", details: "Assigned as Case Manager" },
-  { id: 3, action: "Resource Assigned", user: "Det. Sarah Lee", timestamp: "Feb 19, 2026 11:00 AM", details: "Off. James Park added as Investigator (alias: UC-7)" },
-  { id: 4, action: "Resource Assigned", user: "Det. Sarah Lee", timestamp: "Feb 19, 2026 11:05 AM", details: "Off. Maria Santos added as Investigator (alias: UC-12)" },
-  { id: 5, action: "Stage Advanced", user: "Det. Sarah Lee", timestamp: "Feb 22, 2026 3:15 PM", details: "Stage: Assessment -> Evidence Collection" },
-  { id: 6, action: "Evidence Added", user: "Off. James Park", timestamp: "Feb 25, 2026 4:30 PM", details: "EV-001: Physical evidence logged" },
-  { id: 7, action: "Related Record Linked", user: "Det. Sarah Lee", timestamp: "Feb 25, 2026 5:00 PM", details: "Linked INC-2026-000102" },
-  { id: 8, action: "Resource Assigned", user: "Det. Sarah Lee", timestamp: "Mar 1, 2026 9:00 AM", details: "Tech. Ryan Nguyen added as Investigator" },
-  { id: 9, action: "Evidence Added", user: "Tech. Nguyen", timestamp: "Mar 1, 2026 2:00 PM", details: "EV-002: Digital evidence (phone) logged" },
-  { id: 10, action: "Stage Advanced", user: "Det. Sarah Lee", timestamp: "Mar 5, 2026 10:00 AM", details: "Stage: Evidence Collection -> Detailed Investigation" },
-  { id: 11, action: "Task Completed", user: "Off. James Park", timestamp: "Mar 10, 2026 10:00 PM", details: "Controlled buy operation #1 completed" },
-  { id: 12, action: "Evidence Added", user: "Off. James Park", timestamp: "Mar 15, 2026 6:00 PM", details: "EV-007, EV-008: Search warrant evidence logged" },
-  { id: 13, action: "Narrative Added", user: "Det. Sarah Lee", timestamp: "Mar 28, 2026 10:20 AM", details: "Network mapping update narrative added" },
-  { id: 14, action: "Resource Deactivated", user: "Det. Sarah Lee", timestamp: "Apr 1, 2026 9:00 AM", details: "Off. Emily Torres set to inactive" },
-  { id: 15, action: "Viewed", user: "Lt. David Kim", timestamp: "Apr 4, 2026 3:48 PM", details: "Supervisory review" },
-];
 
 /* ================================================================
    TAB DEFINITIONS
    ================================================================ */
 
-const TAB_LIST = [
-  { id: "overview", label: "Overview" },
-  { id: "resources", label: "Resources", count: RESOURCES.length },
-  { id: "related", label: "Related Records", count: RELATED_RECORDS.length },
-  { id: "evidence", label: "Evidence", count: EVIDENCE.length },
-  { id: "tasks", label: "Tasks", count: TASKS.length },
-  { id: "narratives", label: "Narratives", count: NARRATIVES.length },
-  { id: "financial", label: "Financial" },
-  { id: "outcome", label: "Outcome" },
-  { id: "audit", label: "Audit Log", count: AUDIT_LOG.length },
-];
+/* TAB_LIST is built dynamically in the component with real counts */
 
 /* ================================================================
    MAIN PAGE COMPONENT
@@ -340,6 +148,12 @@ export default function CaseDetailPage({
 
   // ── Real data fetch ──
   const [caseData, setCaseData] = useState<CaseDetail | null>(null);
+  const [evidence, setEvidence] = useState<CaseEvidenceItem[]>([]);
+  const [tasks, setTasks] = useState<CaseTask[]>([]);
+  const [narratives, setNarratives] = useState<CaseNarrativeItem[]>([]);
+  const [costs, setCosts] = useState<CaseCostEntry[]>([]);
+  const [relatedRecords, setRelatedRecords] = useState<CaseRelatedRecord[]>([]);
+  const [auditLog, setAuditLog] = useState<CaseAuditEntry[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -347,8 +161,22 @@ export default function CaseDetailPage({
     try {
       setLoading(true);
       setError(null);
-      const data = await fetchCaseById(id);
+      const [data, ev, tk, nr, co, rr, al] = await Promise.all([
+        fetchCaseById(id),
+        fetchCaseEvidence(id).catch(() => [] as CaseEvidenceItem[]),
+        fetchCaseTasks(id).catch(() => [] as CaseTask[]),
+        fetchCaseNarratives(id).catch(() => [] as CaseNarrativeItem[]),
+        fetchCaseCosts(id).catch(() => [] as CaseCostEntry[]),
+        fetchCaseRelatedRecords(id).catch(() => [] as CaseRelatedRecord[]),
+        fetchCaseAudit(id).catch(() => [] as CaseAuditEntry[]),
+      ]);
       setCaseData(data);
+      setEvidence(ev);
+      setTasks(tk);
+      setNarratives(nr);
+      setCosts(co);
+      setRelatedRecords(rr);
+      setAuditLog(al);
     } catch (err: any) {
       setError(err.message || "Failed to load case");
     } finally {
@@ -378,7 +206,8 @@ export default function CaseDetailPage({
     );
   }
 
-  // Map real DB data → template shape (sub-resource counts stay mock)
+  // Map real DB data → template shape
+  const tasksCompleted = tasks.filter((t) => t.status === "done").length;
   const c = {
     id: caseData.recordNumber,
     title: caseData.caseType,
@@ -393,13 +222,25 @@ export default function CaseDetailPage({
     location: "—",
     category: caseData.caseType,
     description: caseData.synopsis || "No synopsis provided",
-    evidenceCount: EVIDENCE.length,
-    taskCount: TASKS.length,
-    tasksCompleted: TASKS.filter((t) => t.percentComplete === 100).length,
-    resourceCount: RESOURCES.length,
-    narrativeCount: NARRATIVES.length,
+    evidenceCount: evidence.length,
+    taskCount: tasks.length,
+    tasksCompleted,
+    resourceCount: 0,
+    narrativeCount: narratives.length,
   };
   const currentStageIndex = STAGES.findIndex((s) => s.key === c.stage);
+
+  const TAB_LIST = [
+    { id: "overview", label: "Overview" },
+    { id: "resources", label: "Resources" },
+    { id: "related", label: "Related Records", count: relatedRecords.length },
+    { id: "evidence", label: "Evidence", count: evidence.length },
+    { id: "tasks", label: "Tasks", count: tasks.length },
+    { id: "narratives", label: "Narratives", count: narratives.length },
+    { id: "financial", label: "Financial" },
+    { id: "outcome", label: "Outcome" },
+    { id: "audit", label: "Audit Log", count: auditLog.length },
+  ];
 
   return (
     <div className="space-y-5 animate-fade-in">
@@ -455,15 +296,15 @@ export default function CaseDetailPage({
       <Tabs tabs={TAB_LIST} activeTab={activeTab} onChange={setActiveTab} />
 
       {/* ── Tab Content ── */}
-      {activeTab === "overview" && <OverviewTab stageIndex={currentStageIndex} />}
+      {activeTab === "overview" && <OverviewTab c={c} stageIndex={currentStageIndex} relatedRecords={relatedRecords} auditLog={auditLog} costs={costs} tasks={tasks} />}
       {activeTab === "resources" && <ResourcesTab onAddResource={() => setAddResourceModal(true)} />}
-      {activeTab === "related" && <RelatedRecordsTab onLinkRecord={() => setLinkRecordModal(true)} />}
-      {activeTab === "evidence" && <EvidenceTab onAddEvidence={() => setAddEvidenceModal(true)} onTransferCustody={() => setChainOfCustodyModal(true)} />}
-      {activeTab === "tasks" && <TasksTab onAddTask={() => setAddTaskModal(true)} />}
-      {activeTab === "narratives" && <NarrativesTab onAddNarrative={() => setAddNarrativeModal(true)} />}
-      {activeTab === "financial" && <FinancialTab onAddEntry={() => setAddFinancialModal(true)} />}
+      {activeTab === "related" && <RelatedRecordsTab relatedRecords={relatedRecords} onLinkRecord={() => setLinkRecordModal(true)} />}
+      {activeTab === "evidence" && <EvidenceTab evidence={evidence} onAddEvidence={() => setAddEvidenceModal(true)} onTransferCustody={() => setChainOfCustodyModal(true)} />}
+      {activeTab === "tasks" && <TasksTab tasks={tasks} onAddTask={() => setAddTaskModal(true)} />}
+      {activeTab === "narratives" && <NarrativesTab narratives={narratives} onAddNarrative={() => setAddNarrativeModal(true)} />}
+      {activeTab === "financial" && <FinancialTab costs={costs} onAddEntry={() => setAddFinancialModal(true)} />}
       {activeTab === "outcome" && <OutcomeTab onDocumentOutcome={() => setOutcomeModal(true)} />}
-      {activeTab === "audit" && <AuditLogTab />}
+      {activeTab === "audit" && <AuditLogTab auditLog={auditLog} />}
 
       {/* ── Modals ── */}
       <AddResourceModal
@@ -527,9 +368,9 @@ export default function CaseDetailPage({
           setChainOfCustodyModal(false);
         }}
         caseId={c.id}
-        evidenceItems={EVIDENCE.map((ev) => ({
+        evidenceItems={evidence.map((ev) => ({
           id: ev.id,
-          label: ev.description,
+          label: ev.title,
           type: ev.type,
         }))}
       />
@@ -559,7 +400,7 @@ export default function CaseDetailPage({
           toast("Case closed", { variant: "success" });
           setCloseCaseModal(false);
         }}
-        openTaskCount={TASKS.filter((t) => t.percentComplete < 100).length}
+        openTaskCount={tasks.filter((t) => t.status !== "done").length}
       />
 
       <DeleteCaseModal
@@ -750,8 +591,8 @@ function Td({ children, className }: { children: React.ReactNode; className?: st
    1. OVERVIEW TAB
    ================================================================ */
 
-function OverviewTab({ stageIndex }: { stageIndex: number }) {
-  const c = CASE_DATA;
+function OverviewTab({ c, stageIndex, relatedRecords, auditLog, costs, tasks }: { c: any; stageIndex: number; relatedRecords: CaseRelatedRecord[]; auditLog: CaseAuditEntry[]; costs: CaseCostEntry[]; tasks: CaseTask[] }) {
+  const totalCosts = costs.reduce((s, e) => s + e.amount, 0);
 
   return (
     <div className="space-y-5">
@@ -815,10 +656,10 @@ function OverviewTab({ stageIndex }: { stageIndex: number }) {
 
       {/* Key Metrics */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
-        <MetricCard icon={Clock} label="Days Open" value={c.daysOpen} sub="Since Feb 19" />
-        <MetricCard icon={Users} label="Resources" value={c.resourceCount} sub="5 active, 1 inactive" />
-        <MetricCard icon={Package} label="Evidence Items" value={c.evidenceCount} sub="6 physical, 17 digital" />
-        <MetricCard icon={ListChecks} label="Tasks" value={`${c.tasksCompleted}/${c.taskCount}`} sub={`${Math.round((c.tasksCompleted / c.taskCount) * 100)}% complete`} />
+        <MetricCard icon={Clock} label="Days Open" value={c.daysOpen} />
+        <MetricCard icon={Users} label="Resources" value={c.resourceCount} />
+        <MetricCard icon={Package} label="Evidence Items" value={c.evidenceCount} />
+        <MetricCard icon={ListChecks} label="Tasks" value={`${c.tasksCompleted}/${c.taskCount}`} sub={c.taskCount > 0 ? `${Math.round((c.tasksCompleted / c.taskCount) * 100)}% complete` : "No tasks"} />
       </div>
 
       {/* Detail Fields */}
@@ -886,11 +727,11 @@ function OverviewTab({ stageIndex }: { stageIndex: number }) {
               </div>
               <div className="flex items-center justify-between">
                 <span className="text-[12px] text-[var(--text-secondary)]">Related Records</span>
-                <span className="text-[12px] font-medium text-[var(--text-primary)]">{RELATED_RECORDS.length}</span>
+                <span className="text-[12px] font-medium text-[var(--text-primary)]">{relatedRecords.length}</span>
               </div>
               <div className="flex items-center justify-between">
                 <span className="text-[12px] text-[var(--text-secondary)]">Audit Entries</span>
-                <span className="text-[12px] font-medium text-[var(--text-primary)]">{AUDIT_LOG.length}</span>
+                <span className="text-[12px] font-medium text-[var(--text-primary)]">{auditLog.length}</span>
               </div>
             </div>
           </div>
@@ -900,7 +741,7 @@ function OverviewTab({ stageIndex }: { stageIndex: number }) {
               Task Completion
             </h3>
             <ProgressBar
-              value={Math.round((c.tasksCompleted / c.taskCount) * 100)}
+              value={c.taskCount > 0 ? Math.round((c.tasksCompleted / c.taskCount) * 100) : 0}
               label="Tasks"
               size="md"
               color="var(--status-success,#059669)"
@@ -915,19 +756,13 @@ function OverviewTab({ stageIndex }: { stageIndex: number }) {
               <div className="flex items-center justify-between">
                 <span className="text-[12px] text-[var(--text-secondary)]">Total Costs</span>
                 <span className="text-[12px] font-medium text-[var(--text-primary)]">
-                  ${(FINANCIAL.incidentalCosts + FINANCIAL.timeCosts).toLocaleString()}
+                  ${totalCosts.toLocaleString()}
                 </span>
               </div>
               <div className="flex items-center justify-between">
-                <span className="text-[12px] text-[var(--text-secondary)]">ALE Budget</span>
+                <span className="text-[12px] text-[var(--text-secondary)]">Entries</span>
                 <span className="text-[12px] font-medium text-[var(--text-primary)]">
-                  ${FINANCIAL.ale.toLocaleString()}
-                </span>
-              </div>
-              <div className="flex items-center justify-between">
-                <span className="text-[12px] text-[var(--text-secondary)]">Recoveries</span>
-                <span className="text-[12px] font-medium text-[var(--status-success,#059669)]">
-                  ${FINANCIAL.totalLosses.toLocaleString()}
+                  {costs.length}
                 </span>
               </div>
             </div>
@@ -943,12 +778,6 @@ function OverviewTab({ stageIndex }: { stageIndex: number }) {
    ================================================================ */
 
 function ResourcesTab({ onAddResource }: { onAddResource: () => void }) {
-  const roleColors: Record<string, { tone: "info" | "success" | "default"; label: string }> = {
-    case_manager: { tone: "info", label: "Case Manager" },
-    investigator: { tone: "success", label: "Investigator" },
-    view_only: { tone: "default", label: "View Only" },
-  };
-
   return (
     <Card>
       <CardHeader className="flex-row items-center justify-between">
@@ -958,58 +787,13 @@ function ResourcesTab({ onAddResource }: { onAddResource: () => void }) {
           Add Resource
         </Button>
       </CardHeader>
-      <CardContent className="p-0">
-        <TableWrapper>
-          <thead>
-            <tr>
-              <Th>Name</Th>
-              <Th>Alias</Th>
-              <Th>Role</Th>
-              <Th>Hourly Rate</Th>
-              <Th>Hours Logged</Th>
-              <Th>Total Cost</Th>
-              <Th>Status</Th>
-            </tr>
-          </thead>
-          <tbody>
-            {RESOURCES.map((r) => {
-              const rc = roleColors[r.role] ?? { tone: "default" as const, label: r.role };
-              return (
-                <tr key={r.id} className="hover:bg-[var(--surface-hover)] transition-colors">
-                  <Td>
-                    <span className="flex items-center gap-2">
-                      <div className="w-6 h-6 rounded-full bg-[var(--surface-secondary)] flex items-center justify-center text-[10px] font-bold text-[var(--text-tertiary)]">
-                        {r.name.split(" ").map((n) => n[0]).join("").slice(0, 2)}
-                      </div>
-                      <span className="font-medium">{r.name}</span>
-                    </span>
-                  </Td>
-                  <Td>
-                    {r.alias ? (
-                      <span className="text-[12px] font-mono bg-[var(--surface-secondary)] px-1.5 py-0.5 rounded">
-                        {r.alias}
-                      </span>
-                    ) : (
-                      <span className="text-[var(--text-tertiary)]">--</span>
-                    )}
-                  </Td>
-                  <Td><Badge tone={rc.tone}>{rc.label}</Badge></Td>
-                  <Td>${r.rate}/hr</Td>
-                  <Td>{r.hours}h</Td>
-                  <Td className="font-medium">${(r.rate * r.hours).toLocaleString()}</Td>
-                  <Td>
-                    <StatusBadge status={r.status} dot />
-                  </Td>
-                </tr>
-              );
-            })}
-          </tbody>
-        </TableWrapper>
-        <div className="px-4 py-3 border-t border-[var(--border-default)] flex justify-between text-[12px] text-[var(--text-secondary)]">
-          <span>{RESOURCES.length} resources assigned</span>
-          <span className="font-medium text-[var(--text-primary)]">
-            Total: ${RESOURCES.reduce((sum, r) => sum + r.rate * r.hours, 0).toLocaleString()}
-          </span>
+      <CardContent>
+        <div className="flex flex-col items-center justify-center py-12 text-center">
+          <Users size={32} className="text-[var(--text-tertiary)] mb-3" />
+          <p className="text-[13px] font-medium text-[var(--text-secondary)]">No resources assigned yet</p>
+          <p className="text-[12px] text-[var(--text-tertiary)] mt-1">
+            Assign team members and investigators to this case
+          </p>
         </div>
       </CardContent>
     </Card>
@@ -1020,7 +804,7 @@ function ResourcesTab({ onAddResource }: { onAddResource: () => void }) {
    3. RELATED RECORDS TAB
    ================================================================ */
 
-function RelatedRecordsTab({ onLinkRecord }: { onLinkRecord: () => void }) {
+function RelatedRecordsTab({ relatedRecords, onLinkRecord }: { relatedRecords: CaseRelatedRecord[]; onLinkRecord: () => void }) {
   const typeConfig: Record<string, { icon: typeof FileText; tone: "critical" | "info" | "warning"; label: string }> = {
     incident: { icon: AlertTriangle, tone: "critical", label: "Incident" },
     dispatch: { icon: Briefcase, tone: "info", label: "Dispatch" },
@@ -1037,48 +821,56 @@ function RelatedRecordsTab({ onLinkRecord }: { onLinkRecord: () => void }) {
         </Button>
       </CardHeader>
       <CardContent className="p-0">
-        <TableWrapper>
-          <thead>
-            <tr>
-              <Th>ID</Th>
-              <Th>Type</Th>
-              <Th>Title</Th>
-              <Th>Date</Th>
-              <Th>Status</Th>
-              <Th className="w-10">{""}</Th>
-            </tr>
-          </thead>
-          <tbody>
-            {RELATED_RECORDS.map((r) => {
-              const tc = typeConfig[r.type] ?? { icon: FileText, tone: "default" as const, label: r.type };
-              const TypeIcon = tc.icon;
-              return (
-                <tr key={r.id} className="hover:bg-[var(--surface-hover)] transition-colors cursor-pointer">
-                  <Td>
-                    <span className="font-mono text-[12px] text-[var(--action-primary)]">{r.id}</span>
-                  </Td>
-                  <Td>
-                    <Badge tone={tc.tone}>
-                      <TypeIcon size={10} />
-                      {tc.label}
-                    </Badge>
-                  </Td>
-                  <Td>{r.title}</Td>
-                  <Td>
-                    <span className="text-[12px] text-[var(--text-secondary)]">{r.date}</span>
-                  </Td>
-                  <Td><StatusBadge status={r.status} /></Td>
-                  <Td>
-                    <ChevronRight size={13} className="text-[var(--text-tertiary)]" />
-                  </Td>
+        {relatedRecords.length === 0 ? (
+          <div className="flex flex-col items-center justify-center py-12 text-center">
+            <Link2 size={32} className="text-[var(--text-tertiary)] mb-3" />
+            <p className="text-[13px] font-medium text-[var(--text-secondary)]">No linked records</p>
+            <p className="text-[12px] text-[var(--text-tertiary)] mt-1">Link incidents, dispatches, or other records to this case</p>
+          </div>
+        ) : (
+          <>
+            <TableWrapper>
+              <thead>
+                <tr>
+                  <Th>Record ID</Th>
+                  <Th>Type</Th>
+                  <Th>Relationship</Th>
+                  <Th>Linked By</Th>
+                  <Th>Linked At</Th>
+                  <Th className="w-10">{""}</Th>
                 </tr>
-              );
-            })}
-          </tbody>
-        </TableWrapper>
-        <div className="px-4 py-3 border-t border-[var(--border-default)] text-[12px] text-[var(--text-secondary)]">
-          {RELATED_RECORDS.length} linked records
-        </div>
+              </thead>
+              <tbody>
+                {relatedRecords.map((r) => {
+                  const tc = typeConfig[r.relatedRecordType] ?? { icon: FileText, tone: "info" as const, label: r.relatedRecordType };
+                  const TypeIcon = tc.icon;
+                  return (
+                    <tr key={r.id} className="hover:bg-[var(--surface-hover)] transition-colors cursor-pointer">
+                      <Td>
+                        <span className="font-mono text-[12px] text-[var(--action-primary)]">{r.relatedRecordId.slice(0, 8)}</span>
+                      </Td>
+                      <Td>
+                        <Badge tone={tc.tone}>
+                          <TypeIcon size={10} />
+                          {tc.label}
+                        </Badge>
+                      </Td>
+                      <Td>{r.relationshipDescription || "—"}</Td>
+                      <Td><span className="text-[12px] text-[var(--text-secondary)]">{r.linkedByName || "—"}</span></Td>
+                      <Td><span className="text-[12px] text-[var(--text-secondary)]">{formatDateTime(r.linkedAt)}</span></Td>
+                      <Td>
+                        <ChevronRight size={13} className="text-[var(--text-tertiary)]" />
+                      </Td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </TableWrapper>
+            <div className="px-4 py-3 border-t border-[var(--border-default)] text-[12px] text-[var(--text-secondary)]">
+              {relatedRecords.length} linked records
+            </div>
+          </>
+        )}
       </CardContent>
     </Card>
   );
@@ -1088,7 +880,7 @@ function RelatedRecordsTab({ onLinkRecord }: { onLinkRecord: () => void }) {
    4. EVIDENCE TAB
    ================================================================ */
 
-function EvidenceTab({ onAddEvidence, onTransferCustody }: { onAddEvidence: () => void; onTransferCustody: () => void }) {
+function EvidenceTab({ evidence, onAddEvidence, onTransferCustody }: { evidence: CaseEvidenceItem[]; onAddEvidence: () => void; onTransferCustody: () => void }) {
   const typeConfig: Record<string, { icon: typeof Package; tone: "default" | "info" | "success" | "warning" | "critical" | "attention" }> = {
     physical: { icon: Package, tone: "warning" },
     digital: { icon: HardDrive, tone: "info" },
@@ -1114,63 +906,63 @@ function EvidenceTab({ onAddEvidence, onTransferCustody }: { onAddEvidence: () =
         </div>
       </CardHeader>
       <CardContent className="p-0">
-        <TableWrapper>
-          <thead>
-            <tr>
-              <Th>ID</Th>
-              <Th>Type</Th>
-              <Th>Description</Th>
-              <Th>Storage</Th>
-              <Th>Custodian</Th>
-              <Th>Collected</Th>
-              <Th>Days Held</Th>
-              <Th>CoC</Th>
-            </tr>
-          </thead>
-          <tbody>
-            {EVIDENCE.map((ev) => {
-              const tc = typeConfig[ev.type] ?? { icon: Package, tone: "default" as const };
-              const EvIcon = tc.icon;
-              return (
-                <tr key={ev.id} className="hover:bg-[var(--surface-hover)] transition-colors">
-                  <Td>
-                    <span className="font-mono text-[12px]">{ev.id}</span>
-                  </Td>
-                  <Td>
-                    <Badge tone={tc.tone}>
-                      <EvIcon size={10} />
-                      {ev.type.charAt(0).toUpperCase() + ev.type.slice(1)}
-                    </Badge>
-                  </Td>
-                  <Td>
-                    <span className="max-w-[240px] truncate block">{ev.description}</span>
-                  </Td>
-                  <Td>
-                    <span className="text-[12px] text-[var(--text-secondary)]">{ev.storageLocation}</span>
-                  </Td>
-                  <Td>{ev.custodian}</Td>
-                  <Td>
-                    <span className="text-[12px] text-[var(--text-secondary)]">{ev.collectedDate}</span>
-                  </Td>
-                  <Td>
-                    <span className={`text-[12px] font-medium ${ev.daysHeld > 30 ? "text-[var(--status-warning,#d97706)]" : "text-[var(--text-primary)]"}`}>
-                      {ev.daysHeld}d
-                    </span>
-                  </Td>
-                  <Td>
-                    <span className="text-[12px] font-mono bg-[var(--surface-secondary)] px-1.5 py-0.5 rounded">
-                      {ev.chainOfCustody} transfers
-                    </span>
-                  </Td>
+        {evidence.length === 0 ? (
+          <div className="flex flex-col items-center justify-center py-12 text-center">
+            <Package size={32} className="text-[var(--text-tertiary)] mb-3" />
+            <p className="text-[13px] font-medium text-[var(--text-secondary)]">No evidence logged</p>
+            <p className="text-[12px] text-[var(--text-tertiary)] mt-1">Log physical or digital evidence items for this case</p>
+          </div>
+        ) : (
+          <>
+            <TableWrapper>
+              <thead>
+                <tr>
+                  <Th>Item #</Th>
+                  <Th>Type</Th>
+                  <Th>Title</Th>
+                  <Th>Status</Th>
+                  <Th>Storage</Th>
+                  <Th>Logged By</Th>
+                  <Th>Collected</Th>
                 </tr>
-              );
-            })}
-          </tbody>
-        </TableWrapper>
-        <div className="px-4 py-3 border-t border-[var(--border-default)] flex justify-between text-[12px] text-[var(--text-secondary)]">
-          <span>{EVIDENCE.length} evidence items</span>
-          <span>Total chain of custody transfers: {EVIDENCE.reduce((s, e) => s + e.chainOfCustody, 0)}</span>
-        </div>
+              </thead>
+              <tbody>
+                {evidence.map((ev) => {
+                  const tc = typeConfig[ev.type] ?? { icon: Package, tone: "default" as const };
+                  const EvIcon = tc.icon;
+                  return (
+                    <tr key={ev.id} className="hover:bg-[var(--surface-hover)] transition-colors">
+                      <Td>
+                        <span className="font-mono text-[12px]">{ev.itemNumber || "—"}</span>
+                      </Td>
+                      <Td>
+                        <Badge tone={tc.tone}>
+                          <EvIcon size={10} />
+                          {ev.type.charAt(0).toUpperCase() + ev.type.slice(1)}
+                        </Badge>
+                      </Td>
+                      <Td>
+                        <span className="max-w-[240px] truncate block">{ev.title}</span>
+                        {ev.description && <span className="text-[11px] text-[var(--text-tertiary)] block truncate max-w-[240px]">{ev.description}</span>}
+                      </Td>
+                      <Td><StatusBadge status={ev.status} /></Td>
+                      <Td>
+                        <span className="text-[12px] text-[var(--text-secondary)]">{ev.storageLocation || "—"}</span>
+                      </Td>
+                      <Td><span className="text-[12px] text-[var(--text-secondary)]">{ev.createdByName || "—"}</span></Td>
+                      <Td>
+                        <span className="text-[12px] text-[var(--text-secondary)]">{formatDateTime(ev.createdAt)}</span>
+                      </Td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </TableWrapper>
+            <div className="px-4 py-3 border-t border-[var(--border-default)] text-[12px] text-[var(--text-secondary)]">
+              {evidence.length} evidence items
+            </div>
+          </>
+        )}
       </CardContent>
     </Card>
   );
@@ -1180,17 +972,18 @@ function EvidenceTab({ onAddEvidence, onTransferCustody }: { onAddEvidence: () =
    5. TASKS TAB
    ================================================================ */
 
-function TasksTab({ onAddTask }: { onAddTask: () => void }) {
-  const totalHours = TASKS.reduce((s, t) => s + t.hoursLogged, 0);
-  const overallPercent = Math.round(TASKS.reduce((s, t) => s + t.percentComplete, 0) / TASKS.length);
+function TasksTab({ tasks, onAddTask }: { tasks: CaseTask[]; onAddTask: () => void }) {
+  const completedCount = tasks.filter((t) => t.status === "done").length;
+  const overallPercent = tasks.length > 0 ? Math.round((completedCount / tasks.length) * 100) : 0;
+  const highPriorityCount = tasks.filter((t) => t.priority === "critical" || t.priority === "high").length;
 
   return (
     <div className="space-y-4">
       {/* Summary bar */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
         <MetricCard icon={ListChecks} label="Overall Completion" value={`${overallPercent}%`} />
-        <MetricCard icon={Timer} label="Total Hours" value={`${totalHours}h`} sub={`Across ${TASKS.length} tasks`} />
-        <MetricCard icon={Flag} label="Critical Tasks" value={TASKS.filter((t) => t.critical).length} sub={`of ${TASKS.length} total`} />
+        <MetricCard icon={Timer} label="Total Tasks" value={tasks.length} sub={`${completedCount} completed`} />
+        <MetricCard icon={Flag} label="High Priority" value={highPriorityCount} sub={`of ${tasks.length} total`} />
       </div>
 
       <Card>
@@ -1202,84 +995,58 @@ function TasksTab({ onAddTask }: { onAddTask: () => void }) {
           </Button>
         </CardHeader>
         <CardContent className="p-0">
-          <div className="divide-y divide-[var(--border-default)]">
-            {TASKS.map((task) => (
-              <div key={task.id} className="px-4 py-3 hover:bg-[var(--surface-hover)] transition-colors">
-                <div className="flex items-start justify-between gap-4">
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2 mb-1">
-                      <span className="font-mono text-[11px] text-[var(--text-tertiary)]">{task.id}</span>
-                      {task.critical && (
-                        <Badge tone="critical">
-                          <Flag size={9} />
-                          Critical
-                        </Badge>
+          {tasks.length === 0 ? (
+            <div className="flex flex-col items-center justify-center py-12 text-center">
+              <ListChecks size={32} className="text-[var(--text-tertiary)] mb-3" />
+              <p className="text-[13px] font-medium text-[var(--text-secondary)]">No tasks created</p>
+              <p className="text-[12px] text-[var(--text-tertiary)] mt-1">Create tasks to track investigation activities</p>
+            </div>
+          ) : (
+            <div className="divide-y divide-[var(--border-default)]">
+              {tasks.map((task) => (
+                <div key={task.id} className="px-4 py-3 hover:bg-[var(--surface-hover)] transition-colors">
+                  <div className="flex items-start justify-between gap-4">
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 mb-1">
+                        <PriorityBadge priority={task.priority as "critical" | "high" | "medium" | "low" | "none"} />
+                        {task.status === "done" && (
+                          <Badge tone="success">
+                            <CheckCircle2 size={9} />
+                            Complete
+                          </Badge>
+                        )}
+                        <StatusBadge status={task.status} />
+                      </div>
+                      <p className="text-[13px] font-medium text-[var(--text-primary)]">{task.title}</p>
+                      {task.description && (
+                        <p className="text-[12px] text-[var(--text-tertiary)] mt-0.5 truncate max-w-lg">{task.description}</p>
                       )}
-                      {task.percentComplete === 100 && (
-                        <Badge tone="success">
-                          <CheckCircle2 size={9} />
-                          Complete
-                        </Badge>
-                      )}
-                    </div>
-                    <p className="text-[13px] font-medium text-[var(--text-primary)]">{task.title}</p>
-                    <div className="flex items-center gap-4 mt-1 text-[12px] text-[var(--text-tertiary)]">
-                      <span className="flex items-center gap-1">
-                        <User size={10} />
-                        {task.assignedTo}
-                      </span>
-                      <span className="flex items-center gap-1">
-                        <Calendar size={10} />
-                        Due: {task.dueDate}
-                      </span>
-                      <span className="flex items-center gap-1">
-                        <Timer size={10} />
-                        {task.hoursLogged}h logged
-                      </span>
-                    </div>
-
-                    {/* Subtasks */}
-                    <div className="mt-2 space-y-1">
-                      {task.subtasks.map((st, i) => (
-                        <div key={i} className="flex items-center gap-2 text-[12px]">
-                          <div
-                            className={`w-3.5 h-3.5 rounded border flex items-center justify-center shrink-0 ${
-                              st.complete
-                                ? "bg-[var(--status-success,#059669)] border-[var(--status-success,#059669)]"
-                                : "border-[var(--border-default)] bg-transparent"
-                            }`}
-                          >
-                            {st.complete && <CheckCircle2 size={9} className="text-white" />}
-                          </div>
-                          <span className={st.complete ? "text-[var(--text-tertiary)] line-through" : "text-[var(--text-secondary)]"}>
-                            {st.title}
+                      <div className="flex items-center gap-4 mt-1 text-[12px] text-[var(--text-tertiary)]">
+                        {task.assignedToName && (
+                          <span className="flex items-center gap-1">
+                            <User size={10} />
+                            {task.assignedToName}
                           </span>
-                        </div>
-                      ))}
+                        )}
+                        {task.dueDate && (
+                          <span className="flex items-center gap-1">
+                            <Calendar size={10} />
+                            Due: {formatDateTime(task.dueDate)}
+                          </span>
+                        )}
+                        {task.completedAt && (
+                          <span className="flex items-center gap-1">
+                            <CheckCircle2 size={10} />
+                            Completed: {formatDateTime(task.completedAt)}
+                          </span>
+                        )}
+                      </div>
                     </div>
-                  </div>
-
-                  {/* Progress */}
-                  <div className="w-24 shrink-0 pt-1">
-                    <ProgressBar
-                      value={task.percentComplete}
-                      size="sm"
-                      color={
-                        task.percentComplete === 100
-                          ? "var(--status-success,#059669)"
-                          : task.critical
-                          ? "var(--status-warning,#d97706)"
-                          : "var(--action-primary)"
-                      }
-                    />
-                    <p className="text-[11px] text-center text-[var(--text-tertiary)] mt-1">
-                      {task.percentComplete}%
-                    </p>
                   </div>
                 </div>
-              </div>
-            ))}
-          </div>
+              ))}
+            </div>
+          )}
         </CardContent>
       </Card>
     </div>
@@ -1290,14 +1057,7 @@ function TasksTab({ onAddTask }: { onAddTask: () => void }) {
    6. NARRATIVES TAB
    ================================================================ */
 
-function NarrativesTab({ onAddNarrative }: { onAddNarrative: () => void }) {
-  const highlightColors: Record<string, { bg: string; border: string }> = {
-    yellow: { bg: "#fefce8", border: "#fde68a" },
-    blue: { bg: "#eff6ff", border: "#bfdbfe" },
-    green: { bg: "#ecfdf5", border: "#a7f3d0" },
-    pink: { bg: "#fdf2f8", border: "#fbcfe8" },
-  };
-
+function NarrativesTab({ narratives, onAddNarrative }: { narratives: CaseNarrativeItem[]; onAddNarrative: () => void }) {
   return (
     <Card>
       <CardHeader className="flex-row items-center justify-between">
@@ -1308,42 +1068,46 @@ function NarrativesTab({ onAddNarrative }: { onAddNarrative: () => void }) {
         </Button>
       </CardHeader>
       <CardContent className="p-0">
-        <div className="divide-y divide-[var(--border-default)]">
-          {NARRATIVES.map((n) => {
-            const hc = highlightColors[n.highlight] ?? highlightColors.yellow;
-            return (
-              <div key={n.id} className="px-5 py-4">
-                <div className="flex items-start gap-3">
-                  <div
-                    className="w-1 shrink-0 rounded-full self-stretch"
-                    style={{ backgroundColor: hc.border }}
-                  />
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center justify-between mb-1">
-                      <div className="flex items-center gap-2">
-                        <span className="font-mono text-[11px] text-[var(--text-tertiary)]">{n.id}</span>
-                        <span className="text-[13px] font-semibold text-[var(--text-primary)]">{n.title}</span>
-                      </div>
-                      <div className="flex items-center gap-2 text-[11px] text-[var(--text-tertiary)]">
-                        <span>{n.author}</span>
-                        <span>{n.date}</span>
-                      </div>
-                    </div>
+        {narratives.length === 0 ? (
+          <div className="flex flex-col items-center justify-center py-12 text-center">
+            <StickyNote size={32} className="text-[var(--text-tertiary)] mb-3" />
+            <p className="text-[13px] font-medium text-[var(--text-secondary)]">No narratives written</p>
+            <p className="text-[12px] text-[var(--text-tertiary)] mt-1">Document investigation findings and observations</p>
+          </div>
+        ) : (
+          <>
+            <div className="divide-y divide-[var(--border-default)]">
+              {narratives.map((n) => (
+                <div key={n.id} className="px-5 py-4">
+                  <div className="flex items-start gap-3">
                     <div
-                      className="rounded-lg px-3 py-2.5 text-[13px] text-[var(--text-primary)] leading-relaxed"
-                      style={{ backgroundColor: hc.bg, borderLeft: `3px solid ${hc.border}` }}
-                    >
-                      {n.content}
+                      className="w-1 shrink-0 rounded-full self-stretch"
+                      style={{ backgroundColor: "#bfdbfe" }}
+                    />
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center justify-between mb-1">
+                        <span className="text-[13px] font-semibold text-[var(--text-primary)]">{n.title}</span>
+                        <div className="flex items-center gap-2 text-[11px] text-[var(--text-tertiary)]">
+                          <span>{n.authorName || "Unknown"}</span>
+                          <span>{formatDateTime(n.createdAt)}</span>
+                        </div>
+                      </div>
+                      <div
+                        className="rounded-lg px-3 py-2.5 text-[13px] text-[var(--text-primary)] leading-relaxed"
+                        style={{ backgroundColor: "#eff6ff", borderLeft: "3px solid #bfdbfe" }}
+                      >
+                        {n.content}
+                      </div>
                     </div>
                   </div>
                 </div>
-              </div>
-            );
-          })}
-        </div>
-        <div className="px-4 py-3 border-t border-[var(--border-default)] text-[12px] text-[var(--text-secondary)]">
-          {NARRATIVES.length} narratives
-        </div>
+              ))}
+            </div>
+            <div className="px-4 py-3 border-t border-[var(--border-default)] text-[12px] text-[var(--text-secondary)]">
+              {narratives.length} narratives
+            </div>
+          </>
+        )}
       </CardContent>
     </Card>
   );
@@ -1353,34 +1117,17 @@ function NarrativesTab({ onAddNarrative }: { onAddNarrative: () => void }) {
    7. FINANCIAL TAB
    ================================================================ */
 
-function FinancialTab({ onAddEntry }: { onAddEntry: () => void }) {
-  const f = FINANCIAL;
-  const totalExpenses = f.entries.filter((e) => e.type === "expense").reduce((s, e) => s + e.amount, 0);
-  const totalRecoveries = Math.abs(f.entries.filter((e) => e.type === "recovery").reduce((s, e) => s + e.amount, 0));
-  const budgetUsed = Math.round(((f.incidentalCosts + f.timeCosts) / f.ale) * 100);
+function FinancialTab({ costs, onAddEntry }: { costs: CaseCostEntry[]; onAddEntry: () => void }) {
+  const totalAmount = costs.reduce((s, e) => s + e.amount, 0);
 
   return (
     <div className="space-y-4">
       {/* Summary Cards */}
-      <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
-        <MetricCard icon={DollarSign} label="ALE Budget" value={`$${f.ale.toLocaleString()}`} sub={`${budgetUsed}% utilized`} />
-        <MetricCard icon={BarChart3} label="Incidental Costs" value={`$${f.incidentalCosts.toLocaleString()}`} sub="Equipment, buy money" />
-        <MetricCard icon={Timer} label="Time Costs" value={`$${f.timeCosts.toLocaleString()}`} sub="Personnel hours" />
-        <MetricCard icon={TrendingDown} label="Losses" value={`$${f.totalLosses.toLocaleString()}`} sub="Unrecovered" />
-        <MetricCard icon={TrendingUp} label="Recoveries" value={`$${totalRecoveries.toLocaleString()}`} sub="Cash seizures" />
+      <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+        <MetricCard icon={DollarSign} label="Total Costs" value={`$${totalAmount.toLocaleString()}`} sub={`${costs.length} entries`} />
+        <MetricCard icon={BarChart3} label="Entries" value={costs.length} />
+        <MetricCard icon={TrendingUp} label="Avg per Entry" value={costs.length > 0 ? `$${Math.round(totalAmount / costs.length).toLocaleString()}` : "$0"} />
       </div>
-
-      {/* Budget bar */}
-      <Card>
-        <CardContent>
-          <ProgressBar
-            value={budgetUsed}
-            label="Budget Utilization"
-            size="md"
-            color={budgetUsed > 80 ? "var(--status-critical,#dc2626)" : budgetUsed > 60 ? "var(--status-warning,#d97706)" : "var(--status-success,#059669)"}
-          />
-        </CardContent>
-      </Card>
 
       {/* Entries table */}
       <Card>
@@ -1398,48 +1145,50 @@ function FinancialTab({ onAddEntry }: { onAddEntry: () => void }) {
           </div>
         </CardHeader>
         <CardContent className="p-0">
-          <TableWrapper>
-            <thead>
-              <tr>
-                <Th>ID</Th>
-                <Th>Date</Th>
-                <Th>Category</Th>
-                <Th>Description</Th>
-                <Th>Type</Th>
-                <Th className="text-right">Amount</Th>
-              </tr>
-            </thead>
-            <tbody>
-              {f.entries.map((entry) => (
-                <tr key={entry.id} className="hover:bg-[var(--surface-hover)] transition-colors">
-                  <Td><span className="font-mono text-[12px]">{entry.id}</span></Td>
-                  <Td><span className="text-[12px] text-[var(--text-secondary)]">{entry.date}</span></Td>
-                  <Td>
-                    <Badge tone="default">{entry.category}</Badge>
-                  </Td>
-                  <Td>{entry.description}</Td>
-                  <Td>
-                    <Badge tone={entry.type === "recovery" ? "success" : "warning"}>
-                      {entry.type === "recovery" ? "Recovery" : "Expense"}
-                    </Badge>
-                  </Td>
-                  <Td className="text-right">
-                    <span className={`font-medium ${entry.type === "recovery" ? "text-[var(--status-success,#059669)]" : "text-[var(--text-primary)]"}`}>
-                      {entry.type === "recovery" ? "+" : ""}${Math.abs(entry.amount).toLocaleString()}
-                    </span>
-                  </Td>
-                </tr>
-              ))}
-            </tbody>
-          </TableWrapper>
-          <div className="px-4 py-3 border-t border-[var(--border-default)] flex justify-between text-[12px] text-[var(--text-secondary)]">
-            <span>{f.entries.length} entries</span>
-            <div className="flex items-center gap-4">
-              <span>Expenses: <span className="font-medium text-[var(--text-primary)]">${totalExpenses.toLocaleString()}</span></span>
-              <span>Recoveries: <span className="font-medium text-[var(--status-success,#059669)]">+${totalRecoveries.toLocaleString()}</span></span>
-              <span>Net: <span className="font-medium text-[var(--text-primary)]">${(totalExpenses - totalRecoveries).toLocaleString()}</span></span>
+          {costs.length === 0 ? (
+            <div className="flex flex-col items-center justify-center py-12 text-center">
+              <DollarSign size={32} className="text-[var(--text-tertiary)] mb-3" />
+              <p className="text-[13px] font-medium text-[var(--text-secondary)]">No financial entries</p>
+              <p className="text-[12px] text-[var(--text-tertiary)] mt-1">Track costs, recoveries, and other financial data</p>
             </div>
-          </div>
+          ) : (
+            <>
+              <TableWrapper>
+                <thead>
+                  <tr>
+                    <Th>Date</Th>
+                    <Th>Type</Th>
+                    <Th>Description</Th>
+                    <Th>Vendor</Th>
+                    <Th>Logged By</Th>
+                    <Th className="text-right">Amount</Th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {costs.map((entry) => (
+                    <tr key={entry.id} className="hover:bg-[var(--surface-hover)] transition-colors">
+                      <Td><span className="text-[12px] text-[var(--text-secondary)]">{formatDateTime(entry.createdAt)}</span></Td>
+                      <Td>
+                        <Badge tone="default">{entry.costType}</Badge>
+                      </Td>
+                      <Td>{entry.description}</Td>
+                      <Td><span className="text-[12px] text-[var(--text-secondary)]">{entry.vendor || "—"}</span></Td>
+                      <Td><span className="text-[12px] text-[var(--text-secondary)]">{entry.createdByName || "—"}</span></Td>
+                      <Td className="text-right">
+                        <span className="font-medium text-[var(--text-primary)]">
+                          ${entry.amount.toLocaleString()}
+                        </span>
+                      </Td>
+                    </tr>
+                  ))}
+                </tbody>
+              </TableWrapper>
+              <div className="px-4 py-3 border-t border-[var(--border-default)] flex justify-between text-[12px] text-[var(--text-secondary)]">
+                <span>{costs.length} entries</span>
+                <span>Total: <span className="font-medium text-[var(--text-primary)]">${totalAmount.toLocaleString()}</span></span>
+              </div>
+            </>
+          )}
         </CardContent>
       </Card>
     </div>
@@ -1451,7 +1200,6 @@ function FinancialTab({ onAddEntry }: { onAddEntry: () => void }) {
    ================================================================ */
 
 function OutcomeTab({ onDocumentOutcome }: { onDocumentOutcome: () => void }) {
-  const o = OUTCOME_DATA;
   const outcomeTypes = ["founded", "unfounded", "inconclusive", "unresolved"];
 
   return (
@@ -1463,47 +1211,25 @@ function OutcomeTab({ onDocumentOutcome }: { onDocumentOutcome: () => void }) {
         <CardContent>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-y-5 gap-x-8">
             <FieldRow label="Outcome Type">
-              {o.outcomeType ? (
-                <StatusBadge status={o.outcomeType} dot />
-              ) : (
-                <div className="space-y-2">
-                  <span className="text-[12px] text-[var(--text-tertiary)] italic">Not yet determined</span>
-                  <div className="flex gap-2 flex-wrap">
-                    {outcomeTypes.map((t) => (
-                      <button
-                        key={t}
-                        className="px-2.5 py-1 text-[11px] rounded-md border border-[var(--border-default)] text-[var(--text-secondary)] hover:bg-[var(--surface-hover)] transition-colors capitalize"
-                        onClick={onDocumentOutcome}
-                      >
-                        {t}
-                      </button>
-                    ))}
-                  </div>
+              <div className="space-y-2">
+                <span className="text-[12px] text-[var(--text-tertiary)] italic">Not yet determined</span>
+                <div className="flex gap-2 flex-wrap">
+                  {outcomeTypes.map((t) => (
+                    <button
+                      key={t}
+                      className="px-2.5 py-1 text-[11px] rounded-md border border-[var(--border-default)] text-[var(--text-secondary)] hover:bg-[var(--surface-hover)] transition-colors capitalize"
+                      onClick={onDocumentOutcome}
+                    >
+                      {t}
+                    </button>
+                  ))}
                 </div>
-              )}
-            </FieldRow>
-            <FieldRow label="Classification" value={o.classification} />
-            <div className="sm:col-span-2">
-              <FieldRow label="Formal Notes" value={o.formalNotes} />
-            </div>
-          </div>
-        </CardContent>
-      </Card>
-
-      <Card>
-        <CardHeader>
-          <CardTitle>Key Findings</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="space-y-2.5">
-            {o.findings.map((finding, i) => (
-              <div key={i} className="flex items-start gap-2.5">
-                <div className="w-5 h-5 rounded-full bg-[var(--status-info-surface,#eff6ff)] flex items-center justify-center shrink-0 mt-0.5">
-                  <span className="text-[10px] font-bold text-[var(--status-info,#2563eb)]">{i + 1}</span>
-                </div>
-                <p className="text-[13px] text-[var(--text-primary)] leading-relaxed">{finding}</p>
               </div>
-            ))}
+            </FieldRow>
+            <FieldRow label="Classification" value="—" />
+            <div className="sm:col-span-2">
+              <FieldRow label="Formal Notes" value="No outcome notes documented yet." />
+            </div>
           </div>
         </CardContent>
       </Card>
@@ -1517,7 +1243,7 @@ function OutcomeTab({ onDocumentOutcome }: { onDocumentOutcome: () => void }) {
             <div className="flex items-center gap-2">
               <Search size={14} className="text-[var(--status-info,#2563eb)]" />
               <p className="text-[13px] text-[var(--status-info,#2563eb)] font-medium">
-                Currently in Detailed Investigation stage
+                Outcome pending
               </p>
             </div>
             <p className="text-[12px] text-[var(--status-info,#2563eb)] mt-1 opacity-80">
@@ -1534,7 +1260,7 @@ function OutcomeTab({ onDocumentOutcome }: { onDocumentOutcome: () => void }) {
    9. AUDIT LOG TAB
    ================================================================ */
 
-function AuditLogTab() {
+function AuditLogTab({ auditLog }: { auditLog: CaseAuditEntry[] }) {
   return (
     <Card>
       <CardHeader className="flex-row items-center justify-between">
@@ -1545,55 +1271,69 @@ function AuditLogTab() {
         </Button>
       </CardHeader>
       <CardContent className="p-0">
-        <div className="relative">
-          {/* Vertical timeline line */}
-          <div className="absolute left-[29px] top-4 bottom-4 w-px bg-[var(--border-default)]" />
-
-          <div className="divide-y divide-[var(--border-default)]">
-            {AUDIT_LOG.map((entry) => {
-              const iconMap: Record<string, typeof Clock> = {
-                "Case Created": Plus,
-                "Resource Assigned": Users,
-                "Stage Advanced": ChevronRight,
-                "Evidence Added": Package,
-                "Related Record Linked": Link2,
-                "Task Completed": CheckCircle2,
-                "Narrative Added": StickyNote,
-                "Resource Deactivated": Eye,
-                Viewed: Eye,
-              };
-              const Icon = iconMap[entry.action] ?? History;
-
-              return (
-                <div key={entry.id} className="flex items-start gap-3 px-4 py-3">
-                  <div className="w-[31px] h-[31px] rounded-full bg-[var(--surface-secondary)] border border-[var(--border-default)] flex items-center justify-center shrink-0 z-10">
-                    <Icon size={13} className="text-[var(--text-tertiary)]" />
-                  </div>
-                  <div className="flex-1 min-w-0 pt-0.5">
-                    <div className="flex items-center justify-between gap-2">
-                      <div className="flex items-center gap-2">
-                        <span className="text-[13px] font-medium text-[var(--text-primary)]">
-                          {entry.action}
-                        </span>
-                        <span className="text-[12px] text-[var(--text-tertiary)]">
-                          by {entry.user}
-                        </span>
-                      </div>
-                      <span className="text-[11px] text-[var(--text-tertiary)] whitespace-nowrap flex items-center gap-1">
-                        <Clock size={10} />
-                        {entry.timestamp}
-                      </span>
-                    </div>
-                    <p className="text-[12px] text-[var(--text-secondary)] mt-0.5">{entry.details}</p>
-                  </div>
-                </div>
-              );
-            })}
+        {auditLog.length === 0 ? (
+          <div className="flex flex-col items-center justify-center py-12 text-center">
+            <History size={32} className="text-[var(--text-tertiary)] mb-3" />
+            <p className="text-[13px] font-medium text-[var(--text-secondary)]">No audit entries</p>
+            <p className="text-[12px] text-[var(--text-tertiary)] mt-1">Activity will be logged here automatically</p>
           </div>
-        </div>
-        <div className="px-4 py-3 border-t border-[var(--border-default)] text-[12px] text-[var(--text-secondary)]">
-          {AUDIT_LOG.length} audit entries
-        </div>
+        ) : (
+          <>
+            <div className="relative">
+              {/* Vertical timeline line */}
+              <div className="absolute left-[29px] top-4 bottom-4 w-px bg-[var(--border-default)]" />
+
+              <div className="divide-y divide-[var(--border-default)]">
+                {auditLog.map((entry) => {
+                  const iconMap: Record<string, typeof Clock> = {
+                    created: Plus,
+                    updated: Edit,
+                    assigned: Users,
+                    advanced: ChevronRight,
+                    evidence_added: Package,
+                    linked: Link2,
+                    completed: CheckCircle2,
+                    narrative_added: StickyNote,
+                    viewed: Eye,
+                  };
+                  const Icon = iconMap[entry.action] ?? History;
+
+                  return (
+                    <div key={entry.id} className="flex items-start gap-3 px-4 py-3">
+                      <div className="w-[31px] h-[31px] rounded-full bg-[var(--surface-secondary)] border border-[var(--border-default)] flex items-center justify-center shrink-0 z-10">
+                        <Icon size={13} className="text-[var(--text-tertiary)]" />
+                      </div>
+                      <div className="flex-1 min-w-0 pt-0.5">
+                        <div className="flex items-center justify-between gap-2">
+                          <div className="flex items-center gap-2">
+                            <span className="text-[13px] font-medium text-[var(--text-primary)]">
+                              {entry.action}
+                            </span>
+                            {entry.actorName && (
+                              <span className="text-[12px] text-[var(--text-tertiary)]">
+                                by {entry.actorName}
+                              </span>
+                            )}
+                          </div>
+                          <span className="text-[11px] text-[var(--text-tertiary)] whitespace-nowrap flex items-center gap-1">
+                            <Clock size={10} />
+                            {formatDateTime(entry.createdAt)}
+                          </span>
+                        </div>
+                        {entry.details && (
+                          <p className="text-[12px] text-[var(--text-secondary)] mt-0.5">{entry.details}</p>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+            <div className="px-4 py-3 border-t border-[var(--border-default)] text-[12px] text-[var(--text-secondary)]">
+              {auditLog.length} audit entries
+            </div>
+          </>
+        )}
       </CardContent>
     </Card>
   );

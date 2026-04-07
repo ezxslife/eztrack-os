@@ -169,6 +169,213 @@ export async function deleteCase(id: string) {
   if (error) throw error;
 }
 
+/* ─── Sub-resource types ─────────────────────── */
+
+export interface CaseEvidenceItem {
+  id: string;
+  itemNumber: string | null;
+  title: string;
+  description: string | null;
+  type: string;
+  status: string;
+  storageLocation: string | null;
+  storageFacility: string | null;
+  createdByName: string | null;
+  createdAt: string;
+}
+
+export interface CaseTask {
+  id: string;
+  title: string;
+  description: string | null;
+  status: string;
+  priority: string;
+  assignedToName: string | null;
+  dueDate: string | null;
+  completedAt: string | null;
+  sortOrder: number;
+  createdAt: string;
+}
+
+export interface CaseNarrativeItem {
+  id: string;
+  title: string;
+  content: string;
+  authorName: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface CaseCostEntry {
+  id: string;
+  costType: string;
+  amount: number;
+  description: string;
+  vendor: string | null;
+  paidDate: string | null;
+  createdByName: string | null;
+  createdAt: string;
+}
+
+export interface CaseRelatedRecord {
+  id: string;
+  relatedRecordId: string;
+  relatedRecordType: string;
+  relationshipDescription: string | null;
+  linkedByName: string | null;
+  linkedAt: string;
+}
+
+export interface CaseAuditEntry {
+  id: string;
+  action: string;
+  details: string | null;
+  actorName: string | null;
+  createdAt: string;
+}
+
+/* ─── Fetch case evidence ──────────────────────── */
+
+export async function fetchCaseEvidence(caseId: string): Promise<CaseEvidenceItem[]> {
+  const supabase = getSupabaseBrowser();
+
+  const { data, error } = await supabase
+    .from("case_evidence")
+    .select(`
+      id, item_number, title, description, type, status,
+      storage_location, storage_facility, created_at,
+      creator:profiles!created_by(full_name)
+    `)
+    .eq("case_id", caseId)
+    .order("created_at", { ascending: false });
+
+  if (error) throw error;
+
+  return (data || []).map((row: any) => ({
+    id: row.id,
+    itemNumber: row.item_number,
+    title: row.title,
+    description: row.description,
+    type: row.type,
+    status: row.status,
+    storageLocation: row.storage_location,
+    storageFacility: row.storage_facility,
+    createdByName: row.creator?.full_name || null,
+    createdAt: row.created_at,
+  }));
+}
+
+/* ─── Fetch case tasks ─────────────────────────── */
+
+export async function fetchCaseTasks(caseId: string): Promise<CaseTask[]> {
+  const supabase = getSupabaseBrowser();
+
+  const { data, error } = await supabase
+    .from("case_tasks")
+    .select(`
+      id, title, description, status, priority, due_date,
+      completed_at, sort_order, created_at,
+      assignee:profiles!assigned_to(full_name)
+    `)
+    .eq("case_id", caseId)
+    .order("sort_order", { ascending: true });
+
+  if (error) throw error;
+
+  return (data || []).map((row: any) => ({
+    id: row.id,
+    title: row.title,
+    description: row.description,
+    status: row.status,
+    priority: row.priority,
+    assignedToName: row.assignee?.full_name || null,
+    dueDate: row.due_date,
+    completedAt: row.completed_at,
+    sortOrder: row.sort_order,
+    createdAt: row.created_at,
+  }));
+}
+
+/* ─── Fetch case narratives ────────────────────── */
+
+export async function fetchCaseNarratives(caseId: string): Promise<CaseNarrativeItem[]> {
+  const supabase = getSupabaseBrowser();
+
+  const { data, error } = await supabase
+    .from("case_narratives")
+    .select(`
+      id, title, content, created_at, updated_at,
+      author:profiles!author_id(full_name)
+    `)
+    .eq("case_id", caseId)
+    .order("created_at", { ascending: false });
+
+  if (error) throw error;
+
+  return (data || []).map((row: any) => ({
+    id: row.id,
+    title: row.title,
+    content: row.content,
+    authorName: row.author?.full_name || null,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+  }));
+}
+
+/* ─── Fetch case costs / financials ────────────── */
+
+export async function fetchCaseCosts(caseId: string): Promise<CaseCostEntry[]> {
+  const supabase = getSupabaseBrowser();
+
+  const { data, error } = await supabase
+    .from("case_costs")
+    .select(`
+      id, cost_type, amount, description, vendor, paid_date, created_at,
+      creator:profiles!created_by(full_name)
+    `)
+    .eq("case_id", caseId)
+    .order("created_at", { ascending: false });
+
+  if (error) throw error;
+
+  return (data || []).map((row: any) => ({
+    id: row.id,
+    costType: row.cost_type,
+    amount: Number(row.amount),
+    description: row.description,
+    vendor: row.vendor,
+    paidDate: row.paid_date,
+    createdByName: row.creator?.full_name || null,
+    createdAt: row.created_at,
+  }));
+}
+
+/* ─── Fetch case related records ───────────────── */
+
+export async function fetchCaseRelatedRecords(caseId: string): Promise<CaseRelatedRecord[]> {
+  const supabase = getSupabaseBrowser();
+
+  const { data, error } = await supabase
+    .from("case_related_records")
+    .select(`
+      id, related_record_id, related_record_type, relationship_description, linked_at,
+      linker:profiles!linked_by(full_name)
+    `)
+    .eq("case_id", caseId)
+    .order("linked_at", { ascending: false });
+
+  if (error) throw error;
+
+  return (data || []).map((row: any) => ({
+    id: row.id,
+    relatedRecordId: row.related_record_id,
+    relatedRecordType: row.related_record_type,
+    relationshipDescription: row.relationship_description,
+    linkedByName: row.linker?.full_name || null,
+    linkedAt: row.linked_at,
+  }));
+}
+
 /* ─── Fetch case audit trail from activity_log ───── */
 
 export async function fetchCaseAudit(caseId: string) {
