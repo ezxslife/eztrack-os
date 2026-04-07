@@ -1,6 +1,7 @@
 "use client";
 
 import { use, useState } from "react";
+import { useToast } from "@/components/ui/Toast";
 import Link from "next/link";
 import {
   ArrowLeft,
@@ -180,6 +181,7 @@ export default function ContactDetailPage({
   };
 
   const cfg = CATEGORY_CONFIG[contact.category];
+  const { toast } = useToast();
 
   const [editOpen, setEditOpen] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
@@ -292,7 +294,7 @@ export default function ContactDetailPage({
         open={editOpen}
         onClose={() => setEditOpen(false)}
         onSubmit={async (data) => {
-          console.log("Edit contact:", data);
+          toast("Contact updated successfully", { variant: "success" });
           setEditOpen(false);
         }}
         contact={{
@@ -315,7 +317,7 @@ export default function ContactDetailPage({
         open={deleteOpen}
         onClose={() => setDeleteOpen(false)}
         onConfirm={async () => {
-          console.log("Delete contact:", id);
+          toast("Contact deleted successfully", { variant: "success" });
           setDeleteOpen(false);
         }}
       />

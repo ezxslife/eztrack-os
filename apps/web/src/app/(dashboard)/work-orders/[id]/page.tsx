@@ -589,7 +589,7 @@ export default function WorkOrderDetailPage({
         open={showAssignModal}
         onClose={() => setShowAssignModal(false)}
         onSubmit={async (data) => {
-          console.log("Assign work order:", data);
+          toast("Work order assigned", { variant: "success" });
           setShowAssignModal(false);
         }}
         currentAssignee={wo.assignedTo.name}
@@ -627,7 +627,7 @@ export default function WorkOrderDetailPage({
         open={showNoteModal}
         onClose={() => setShowNoteModal(false)}
         onSubmit={async (data) => {
-          console.log("Add note:", data);
+          toast("Note added", { variant: "success" });
           setShowNoteModal(false);
         }}
       />

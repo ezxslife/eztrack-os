@@ -1,8 +1,8 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect, useCallback } from "react";
 import Link from "next/link";
-import { ArrowLeft, Plus, MoreHorizontal, Mail } from "lucide-react";
+import { ArrowLeft, Plus, MoreHorizontal, Mail, Loader2, AlertCircle } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { Badge } from "@/components/ui/Badge";
@@ -13,10 +13,23 @@ import {
   DeactivateUserModal,
 } from "@/components/modals/settings";
 import { useToast } from "@/components/ui/Toast";
+import { getSupabaseBrowser } from "@/lib/supabase-browser";
+import {
+  fetchOrgUsers,
+  updateUserRole,
+  deactivateUser as deactivateUserApi,
+  type OrgUserRow,
+} from "@/lib/queries/settings";
 
 type UserStatus = "active" | "inactive" | "invited";
 
-interface MockUser {
+const statusTone: Record<UserStatus, "success" | "default" | "info"> = {
+  active: "success",
+  inactive: "default",
+  invited: "info",
+};
+
+interface UserDisplay {
   id: string;
   name: string;
   email: string;
@@ -25,34 +38,81 @@ interface MockUser {
   lastLogin: string;
 }
 
-const mockUsers: MockUser[] = [
-  { id: "1", name: "James Rodriguez", email: "j.rodriguez@bellagio.com", role: "Super Admin", status: "active", lastLogin: "Apr 5, 2026 9:12 AM" },
-  { id: "2", name: "Sarah Chen", email: "s.chen@bellagio.com", role: "Admin", status: "active", lastLogin: "Apr 4, 2026 11:45 PM" },
-  { id: "3", name: "Marcus Williams", email: "m.williams@bellagio.com", role: "Manager", status: "active", lastLogin: "Apr 5, 2026 7:30 AM" },
-  { id: "4", name: "Emily Park", email: "e.park@bellagio.com", role: "Supervisor", status: "inactive", lastLogin: "Mar 20, 2026 2:15 PM" },
-  { id: "5", name: "David Thompson", email: "d.thompson@bellagio.com", role: "Officer", status: "active", lastLogin: "Apr 5, 2026 6:00 AM" },
-  { id: "6", name: "Lisa Martinez", email: "l.martinez@bellagio.com", role: "Staff", status: "invited", lastLogin: "---" },
-];
-
-const statusTone: Record<UserStatus, "success" | "default" | "info"> = {
-  active: "success",
-  inactive: "default",
-  invited: "info",
-};
-
 export default function UserManagementPage() {
   const { toast } = useToast();
+  const [users, setUsers] = useState<UserDisplay[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [search, setSearch] = useState("");
   const [inviteOpen, setInviteOpen] = useState(false);
-  const [editRoleUser, setEditRoleUser] = useState<MockUser | null>(null);
-  const [deactivateUser, setDeactivateUser] = useState<MockUser | null>(null);
+  const [editRoleUser, setEditRoleUser] = useState<UserDisplay | null>(null);
+  const [deactivateUser, setDeactivateUser] = useState<UserDisplay | null>(null);
   const [isDeactivating, setIsDeactivating] = useState(false);
 
-  const filtered = mockUsers.filter(
+  const load = useCallback(async () => {
+    try {
+      setLoading(true);
+      setError(null);
+      const supabase = getSupabaseBrowser();
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) throw new Error("Not authenticated");
+      const { data: profile } = await supabase
+        .from("profiles")
+        .select("org_id")
+        .eq("id", user.id)
+        .single();
+      if (!profile?.org_id) throw new Error("Organization not found");
+      const data = await fetchOrgUsers(profile.org_id);
+      setUsers(
+        data.map((u) => ({
+          id: u.id,
+          name: u.fullName,
+          email: u.email,
+          role: u.role,
+          status: (u.status as UserStatus) || "active",
+          lastLogin: u.lastLogin
+            ? new Date(u.lastLogin).toLocaleDateString("en-US", {
+                month: "short",
+                day: "numeric",
+                year: "numeric",
+                hour: "numeric",
+                minute: "2-digit",
+              })
+            : "---",
+        })),
+      );
+    } catch (err: any) {
+      setError(err.message || "Failed to load users");
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => { load(); }, [load]);
+
+  const filtered = users.filter(
     (u) =>
       u.name.toLowerCase().includes(search.toLowerCase()) ||
       u.email.toLowerCase().includes(search.toLowerCase())
   );
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center py-20">
+        <Loader2 className="h-6 w-6 animate-spin text-[var(--text-tertiary)]" />
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="flex flex-col items-center justify-center py-20 gap-3">
+        <AlertCircle className="h-6 w-6 text-red-400" />
+        <p className="text-[13px] text-[var(--text-secondary)]">{error}</p>
+        <Button variant="outline" size="sm" onClick={load}>Retry</Button>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
@@ -80,7 +140,7 @@ export default function UserManagementPage() {
       <Card>
         <CardHeader>
           <div className="flex items-center justify-between w-full">
-            <CardTitle>{mockUsers.length} Users</CardTitle>
+            <CardTitle>{users.length} Users</CardTitle>
             <div className="w-64">
               <Input
                 placeholder="Search users..."
@@ -164,8 +224,15 @@ export default function UserManagementPage() {
         open={editRoleUser !== null}
         onClose={() => setEditRoleUser(null)}
         onSubmit={async (data) => {
-          toast("User role updated successfully", { variant: "success" });
-          setEditRoleUser(null);
+          if (!editRoleUser) return;
+          try {
+            await updateUserRole(editRoleUser.id, data.newRole);
+            toast("User role updated successfully", { variant: "success" });
+            setEditRoleUser(null);
+            load();
+          } catch (err: any) {
+            toast(err.message || "Failed to update role", { variant: "error" });
+          }
         }}
         currentRole={editRoleUser?.role?.toLowerCase().replace(/\s+/g, "_")}
         userName={editRoleUser?.name}
@@ -175,10 +242,18 @@ export default function UserManagementPage() {
         open={deactivateUser !== null}
         onClose={() => setDeactivateUser(null)}
         onConfirm={async (reason) => {
+          if (!deactivateUser) return;
           setIsDeactivating(true);
-          toast("User deactivated", { variant: "success" });
-          setIsDeactivating(false);
-          setDeactivateUser(null);
+          try {
+            await deactivateUserApi(deactivateUser.id);
+            toast("User deactivated", { variant: "success" });
+            setDeactivateUser(null);
+            load();
+          } catch (err: any) {
+            toast(err.message || "Failed to deactivate user", { variant: "error" });
+          } finally {
+            setIsDeactivating(false);
+          }
         }}
         userName={deactivateUser?.name}
         currentRole={deactivateUser?.role}

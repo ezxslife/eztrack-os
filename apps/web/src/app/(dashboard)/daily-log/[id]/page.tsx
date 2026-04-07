@@ -2,6 +2,7 @@
 
 import { useState, use, useEffect, useCallback } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import {
   ArrowLeft,
   Edit,
@@ -38,6 +39,10 @@ import {
   type DailyLogDetail,
   type DailyLogAuditEntry,
 } from "@/lib/queries/daily-logs";
+import { createIncident } from "@/lib/queries/incidents";
+import { createDispatch } from "@/lib/queries/dispatches";
+import { createCase } from "@/lib/queries/cases";
+import { getSupabaseBrowser } from "@/lib/supabase-browser";
 import { formatDateTime, formatRelativeTime } from "@/lib/utils/time";
 
 const TAB_LIST = [
@@ -61,6 +66,7 @@ export default function DailyLogDetailPage({
   params: Promise<{ id: string }>;
 }) {
   const { toast } = useToast();
+  const router = useRouter();
   const { id } = use(params);
   const [detail, setDetail] = useState<DailyLogDetail | null>(null);
   const [auditEntries, setAuditEntries] = useState<DailyLogAuditEntry[]>([]);
@@ -405,8 +411,31 @@ export default function DailyLogDetailPage({
         open={escalateLogModal}
         onClose={() => setEscalateLogModal(false)}
         onConfirm={async (data) => {
-          toast("Incident created from daily log", { variant: "info" });
-          setEscalateLogModal(false);
+          try {
+            const supabase = getSupabaseBrowser();
+            const { data: { user } } = await supabase.auth.getUser();
+            const { data: profile } = await supabase
+              .from("profiles")
+              .select("org_id, property_id")
+              .eq("id", user!.id)
+              .single();
+            if (!profile) throw new Error("Unable to determine organization");
+            const result = await createIncident({
+              orgId: profile.org_id,
+              propertyId: profile.property_id,
+              incidentType: (data as any).incidentType || "general",
+              severity: (data as any).severity || detail.priority || "medium",
+              locationId: detail.location?.id || null,
+              synopsis: detail.synopsis || detail.topic,
+              description: `Escalated from daily log ${detail.recordNumber}. ${detail.synopsis || ""}`,
+              reportedBy: detail.creator?.fullName || undefined,
+            });
+            toast(`Incident ${result.record_number} created`, { variant: "success" });
+            setEscalateLogModal(false);
+            router.push(`/incidents/${result.id}`);
+          } catch (err: any) {
+            toast(err.message || "Failed to create incident", { variant: "error" });
+          }
         }}
       />
 
@@ -430,8 +459,31 @@ export default function DailyLogDetailPage({
         open={createDispatchModal}
         onClose={() => setCreateDispatchModal(false)}
         onSubmit={async (data) => {
-          toast("Dispatch created from log entry", { variant: "success" });
-          setCreateDispatchModal(false);
+          try {
+            const supabase = getSupabaseBrowser();
+            const { data: { user } } = await supabase.auth.getUser();
+            const { data: profile } = await supabase
+              .from("profiles")
+              .select("org_id, property_id")
+              .eq("id", user!.id)
+              .single();
+            if (!profile) throw new Error("Unable to determine organization");
+            const result = await createDispatch({
+              orgId: profile.org_id,
+              propertyId: profile.property_id,
+              dispatchCode: (data as any).dispatchCode || "LOG-ESCALATION",
+              priority: (data as any).priority || detail.priority || "medium",
+              locationId: detail.location?.id || null,
+              sublocation: (data as any).sublocation,
+              description: `From daily log ${detail.recordNumber}. ${detail.synopsis || detail.topic}`,
+              reporterName: detail.creator?.fullName,
+            });
+            toast(`Dispatch ${result.record_number} created`, { variant: "success" });
+            setCreateDispatchModal(false);
+            router.push("/dispatch");
+          } catch (err: any) {
+            toast(err.message || "Failed to create dispatch", { variant: "error" });
+          }
         }}
         logData={{
           id: detail.id,
@@ -448,8 +500,55 @@ export default function DailyLogDetailPage({
         open={escalationChainModal}
         onClose={() => setEscalationChainModal(false)}
         onSubmit={async (data) => {
-          toast("Escalation chain initiated", { variant: "success" });
-          setEscalationChainModal(false);
+          try {
+            const supabase = getSupabaseBrowser();
+            const { data: { user } } = await supabase.auth.getUser();
+            const { data: profile } = await supabase
+              .from("profiles")
+              .select("org_id, property_id")
+              .eq("id", user!.id)
+              .single();
+            if (!profile) throw new Error("Unable to determine organization");
+            const targetType = (data as any).targetType || "dispatch";
+            if (targetType === "incident") {
+              const result = await createIncident({
+                orgId: profile.org_id,
+                propertyId: profile.property_id,
+                incidentType: (data as any).targetType || "general",
+                severity: (data as any).targetPriority || detail.priority || "medium",
+                locationId: detail.location?.id || null,
+                synopsis: (data as any).targetSynopsis || detail.synopsis || detail.topic,
+                description: `Escalated from daily log ${detail.recordNumber} via escalation chain.`,
+              });
+              toast(`Incident ${result.record_number} created`, { variant: "success" });
+              setEscalationChainModal(false);
+              router.push(`/incidents/${result.id}`);
+            } else if (targetType === "case") {
+              const result = await createCase({
+                orgId: profile.org_id,
+                propertyId: profile.property_id,
+                caseType: (data as any).targetTitle || "general",
+                synopsis: (data as any).targetSynopsis || detail.synopsis || detail.topic,
+              });
+              toast(`Case ${result.record_number} created`, { variant: "success" });
+              setEscalationChainModal(false);
+              router.push(`/cases/${result.id}`);
+            } else {
+              const result = await createDispatch({
+                orgId: profile.org_id,
+                propertyId: profile.property_id,
+                dispatchCode: (data as any).targetTitle || "ESCALATION",
+                priority: (data as any).targetPriority || detail.priority || "medium",
+                locationId: detail.location?.id || null,
+                description: (data as any).targetSynopsis || detail.synopsis || detail.topic,
+              });
+              toast(`Dispatch ${result.record_number} created`, { variant: "success" });
+              setEscalationChainModal(false);
+              router.push("/dispatch");
+            }
+          } catch (err: any) {
+            toast(err.message || "Failed to escalate", { variant: "error" });
+          }
         }}
         sourceType="daily_log"
         sourceData={{

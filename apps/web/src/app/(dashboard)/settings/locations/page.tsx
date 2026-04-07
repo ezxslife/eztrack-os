@@ -1,88 +1,59 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect, useCallback } from "react";
 import Link from "next/link";
-import { ArrowLeft, ChevronRight, ChevronDown, Plus, Building, Layers, MapPin } from "lucide-react";
+import { ArrowLeft, ChevronRight, ChevronDown, Plus, Building, Layers, MapPin, Loader2, AlertCircle } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { Badge } from "@/components/ui/Badge";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/Card";
 import { AddLocationModal } from "@/components/modals/settings";
 import { useToast } from "@/components/ui/Toast";
+import { getSupabaseBrowser } from "@/lib/supabase-browser";
+import {
+  fetchProperties,
+  fetchLocations,
+  createLocation,
+  type PropertyRow,
+  type LocationRow,
+} from "@/lib/queries/settings";
 
-interface Location {
+interface TreeNode {
   id: string;
   name: string;
   type: "property" | "zone" | "location";
-  children?: Location[];
+  children?: TreeNode[];
 }
 
-const locationTree: Location[] = [
-  {
-    id: "p1",
-    name: "Bellagio Resort & Casino",
-    type: "property",
-    children: [
-      {
-        id: "z1",
-        name: "Casino Floor",
-        type: "zone",
-        children: [
-          { id: "l1", name: "Main Gaming Hall", type: "location" },
-          { id: "l2", name: "High Limit Room", type: "location" },
-          { id: "l3", name: "Poker Room", type: "location" },
-          { id: "l4", name: "Sportsbook", type: "location" },
-        ],
-      },
-      {
-        id: "z2",
-        name: "Hotel Tower",
-        type: "zone",
-        children: [
-          { id: "l5", name: "Lobby", type: "location" },
-          { id: "l6", name: "Floors 1-10", type: "location" },
-          { id: "l7", name: "Floors 11-20", type: "location" },
-          { id: "l8", name: "Penthouse Level", type: "location" },
-        ],
-      },
-      {
-        id: "z3",
-        name: "Exterior",
-        type: "zone",
-        children: [
-          { id: "l9", name: "Front Entrance / Valet", type: "location" },
-          { id: "l10", name: "Pool Deck", type: "location" },
-          { id: "l11", name: "Parking Garage", type: "location" },
-        ],
-      },
-    ],
-  },
-  {
-    id: "p2",
-    name: "Bellagio Convention Center",
-    type: "property",
-    children: [
-      {
-        id: "z4",
-        name: "Exhibit Halls",
-        type: "zone",
-        children: [
-          { id: "l12", name: "Hall A", type: "location" },
-          { id: "l13", name: "Hall B", type: "location" },
-        ],
-      },
-      {
-        id: "z5",
-        name: "Meeting Rooms",
-        type: "zone",
-        children: [
-          { id: "l14", name: "Boardroom 1", type: "location" },
-          { id: "l15", name: "Boardroom 2", type: "location" },
-          { id: "l16", name: "Ballroom", type: "location" },
-        ],
-      },
-    ],
-  },
-];
+/** Build a tree from flat properties + locations */
+function buildTree(properties: PropertyRow[], locationsByProperty: Record<string, LocationRow[]>): TreeNode[] {
+  return properties.map((p) => {
+    const locs = locationsByProperty[p.id] || [];
+    // Group locations by parentId for hierarchy
+    const roots = locs.filter((l) => !l.parentId);
+    const childMap = new Map<string, LocationRow[]>();
+    locs.forEach((l) => {
+      if (l.parentId) {
+        const arr = childMap.get(l.parentId) || [];
+        arr.push(l);
+        childMap.set(l.parentId, arr);
+      }
+    });
+
+    const toNode = (loc: LocationRow, depth: number): TreeNode => ({
+      id: loc.id,
+      name: loc.name,
+      type: depth === 0 ? "zone" : "location",
+      children: (childMap.get(loc.id) || []).map((c) => toNode(c, depth + 1)),
+    });
+
+    return {
+      id: p.id,
+      name: p.name,
+      type: "property" as const,
+      children: roots.map((r) => toNode(r, 0)),
+    };
+  });
+}
 
 const typeIcons = {
   property: Building,
@@ -96,7 +67,7 @@ const typeBadgeTone: Record<string, "info" | "warning" | "default"> = {
   location: "default",
 };
 
-function LocationNode({ node, depth = 0 }: { node: Location; depth?: number }) {
+function LocationNode({ node, depth = 0 }: { node: TreeNode; depth?: number }) {
   const [expanded, setExpanded] = useState(depth < 2);
   const hasChildren = node.children && node.children.length > 0;
   const Icon = typeIcons[node.type];
@@ -142,6 +113,59 @@ function LocationNode({ node, depth = 0 }: { node: Location; depth?: number }) {
 export default function LocationsSettingsPage() {
   const { toast } = useToast();
   const [addLocationOpen, setAddLocationOpen] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [tree, setTree] = useState<TreeNode[]>([]);
+  const [properties, setProperties] = useState<PropertyRow[]>([]);
+
+  const load = useCallback(async () => {
+    try {
+      setLoading(true);
+      setError(null);
+      const supabase = getSupabaseBrowser();
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) throw new Error("Not authenticated");
+      const { data: profile } = await supabase
+        .from("profiles")
+        .select("org_id")
+        .eq("id", user.id)
+        .single();
+      if (!profile?.org_id) throw new Error("Organization not found");
+      const props = await fetchProperties(profile.org_id);
+      setProperties(props);
+      const locsByProp: Record<string, LocationRow[]> = {};
+      await Promise.all(
+        props.map(async (p) => {
+          locsByProp[p.id] = await fetchLocations(p.id);
+        }),
+      );
+      setTree(buildTree(props, locsByProp));
+    } catch (err: any) {
+      setError(err.message || "Failed to load locations");
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => { load(); }, [load]);
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center py-20">
+        <Loader2 className="h-6 w-6 animate-spin text-[var(--text-tertiary)]" />
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="flex flex-col items-center justify-center py-20 gap-3">
+        <AlertCircle className="h-6 w-6 text-red-400" />
+        <p className="text-[13px] text-[var(--text-secondary)]">{error}</p>
+        <Button variant="outline" size="sm" onClick={load}>Retry</Button>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
@@ -172,9 +196,13 @@ export default function LocationsSettingsPage() {
         </CardHeader>
         <CardContent>
           <div className="space-y-0.5">
-            {locationTree.map((node) => (
-              <LocationNode key={node.id} node={node} />
-            ))}
+            {tree.length === 0 ? (
+              <p className="text-center py-8 text-[var(--text-tertiary)] text-[13px]">No locations yet. Add a property first, then create locations.</p>
+            ) : (
+              tree.map((node) => (
+                <LocationNode key={node.id} node={node} />
+              ))
+            )}
           </div>
         </CardContent>
       </Card>
@@ -183,8 +211,22 @@ export default function LocationsSettingsPage() {
         open={addLocationOpen}
         onClose={() => setAddLocationOpen(false)}
         onSubmit={async (data) => {
-          toast("Location created successfully", { variant: "success" });
+          try {
+            const propId = data.parentPropertyId || properties[0]?.id;
+            if (!propId) throw new Error("No property available");
+            await createLocation({
+              name: data.name,
+              locationType: data.locationType || undefined,
+              parentId: data.zone || undefined,
+              propertyId: propId,
+            });
+            toast("Location created successfully", { variant: "success" });
+            load();
+          } catch (err: any) {
+            toast(err.message || "Failed to create location", { variant: "error" });
+          }
         }}
+        properties={properties.map((p) => ({ value: p.id, label: p.name }))}
       />
     </div>
   );

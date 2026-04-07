@@ -26,12 +26,13 @@ import {
   createDispatch,
   assignOfficerToDispatch,
   clearDispatch as clearDispatchApi,
-  subscribeToDispatches,
   type DispatchCard as DispatchCardType,
   type OfficerOnDuty,
 } from "@/lib/queries/dispatches";
+import { createIncident } from "@/lib/queries/incidents";
 import { getSupabaseBrowser } from "@/lib/supabase-browser";
 import { formatRelativeTime } from "@/lib/utils/time";
+import { useRealtimeSubscription } from "@/hooks/useRealtimeSubscription";
 
 const CreateDispatchModal = dynamic(() => import("@/components/modals/dispatch/CreateDispatchModal").then(m => ({ default: m.CreateDispatchModal })), { ssr: false });
 const AssignOfficerModal = dynamic(() => import("@/components/modals/dispatch/AssignOfficerModal").then(m => ({ default: m.AssignOfficerModal })), { ssr: false });
@@ -494,9 +495,11 @@ function OfficerStatusBar({ officers }: { officers: Officer[] }) {
 type PriorityFilter = Priority | "all";
 
 import { useToast } from "@/components/ui/Toast";
+import { useRouter } from "next/navigation";
 
 export default function DispatchPage() {
   const { toast } = useToast();
+  const router = useRouter();
   const [dispatches, setDispatches] = useState<DispatchItem[]>([]);
   const [officers, setOfficers] = useState<Officer[]>([]);
   const [loading, setLoading] = useState(true);
@@ -565,27 +568,63 @@ export default function DispatchPage() {
     loadData();
   }, [loadData]);
 
-  // Supabase Realtime subscription for live updates
-  useEffect(() => {
-    if (!userProfile?.orgId) return;
+  // Map a raw Supabase realtime payload row to a DispatchItem for the board
+  const mapRawToCardItem = useCallback(
+    (raw: Record<string, unknown>): DispatchItem => ({
+      id: (raw.record_number as string) || "",
+      code: (raw.dispatch_code as string) || "",
+      category: ((raw.dispatch_code as string) || "General").split(/[\s—-]/)[0] || "General",
+      location: raw.sublocation
+        ? `${raw.location_name || "Unknown"}, ${raw.sublocation}`
+        : (raw.location_name as string) || "Unknown",
+      synopsis: (raw.description as string) || "",
+      priority: (raw.priority as Priority) || "medium",
+      status: (raw.status as string) || "pending",
+      officer: (raw.officer_name as string) || undefined,
+      timeAgo: formatRelativeTime(raw.created_at as string),
+      _realId: raw.id as string,
+    }),
+    [],
+  );
 
-    const channel = subscribeToDispatches(userProfile.orgId, {
-      onInsert: () => {
-        // Reload all dispatches on any change (simple approach for MVP)
-        loadData();
+  // Supabase Realtime subscription for surgical live updates
+  useRealtimeSubscription<Record<string, unknown>>({
+    table: "dispatches",
+    filter: userProfile?.orgId ? `org_id=eq.${userProfile.orgId}` : undefined,
+    enabled: !!userProfile?.orgId,
+    onInsert: useCallback(
+      (record: Record<string, unknown>) => {
+        const item = mapRawToCardItem(record);
+        setDispatches((prev) => [item, ...prev]);
       },
-      onUpdate: () => {
-        loadData();
+      [mapRawToCardItem],
+    ),
+    onUpdate: useCallback(
+      (record: Record<string, unknown>) => {
+        setDispatches((prev) =>
+          prev.map((d) =>
+            d._realId === record.id
+              ? {
+                  ...d,
+                  status: (record.status as string) || d.status,
+                  priority: (record.priority as Priority) || d.priority,
+                  synopsis: (record.description as string) || d.synopsis,
+                  officer: (record.officer_name as string) || d.officer,
+                  timeAgo: formatRelativeTime(record.created_at as string),
+                }
+              : d,
+          ),
+        );
       },
-      onDelete: () => {
-        loadData();
+      [],
+    ),
+    onDelete: useCallback(
+      (record: Record<string, unknown>) => {
+        setDispatches((prev) => prev.filter((d) => d._realId !== record.id));
       },
-    });
-
-    return () => {
-      getSupabaseBrowser().removeChannel(channel);
-    };
-  }, [userProfile?.orgId, loadData]);
+      [],
+    ),
+  });
 
   const filtered = useMemo(() => {
     if (priorityFilter === "all") return dispatches;
@@ -849,8 +888,26 @@ export default function DispatchPage() {
         open={escalationChainModal.open}
         onClose={() => setEscalationChainModal({ open: false })}
         onSubmit={async (data) => {
-          toast("Dispatch escalated to incident", { variant: "success" });
-          setEscalationChainModal({ open: false });
+          try {
+            if (!userProfile) throw new Error("Unable to determine organization");
+            const sourceDispatch = dispatches.find(
+              (d) => d.id === escalationChainModal.dispatchId || (d as any)._realId === escalationChainModal.dispatchId
+            );
+            const result = await createIncident({
+              orgId: userProfile.orgId,
+              propertyId: userProfile.propertyId,
+              incidentType: (data as any).targetTitle || "general",
+              severity: (data as any).targetPriority || sourceDispatch?.priority || "medium",
+              locationId: null,
+              synopsis: (data as any).targetSynopsis || sourceDispatch?.synopsis || "Escalated from dispatch",
+              description: `Escalated from dispatch ${sourceDispatch?.id || escalationChainModal.dispatchId} via escalation chain.`,
+            });
+            toast(`Incident ${result.record_number} created`, { variant: "success" });
+            setEscalationChainModal({ open: false });
+            router.push(`/incidents/${result.id}`);
+          } catch (err: any) {
+            toast(err.message || "Failed to escalate dispatch", { variant: "error" });
+          }
         }}
         sourceType="dispatch"
         sourceData={{

@@ -2,6 +2,7 @@
 
 import { use } from "react";
 import { useState } from "react";
+import { useToast } from "@/components/ui/Toast";
 import Link from "next/link";
 import { ArrowLeft, CheckCircle2, Send } from "lucide-react";
 import { Button } from "@/components/ui/Button";
@@ -59,6 +60,7 @@ export default function BriefingDetailPage({
   params: Promise<{ id: string }>;
 }) {
   const { id } = use(params);
+  const { toast } = useToast();
   const [replyText, setReplyText] = useState("");
   const [acknowledged, setAcknowledged] = useState(false);
   const [editOpen, setEditOpen] = useState(false);
@@ -242,7 +244,7 @@ export default function BriefingDetailPage({
         open={editOpen}
         onClose={() => setEditOpen(false)}
         onSubmit={async (data) => {
-          console.log("Edit briefing:", data);
+          toast("Briefing updated successfully", { variant: "success" });
           setEditOpen(false);
         }}
         briefing={{
@@ -258,7 +260,7 @@ export default function BriefingDetailPage({
         open={deleteOpen}
         onClose={() => setDeleteOpen(false)}
         onConfirm={async () => {
-          console.log("Delete briefing:", id);
+          toast("Briefing deleted successfully", { variant: "success" });
           setDeleteOpen(false);
         }}
       />

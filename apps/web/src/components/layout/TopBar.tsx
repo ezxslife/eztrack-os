@@ -1,12 +1,14 @@
 "use client";
 
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, useCallback } from "react";
 import clsx from "clsx";
 import { Bell, ChevronDown, Command, LogOut, Menu, Search, User } from "lucide-react";
 import { Breadcrumbs } from "./Breadcrumbs";
 import { ThemeToggle } from "@/components/ui/ThemeToggle";
+import { useToast } from "@/components/ui/Toast";
 import { getSupabaseBrowser } from "@/lib/supabase-browser";
 import { useRouter } from "next/navigation";
+import { useRealtimeSubscription } from "@/hooks/useRealtimeSubscription";
 
 interface TopBarProps {
   userName?: string;
@@ -22,8 +24,23 @@ export function TopBar({
   onMenuToggle,
 }: TopBarProps) {
   const [menuOpen, setMenuOpen] = useState(false);
+  const [unreadCount, setUnreadCount] = useState(0);
   const menuRef = useRef<HTMLDivElement>(null);
   const router = useRouter();
+  const { toast } = useToast();
+
+  // Realtime subscription for notifications table
+  useRealtimeSubscription<Record<string, unknown>>({
+    table: "notifications",
+    onInsert: useCallback(
+      (record: Record<string, unknown>) => {
+        setUnreadCount((c) => c + 1);
+        const title = (record.title as string) || "New notification";
+        toast(title, { variant: "info" });
+      },
+      [toast],
+    ),
+  });
 
   // Close dropdown when clicking outside
   useEffect(() => {
@@ -102,6 +119,10 @@ export function TopBar({
 
         {/* Notification bell */}
         <button
+          onClick={() => {
+            setUnreadCount(0);
+            router.push("/alerts");
+          }}
           className={clsx(
             "relative flex items-center justify-center h-8 w-8 rounded-md",
             "text-[var(--text-tertiary)] hover:text-[var(--text-primary)] hover:bg-[var(--surface-hover)]",
@@ -110,7 +131,11 @@ export function TopBar({
           aria-label="Notifications"
         >
           <Bell size={16} />
-          <span className="absolute top-1.5 right-1.5 h-2 w-2 rounded-full bg-red-500 ring-2 ring-[var(--surface-primary)]" />
+          {unreadCount > 0 && (
+            <span className="absolute -top-0.5 -right-0.5 flex items-center justify-center min-w-[16px] h-4 rounded-full bg-red-500 text-white text-[10px] font-bold px-1 ring-2 ring-[var(--surface-primary)]">
+              {unreadCount > 99 ? "99+" : unreadCount}
+            </span>
+          )}
         </button>
 
         {/* User dropdown */}

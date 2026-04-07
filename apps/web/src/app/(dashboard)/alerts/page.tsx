@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useCallback } from "react";
 import { Button } from "@/components/ui/Button";
 import { Card, CardContent } from "@/components/ui/Card";
 import { Badge } from "@/components/ui/Badge";
@@ -9,6 +9,7 @@ import { Select } from "@/components/ui/Select";
 import { Tabs } from "@/components/ui/Tabs";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { useToast } from "@/components/ui/Toast";
+import { useRealtimeSubscription } from "@/hooks/useRealtimeSubscription";
 import {
   Bell,
   BellOff,
@@ -407,6 +408,52 @@ export default function AlertsPage() {
   const [moduleFilter, setModuleFilter] = useState("all");
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedAlertId, setSelectedAlertId] = useState<string | null>(null);
+
+  /* Realtime subscription for alerts table */
+  useRealtimeSubscription<Record<string, unknown>>({
+    table: "alerts",
+    onInsert: useCallback(
+      (record: Record<string, unknown>) => {
+        const newAlert: AlertItem = {
+          id: (record.record_number as string) || (record.id as string) || `ALR-RT-${Date.now()}`,
+          title: (record.title as string) || "New Alert",
+          description: (record.description as string) || "",
+          priority: ((record.priority as string) || "medium") as Priority,
+          status: "active" as Status,
+          module: ((record.module as string) || "incident") as Module,
+          timestamp: (record.created_at as string) || new Date().toISOString(),
+          relativeTime: "Just now",
+          relatedLink: (record.related_link as string) || "#",
+          relatedLabel: (record.related_label as string) || "",
+          timeline: [{ action: "Alert created", timestamp: "Just now", user: "System" }],
+          responseNotes: "",
+        };
+        setAlerts((prev) => [newAlert, ...prev]);
+        toast(`New alert: ${newAlert.title}`, { variant: "info" });
+      },
+      [toast],
+    ),
+    onUpdate: useCallback(
+      (record: Record<string, unknown>) => {
+        setAlerts((prev) =>
+          prev.map((a) => {
+            const matchesId =
+              a.id === (record.record_number as string) ||
+              a.id === (record.id as string);
+            if (!matchesId) return a;
+            return {
+              ...a,
+              status: ((record.status as string) || a.status) as Status,
+              priority: ((record.priority as string) || a.priority) as Priority,
+              title: (record.title as string) || a.title,
+              description: (record.description as string) || a.description,
+            };
+          }),
+        );
+      },
+      [],
+    ),
+  });
 
   /* Counts */
   const counts = useMemo(() => ({

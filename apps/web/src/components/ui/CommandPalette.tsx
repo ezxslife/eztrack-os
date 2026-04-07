@@ -28,96 +28,20 @@ import {
   Zap,
   Clock,
   Book,
+  Loader2,
 } from "lucide-react";
 import clsx from "clsx";
+import { getSupabaseBrowser } from "@/lib/supabase-browser";
+import { globalSearch, type SearchResults } from "@/lib/queries/search";
 
-// Mock search data
-const MOCK_SEARCH_DATA = [
-  {
-    id: "inc-1",
-    module: "incidents",
-    title: "INC-0042 — Assault near Main Stage",
-    subtitle: "Zone A · Active",
-    icon: AlertTriangle,
-  },
-  {
-    id: "inc-2",
-    module: "incidents",
-    title: "INC-0041 — Medical emergency",
-    subtitle: "VIP Area · Resolved",
-    icon: AlertTriangle,
-  },
-  {
-    id: "dl-1",
-    module: "daily-log",
-    title: "DL-0128 — VIP lot overcrowding",
-    subtitle: "Lot B · High Priority",
-    icon: FileText,
-  },
-  {
-    id: "dl-2",
-    module: "daily-log",
-    title: "DL-0127 — Noise complaint",
-    subtitle: "Campground · Low",
-    icon: FileText,
-  },
-  {
-    id: "dsp-1",
-    module: "dispatch",
-    title: "DSP-0067 — Medical response",
-    subtitle: "First Aid Tent · Active",
-    icon: Radio,
-  },
-  {
-    id: "dsp-2",
-    module: "dispatch",
-    title: "DSP-0066 — Perimeter check",
-    subtitle: "North Gate · Cleared",
-    icon: Radio,
-  },
-  {
-    id: "case-1",
-    module: "cases",
-    title: "CASE-0012 — Theft investigation",
-    subtitle: "Vendor Row · Open",
-    icon: Briefcase,
-  },
-  {
-    id: "pat-1",
-    module: "patrons",
-    title: "John Doe — Banned",
-    subtitle: "Flag: Aggressive behavior",
-    icon: Users,
-  },
-  {
-    id: "pat-2",
-    module: "patrons",
-    title: "Jane Smith — VIP",
-    subtitle: "Flag: VIP Guest",
-    icon: Users,
-  },
-  {
-    id: "wo-1",
-    module: "work-orders",
-    title: "WO-0034 — Fix broken fence",
-    subtitle: "Section 4 · In Progress",
-    icon: Wrench,
-  },
-  {
-    id: "per-1",
-    module: "personnel",
-    title: "Officer Martinez",
-    subtitle: "Security · On Duty",
-    icon: Shield,
-  },
-  {
-    id: "per-2",
-    module: "personnel",
-    title: "Lt. Nguyen",
-    subtitle: "Supervisor · Available",
-    icon: Shield,
-  },
-];
+// Module icons for search results
+const MODULE_ICONS: Record<string, React.ElementType> = {
+  incidents: AlertTriangle,
+  dispatches: Radio,
+  patrons: Users,
+  contacts: Users,
+  cases: Briefcase,
+};
 
 // Module badge colors
 const MODULE_COLORS: Record<string, string> = {
@@ -191,6 +115,10 @@ export function CommandPalette({
   const [query, setQuery] = useState("");
   const [activeIndex, setActiveIndex] = useState(0);
   const [mounted, setMounted] = useState(false);
+  const [searching, setSearching] = useState(false);
+  const [orgId, setOrgId] = useState<string | null>(null);
+  const [liveResults, setLiveResults] = useState<SearchResult[]>([]);
+  const debounceRef = useRef<NodeJS.Timeout | null>(null);
   const [recentPages, setRecentPages] = useState<string[]>([
     "Dashboard",
     "Incidents",
@@ -201,9 +129,97 @@ export function CommandPalette({
   const inputRef = useRef<HTMLInputElement>(null);
   const listRef = useRef<HTMLDivElement>(null);
 
+  // Fetch orgId once on mount
   useEffect(() => {
     setMounted(true);
+    (async () => {
+      const supabase = getSupabaseBrowser();
+      const { data: { user } } = await supabase.auth.getUser();
+      if (user) {
+        const { data: profile } = await supabase
+          .from("profiles")
+          .select("org_id")
+          .eq("id", user.id)
+          .single();
+        if (profile) setOrgId(profile.org_id);
+      }
+    })();
   }, []);
+
+  // Debounced search effect
+  useEffect(() => {
+    if (!query || query.length < 2 || !orgId) {
+      setLiveResults([]);
+      setSearching(false);
+      return;
+    }
+
+    setSearching(true);
+    if (debounceRef.current) clearTimeout(debounceRef.current);
+
+    debounceRef.current = setTimeout(async () => {
+      try {
+        const results = await globalSearch(orgId, query);
+        const mapped: SearchResult[] = [];
+
+        results.incidents.forEach((r) => {
+          mapped.push({
+            id: r.id,
+            module: "incidents",
+            title: `${r.record_number ?? "INC"} — ${r.synopsis ?? "Incident"}`,
+            subtitle: r.status ?? "",
+            icon: AlertTriangle,
+          });
+        });
+        results.dispatches.forEach((r) => {
+          mapped.push({
+            id: r.id,
+            module: "dispatch",
+            title: `${r.record_number ?? "DSP"} — ${r.description ?? "Dispatch"}`,
+            subtitle: r.status ?? "",
+            icon: Radio,
+          });
+        });
+        results.patrons.forEach((r) => {
+          mapped.push({
+            id: r.id,
+            module: "patrons",
+            title: `${r.first_name ?? ""} ${r.last_name ?? ""}`.trim() || "Patron",
+            subtitle: r.flag ? `Flag: ${r.flag}` : "",
+            icon: Users,
+          });
+        });
+        results.contacts.forEach((r) => {
+          mapped.push({
+            id: r.id,
+            module: "personnel",
+            title: `${r.first_name ?? ""} ${r.last_name ?? ""}`.trim() || "Contact",
+            subtitle: r.organization_name ?? "",
+            icon: Shield,
+          });
+        });
+        results.cases.forEach((r) => {
+          mapped.push({
+            id: r.id,
+            module: "cases",
+            title: `${r.record_number ?? "CASE"} — ${r.case_type ?? "Case"}`,
+            subtitle: r.status ?? "",
+            icon: Briefcase,
+          });
+        });
+
+        setLiveResults(mapped);
+      } catch {
+        setLiveResults([]);
+      } finally {
+        setSearching(false);
+      }
+    }, 300);
+
+    return () => {
+      if (debounceRef.current) clearTimeout(debounceRef.current);
+    };
+  }, [query, orgId]);
 
   // Cmd+K / Ctrl+K shortcut
   useEffect(() => {
@@ -468,17 +484,8 @@ export function CommandPalette({
     ];
   }, [router]);
 
-  // Search function
-  const searchResults = useMemo<SearchResult[]>(() => {
-    if (!query) return [];
-
-    return MOCK_SEARCH_DATA.filter((item) => {
-      const titleMatch = fuzzyMatch(query, item.title);
-      const subtitleMatch = fuzzyMatch(query, item.subtitle);
-      const moduleMatch = fuzzyMatch(query, MODULE_NAMES[item.module]);
-      return titleMatch || subtitleMatch || moduleMatch;
-    });
-  }, [query]);
+  // Use live Supabase results
+  const searchResults = liveResults;
 
   // Build display list
   const displayList = useMemo(() => {
@@ -585,14 +592,15 @@ export function CommandPalette({
     const routes: Record<string, string> = {
       incidents: `/incidents/${result.id}`,
       "daily-log": `/daily-log/${result.id}`,
-      dispatch: `/dispatch?id=${result.id}`,
+      dispatch: `/dispatch/${result.id}`,
       cases: `/cases/${result.id}`,
       patrons: `/patrons/${result.id}`,
       "work-orders": `/work-orders/${result.id}`,
-      personnel: `/personnel/${result.id}`,
+      personnel: `/contacts/${result.id}`,
     };
 
     router.push(routes[result.module] || "/");
+    setOpen(false);
   };
 
   // Scroll active item into view
@@ -671,10 +679,21 @@ export function CommandPalette({
         >
           {displayList.length === 0 ? (
             <div
-              className="px-4 py-8 text-center text-[13px]"
+              className="px-4 py-8 text-center text-[13px] flex flex-col items-center gap-2"
               style={{ color: "var(--text-tertiary)" }}
             >
-              {query ? "No results found" : "Start typing or select an action"}
+              {searching ? (
+                <>
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                  <span>Searching...</span>
+                </>
+              ) : query && query.length >= 2 ? (
+                "No results found"
+              ) : query ? (
+                "Type at least 2 characters to search"
+              ) : (
+                "Start typing or select an action"
+              )}
             </div>
           ) : (
             displayList.map((item, idx) => {

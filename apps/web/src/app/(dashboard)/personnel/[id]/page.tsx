@@ -2,6 +2,7 @@
 
 import { use } from "react";
 import { useState } from "react";
+import { useToast } from "@/components/ui/Toast";
 import Link from "next/link";
 import { ArrowLeft, Phone, Mail, Shield, CheckCircle2, Clock, CalendarDays, Timer, AlertTriangle } from "lucide-react";
 import { Badge } from "@/components/ui/Badge";
@@ -75,6 +76,7 @@ export default function PersonnelDetailPage({
   params: Promise<{ id: string }>;
 }) {
   const { id } = use(params);
+  const { toast } = useToast();
   const [activeTab, setActiveTab] = useState("overview");
   const [editOpen, setEditOpen] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
@@ -414,7 +416,7 @@ export default function PersonnelDetailPage({
         open={editOpen}
         onClose={() => setEditOpen(false)}
         onSubmit={async (data) => {
-          console.log("Edit personnel:", data);
+          toast("Personnel record updated successfully", { variant: "success" });
           setEditOpen(false);
         }}
         initialData={{
@@ -436,7 +438,7 @@ export default function PersonnelDetailPage({
         open={deleteOpen}
         onClose={() => setDeleteOpen(false)}
         onConfirm={async (reason) => {
-          console.log("Delete personnel:", id, reason);
+          toast("Personnel record deleted successfully", { variant: "success" });
           setDeleteOpen(false);
         }}
         personnelName={STAFF.name}

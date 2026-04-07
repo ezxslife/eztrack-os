@@ -1,14 +1,21 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect, useCallback } from "react";
 import Link from "next/link";
-import { ArrowLeft, Bell, Mail, MessageSquare, Plus, Smartphone } from "lucide-react";
+import { ArrowLeft, Bell, Mail, MessageSquare, Plus, Smartphone, Loader2, AlertCircle } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { Toggle } from "@/components/ui/Toggle";
 import { Badge } from "@/components/ui/Badge";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/Card";
 import { AddNotificationRuleModal } from "@/components/modals/settings";
 import { useToast } from "@/components/ui/Toast";
+import { getSupabaseBrowser } from "@/lib/supabase-browser";
+import {
+  fetchNotificationRules,
+  createNotificationRule,
+  updateNotificationRule,
+  type NotificationRuleRow,
+} from "@/lib/queries/settings";
 
 interface NotificationRule {
   id: string;
@@ -18,21 +25,6 @@ interface NotificationRule {
   email: boolean;
   sms: boolean;
 }
-
-const initialRules: NotificationRule[] = [
-  { id: "1", event: "Incident Created", description: "When a new incident report is filed", push: true, email: true, sms: false },
-  { id: "2", event: "Incident Escalated", description: "When an incident is escalated to a higher priority", push: true, email: true, sms: true },
-  { id: "3", event: "Dispatch Alert", description: "When a new dispatch is assigned to you", push: true, email: false, sms: true },
-  { id: "4", event: "Dispatch Updated", description: "When dispatch status changes", push: true, email: false, sms: false },
-  { id: "5", event: "Case Assigned", description: "When you are assigned to a case", push: true, email: true, sms: false },
-  { id: "6", event: "Case Status Changed", description: "When a case status is updated", push: true, email: true, sms: false },
-  { id: "7", event: "BOLO Issued", description: "When a new BOLO is broadcast", push: true, email: true, sms: true },
-  { id: "8", event: "Daily Log Entry", description: "When a daily log entry requires attention", push: false, email: true, sms: false },
-  { id: "9", event: "Use of Force Filed", description: "When a use of force report is submitted", push: true, email: true, sms: true },
-  { id: "10", event: "Report Due", description: "When a report deadline is approaching", push: true, email: true, sms: false },
-  { id: "11", event: "Shift Change", description: "Notification before shift start/end", push: true, email: false, sms: false },
-  { id: "12", event: "System Alert", description: "System maintenance and downtime notices", push: false, email: true, sms: false },
-];
 
 type Channel = "push" | "email" | "sms";
 
@@ -44,17 +36,79 @@ const channelConfig: { key: Channel; label: string; icon: React.ElementType }[] 
 
 export default function NotificationRulesPage() {
   const { toast } = useToast();
-  const [rules, setRules] = useState(initialRules);
+  const [rules, setRules] = useState<NotificationRule[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [orgId, setOrgId] = useState<string | null>(null);
   const [addRuleOpen, setAddRuleOpen] = useState(false);
 
-  const toggleChannel = (ruleId: string, channel: Channel, checked: boolean) => {
+  const load = useCallback(async () => {
+    try {
+      setLoading(true);
+      setError(null);
+      const supabase = getSupabaseBrowser();
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) throw new Error("Not authenticated");
+      const { data: profile } = await supabase
+        .from("profiles")
+        .select("org_id")
+        .eq("id", user.id)
+        .single();
+      if (!profile?.org_id) throw new Error("Organization not found");
+      setOrgId(profile.org_id);
+      const data = await fetchNotificationRules(profile.org_id);
+      setRules(
+        data.map((r) => ({
+          id: r.id,
+          event: r.event,
+          description: r.description ?? "",
+          push: r.push,
+          email: r.email,
+          sms: r.sms,
+        })),
+      );
+    } catch (err: any) {
+      setError(err.message || "Failed to load notification rules");
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => { load(); }, [load]);
+
+  const toggleChannel = async (ruleId: string, channel: Channel, checked: boolean) => {
+    // Optimistic update
     setRules((prev) =>
       prev.map((r) => (r.id === ruleId ? { ...r, [channel]: checked } : r))
     );
+    try {
+      await updateNotificationRule(ruleId, { [channel]: checked });
+    } catch (err: any) {
+      toast(err.message || "Failed to update rule", { variant: "error" });
+      load(); // revert
+    }
   };
 
   const enabledCount = (channel: Channel) =>
     rules.filter((r) => r[channel]).length;
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center py-20">
+        <Loader2 className="h-6 w-6 animate-spin text-[var(--text-tertiary)]" />
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="flex flex-col items-center justify-center py-20 gap-3">
+        <AlertCircle className="h-6 w-6 text-red-400" />
+        <p className="text-[13px] text-[var(--text-secondary)]">{error}</p>
+        <Button variant="outline" size="sm" onClick={load}>Retry</Button>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
@@ -155,7 +209,20 @@ export default function NotificationRulesPage() {
         open={addRuleOpen}
         onClose={() => setAddRuleOpen(false)}
         onSubmit={async (data) => {
-          toast("Notification rule created successfully", { variant: "success" });
+          if (!orgId) return;
+          try {
+            await createNotificationRule({
+              event: data.eventType,
+              push: data.pushEnabled,
+              email: data.emailEnabled,
+              sms: data.smsEnabled,
+              orgId,
+            });
+            toast("Notification rule created successfully", { variant: "success" });
+            load();
+          } catch (err: any) {
+            toast(err.message || "Failed to create rule", { variant: "error" });
+          }
         }}
       />
     </div>

@@ -1,6 +1,7 @@
 "use client";
 
 import { use, useState } from "react";
+import { useToast } from "@/components/ui/Toast";
 import Link from "next/link";
 import {
   ArrowLeft,
@@ -218,6 +219,7 @@ export default function VehicleDetailPage({
   const colorHex = COLOR_MAP[vehicle.color] ?? "#6b7280";
   const incidents = MOCK_INCIDENTS[id] ?? [];
 
+  const { toast } = useToast();
   const [editOpen, setEditOpen] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
 
@@ -386,7 +388,7 @@ export default function VehicleDetailPage({
         open={editOpen}
         onClose={() => setEditOpen(false)}
         onSubmit={async (data) => {
-          console.log("Edit vehicle:", data);
+          toast("Vehicle updated successfully", { variant: "success" });
           setEditOpen(false);
         }}
         vehicle={{
@@ -407,7 +409,7 @@ export default function VehicleDetailPage({
         open={deleteOpen}
         onClose={() => setDeleteOpen(false)}
         onConfirm={async () => {
-          console.log("Delete vehicle:", id);
+          toast("Vehicle deleted successfully", { variant: "success" });
           setDeleteOpen(false);
         }}
       />

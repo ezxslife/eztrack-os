@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { useParams } from "next/navigation";
+import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import {
   ArrowLeft,
@@ -47,6 +47,7 @@ import { Button } from "@/components/ui/Button";
 import { StatusBadge } from "@/components/ui/Badge";
 import { PriorityBadge } from "@/components/ui/PriorityBadge";
 import { Tabs } from "@/components/ui/Tabs";
+import { useToast } from "@/components/ui/Toast";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/Card";
 import { ProgressBar } from "@/components/ui/ProgressBar";
 import { Loader2, AlertCircle } from "lucide-react";
@@ -61,6 +62,8 @@ import {
   type IncidentParticipant,
   type IncidentFinancial,
 } from "@/lib/queries/incidents";
+import { createCase } from "@/lib/queries/cases";
+import { getSupabaseBrowser } from "@/lib/supabase-browser";
 import { formatDateTime } from "@/lib/utils/time";
 
 const AddNarrativeModal = dynamic(() => import("@/components/modals/incidents/AddNarrativeModal").then(m => ({ default: m.AddNarrativeModal })), { ssr: false });
@@ -460,6 +463,8 @@ const DOCUMENT_LOG = [
 
 export default function IncidentDetailPage() {
   const params = useParams();
+  const { toast } = useToast();
+  const router = useRouter();
   const incidentId = params.id as string;
 
   // Data state — loaded from Supabase
@@ -719,7 +724,20 @@ export default function IncidentDetailPage() {
         open={escalationChainModal}
         onClose={() => setEscalationChainModal(false)}
         onSubmit={async (data) => {
-          setEscalationChainModal(false);
+          try {
+            const result = await createCase({
+              orgId: incident.orgId,
+              propertyId: incident.propertyId,
+              caseType: (data as any).targetTitle || incident.type || "general",
+              synopsis: (data as any).targetSynopsis || incident.synopsis || `Escalated from incident ${incident.recordNumber}`,
+              escalationLevel: (data as any).targetPriority || incident.severity || "medium",
+            });
+            toast(`Case ${result.record_number} created`, { variant: "success" });
+            setEscalationChainModal(false);
+            router.push(`/cases/${result.id}`);
+          } catch (err: any) {
+            toast(err.message || "Failed to create case", { variant: "error" });
+          }
         }}
         sourceType="incident"
         sourceData={{

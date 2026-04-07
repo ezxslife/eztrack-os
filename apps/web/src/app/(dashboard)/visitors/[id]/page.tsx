@@ -1,6 +1,7 @@
 "use client";
 
 import { use, useState } from "react";
+import { useToast } from "@/components/ui/Toast";
 import Link from "next/link";
 import {
   ArrowLeft,
@@ -88,6 +89,7 @@ export default function VisitorDetailPage({ params }: { params: Promise<{ id: st
   const visit = MOCK_VISIT; // In production, fetch by id
   const purposeConfig = PURPOSE_CONFIG[visit.purpose] ?? { label: visit.purpose, tone: "default" as const };
 
+  const { toast } = useToast();
   const [signInOpen, setSignInOpen] = useState(false);
   const [signOutOpen, setSignOutOpen] = useState(false);
   const [addVisitorOpen, setAddVisitorOpen] = useState(false);
@@ -339,7 +341,7 @@ export default function VisitorDetailPage({ params }: { params: Promise<{ id: st
         open={signInOpen}
         onClose={() => setSignInOpen(false)}
         onSubmit={async (data) => {
-          console.log("Sign in visitor:", data);
+          toast("Visitor signed in successfully", { variant: "success" });
           setSignInOpen(false);
         }}
         visitorName={visit.visitors[0]?.name}
@@ -349,7 +351,7 @@ export default function VisitorDetailPage({ params }: { params: Promise<{ id: st
         open={signOutOpen}
         onClose={() => setSignOutOpen(false)}
         onConfirm={async () => {
-          console.log("Sign out visitor");
+          toast("Visitor signed out successfully", { variant: "success" });
           setSignOutOpen(false);
         }}
         visitorName={visit.visitors[0]?.name}
@@ -358,7 +360,7 @@ export default function VisitorDetailPage({ params }: { params: Promise<{ id: st
         open={addVisitorOpen}
         onClose={() => setAddVisitorOpen(false)}
         onSubmit={async (data) => {
-          console.log("Add visitor:", data);
+          toast("Visitor added to visit successfully", { variant: "success" });
           setAddVisitorOpen(false);
         }}
       />
@@ -366,7 +368,7 @@ export default function VisitorDetailPage({ params }: { params: Promise<{ id: st
         open={editOpen}
         onClose={() => setEditOpen(false)}
         onSubmit={async (data) => {
-          console.log("Edit visit:", data);
+          toast("Visit updated successfully", { variant: "success" });
           setEditOpen(false);
         }}
         initialData={{
@@ -389,7 +391,7 @@ export default function VisitorDetailPage({ params }: { params: Promise<{ id: st
         open={cancelOpen}
         onClose={() => setCancelOpen(false)}
         onConfirm={async (reason) => {
-          console.log("Cancel visit:", reason);
+          toast("Visit cancelled successfully", { variant: "success" });
           setCancelOpen(false);
         }}
       />

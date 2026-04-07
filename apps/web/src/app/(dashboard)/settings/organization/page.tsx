@@ -1,14 +1,17 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect, useCallback } from "react";
 import Link from "next/link";
-import { ArrowLeft, Upload, Building2, Crown } from "lucide-react";
+import { ArrowLeft, Upload, Building2, Crown, Loader2, AlertCircle } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { Select } from "@/components/ui/Select";
 import { Textarea } from "@/components/ui/Textarea";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/Card";
 import { Badge } from "@/components/ui/Badge";
+import { useToast } from "@/components/ui/Toast";
+import { getSupabaseBrowser } from "@/lib/supabase-browser";
+import { fetchOrganization, updateOrganization } from "@/lib/queries/settings";
 
 const timezoneOptions = [
   { value: "America/New_York", label: "Eastern Time (ET)" },
@@ -22,11 +25,78 @@ const timezoneOptions = [
 ];
 
 export default function OrganizationSettingsPage() {
-  const [orgName, setOrgName] = useState("Bellagio Resort & Casino");
-  const [address, setAddress] = useState("3600 S Las Vegas Blvd, Las Vegas, NV 89109");
-  const [phone, setPhone] = useState("+1 (702) 693-7111");
-  const [email, setEmail] = useState("security@bellagio.com");
+  const { toast } = useToast();
+  const [orgId, setOrgId] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
+  const [orgName, setOrgName] = useState("");
+  const [address, setAddress] = useState("");
+  const [phone, setPhone] = useState("");
+  const [email, setEmail] = useState("");
   const [timezone, setTimezone] = useState("America/Los_Angeles");
+  const [subscriptionTier, setSubscriptionTier] = useState<string | null>(null);
+
+  const loadOrg = useCallback(async () => {
+    try {
+      setLoading(true);
+      setError(null);
+      const supabase = getSupabaseBrowser();
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) throw new Error("Not authenticated");
+      const { data: profile } = await supabase
+        .from("profiles")
+        .select("org_id")
+        .eq("id", user.id)
+        .single();
+      if (!profile?.org_id) throw new Error("Organization not found");
+      setOrgId(profile.org_id);
+      const org = await fetchOrganization(profile.org_id);
+      setOrgName(org.name);
+      setAddress(org.address ?? "");
+      setPhone(org.phone ?? "");
+      setEmail(org.email ?? "");
+      setTimezone(org.timezone ?? "America/Los_Angeles");
+      setSubscriptionTier(org.subscriptionTier);
+    } catch (err: any) {
+      setError(err.message || "Failed to load organization");
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => { loadOrg(); }, [loadOrg]);
+
+  const handleSave = async () => {
+    if (!orgId) return;
+    try {
+      setSaving(true);
+      await updateOrganization(orgId, { name: orgName, address, phone, email, timezone });
+      toast("Organization settings saved", { variant: "success" });
+    } catch (err: any) {
+      toast(err.message || "Failed to save settings", { variant: "error" });
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center py-20">
+        <Loader2 className="h-6 w-6 animate-spin text-[var(--text-tertiary)]" />
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="flex flex-col items-center justify-center py-20 gap-3">
+        <AlertCircle className="h-6 w-6 text-red-400" />
+        <p className="text-[13px] text-[var(--text-secondary)]">{error}</p>
+        <Button variant="outline" size="sm" onClick={loadOrg}>Retry</Button>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
@@ -57,7 +127,7 @@ export default function OrganizationSettingsPage() {
             </div>
             <div className="flex-1">
               <div className="flex items-center gap-2">
-                <span className="text-sm font-semibold text-[var(--text-primary)]">Enterprise Plan</span>
+                <span className="text-sm font-semibold text-[var(--text-primary)]">{subscriptionTier ? `${subscriptionTier} Plan` : "Enterprise Plan"}</span>
                 <Badge tone="success">Active</Badge>
               </div>
               <p className="text-[13px] text-[var(--text-secondary)] mt-0.5">
@@ -135,8 +205,10 @@ export default function OrganizationSettingsPage() {
 
       {/* Save */}
       <div className="flex justify-end gap-2">
-        <Button variant="secondary">Cancel</Button>
-        <Button>Save Changes</Button>
+        <Button variant="secondary" onClick={loadOrg}>Cancel</Button>
+        <Button onClick={handleSave} disabled={saving}>
+          {saving ? <><Loader2 className="h-3.5 w-3.5 animate-spin" /> Saving...</> : "Save Changes"}
+        </Button>
       </div>
     </div>
   );

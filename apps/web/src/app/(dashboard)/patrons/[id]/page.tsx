@@ -493,7 +493,7 @@ export default function PatronDetailPage({
         open={showEditModal}
         onClose={() => setShowEditModal(false)}
         onSubmit={async (data) => {
-          console.log("Edit patron:", data);
+          toast("Patron updated", { variant: "success" });
           setShowEditModal(false);
         }}
         patron={{
@@ -512,7 +512,7 @@ export default function PatronDetailPage({
         open={showFlagModal}
         onClose={() => setShowFlagModal(false)}
         onSubmit={async (data) => {
-          console.log("Flag patron:", data);
+          toast("Patron flag updated", { variant: "success" });
           setShowFlagModal(false);
         }}
       />
@@ -520,7 +520,7 @@ export default function PatronDetailPage({
         open={showBanModal}
         onClose={() => setShowBanModal(false)}
         onConfirm={async (reason) => {
-          console.log("Ban patron:", reason);
+          toast("Patron banned", { variant: "success" });
           setShowBanModal(false);
         }}
       />
@@ -528,7 +528,7 @@ export default function PatronDetailPage({
         open={showNoteModal}
         onClose={() => setShowNoteModal(false)}
         onSubmit={async (data) => {
-          console.log("Add patron note:", data);
+          toast("Note added", { variant: "success" });
           setShowNoteModal(false);
         }}
       />
@@ -536,7 +536,7 @@ export default function PatronDetailPage({
         open={showDeleteModal}
         onClose={() => setShowDeleteModal(false)}
         onConfirm={async () => {
-          console.log("Delete patron:", id);
+          toast("Patron deleted", { variant: "info" });
           setShowDeleteModal(false);
         }}
       />

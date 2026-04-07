@@ -1,98 +1,112 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect, useCallback } from "react";
 import Link from "next/link";
-import { ArrowLeft, Plus, GripVertical, Trash2, ChevronDown, ChevronRight } from "lucide-react";
+import { ArrowLeft, Plus, GripVertical, Trash2, ChevronDown, ChevronRight, Loader2, AlertCircle } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { Badge } from "@/components/ui/Badge";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/Card";
 import { AddDropdownValueModal } from "@/components/modals/settings";
+import { useToast } from "@/components/ui/Toast";
+import { getSupabaseBrowser } from "@/lib/supabase-browser";
+import {
+  fetchDropdownCategories,
+  createDropdownValue,
+  deleteDropdownValue,
+  type DropdownCategoryRow,
+} from "@/lib/queries/settings";
 
 interface DropdownCategory {
   id: string;
   name: string;
   description: string;
-  values: string[];
+  values: { id: string; label: string }[];
 }
 
-const initialCategories: DropdownCategory[] = [
-  {
-    id: "incident-type",
-    name: "Incident Type",
-    description: "Types of incidents that can be reported",
-    values: ["Theft", "Assault", "Trespass", "Vandalism", "Medical Emergency", "Disturbance", "Fraud", "Suspicious Activity", "Fire/Alarm", "Other"],
-  },
-  {
-    id: "incident-priority",
-    name: "Incident Priority",
-    description: "Priority levels for incident triage",
-    values: ["Critical", "High", "Medium", "Low"],
-  },
-  {
-    id: "disposition",
-    name: "Disposition",
-    description: "Outcome or resolution of an incident",
-    values: ["Resolved on Scene", "Report Filed", "Arrest Made", "Referred to Law Enforcement", "Trespassed", "Medical Transport", "No Action Needed", "Under Investigation"],
-  },
-  {
-    id: "lost-item-category",
-    name: "Lost Item Category",
-    description: "Categories for lost & found items",
-    values: ["Wallet/Purse", "Phone/Electronics", "Jewelry", "Clothing", "Keys", "ID/Documents", "Luggage", "Other"],
-  },
-  {
-    id: "contact-type",
-    name: "Field Contact Type",
-    description: "Types of field contacts",
-    values: ["Suspicious Person", "Welfare Check", "Verbal Warning", "Trespass Warning", "Information Gathering"],
-  },
-];
-
 export default function DropdownConfigPage() {
-  const [categories, setCategories] = useState(initialCategories);
-  const [expandedId, setExpandedId] = useState<string | null>("incident-type");
+  const { toast } = useToast();
+  const [categories, setCategories] = useState<DropdownCategory[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [expandedId, setExpandedId] = useState<string | null>(null);
   const [newValue, setNewValue] = useState("");
   const [addValueCategory, setAddValueCategory] = useState<string | null>(null);
+
+  const load = useCallback(async () => {
+    try {
+      setLoading(true);
+      setError(null);
+      const supabase = getSupabaseBrowser();
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) throw new Error("Not authenticated");
+      const { data: profile } = await supabase
+        .from("profiles")
+        .select("org_id")
+        .eq("id", user.id)
+        .single();
+      if (!profile?.org_id) throw new Error("Organization not found");
+      const data = await fetchDropdownCategories(profile.org_id);
+      const mapped = data.map((cat) => ({
+        id: cat.id,
+        name: cat.name,
+        description: cat.description ?? "",
+        values: cat.values.map((v) => ({ id: v.id, label: v.displayLabel })),
+      }));
+      setCategories(mapped);
+      if (mapped.length > 0 && !expandedId) setExpandedId(mapped[0].id);
+    } catch (err: any) {
+      setError(err.message || "Failed to load dropdown categories");
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => { load(); }, [load]);
 
   const toggleExpand = (id: string) => {
     setExpandedId(expandedId === id ? null : id);
   };
 
-  const addValue = (categoryId: string) => {
+  const addValueInline = async (categoryId: string) => {
     if (!newValue.trim()) return;
-    setCategories((prev) =>
-      prev.map((cat) =>
-        cat.id === categoryId
-          ? { ...cat, values: [...cat.values, newValue.trim()] }
-          : cat
-      )
-    );
-    setNewValue("");
+    try {
+      await createDropdownValue({ displayLabel: newValue.trim(), categoryId });
+      toast("Value added", { variant: "success" });
+      setNewValue("");
+      load();
+    } catch (err: any) {
+      toast(err.message || "Failed to add value", { variant: "error" });
+    }
   };
 
-  const removeValue = (categoryId: string, index: number) => {
-    setCategories((prev) =>
-      prev.map((cat) =>
-        cat.id === categoryId
-          ? { ...cat, values: cat.values.filter((_, i) => i !== index) }
-          : cat
-      )
-    );
+  const removeValue = async (valueId: string) => {
+    try {
+      await deleteDropdownValue(valueId);
+      toast("Value removed", { variant: "success" });
+      load();
+    } catch (err: any) {
+      toast(err.message || "Failed to remove value", { variant: "error" });
+    }
   };
 
-  const moveValue = (categoryId: string, index: number, direction: "up" | "down") => {
-    setCategories((prev) =>
-      prev.map((cat) => {
-        if (cat.id !== categoryId) return cat;
-        const newValues = [...cat.values];
-        const swapIdx = direction === "up" ? index - 1 : index + 1;
-        if (swapIdx < 0 || swapIdx >= newValues.length) return cat;
-        [newValues[index], newValues[swapIdx]] = [newValues[swapIdx], newValues[index]];
-        return { ...cat, values: newValues };
-      })
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center py-20">
+        <Loader2 className="h-6 w-6 animate-spin text-[var(--text-tertiary)]" />
+      </div>
     );
-  };
+  }
+
+  if (error) {
+    return (
+      <div className="flex flex-col items-center justify-center py-20 gap-3">
+        <AlertCircle className="h-6 w-6 text-red-400" />
+        <p className="text-[13px] text-[var(--text-secondary)]">{error}</p>
+        <Button variant="outline" size="sm" onClick={load}>Retry</Button>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
@@ -134,33 +148,17 @@ export default function DropdownConfigPage() {
               {isExpanded && (
                 <CardContent className="!pt-0 border-t border-[var(--border-default)]">
                   <div className="space-y-1 mt-3">
-                    {cat.values.map((val, idx) => (
+                    {cat.values.map((val) => (
                       <div
-                        key={idx}
+                        key={val.id}
                         className="flex items-center gap-2 py-1.5 px-2 rounded-md hover:bg-[var(--surface-hover)] group transition-colors"
                       >
                         <GripVertical className="h-3.5 w-3.5 text-[var(--text-tertiary)] opacity-0 group-hover:opacity-100 cursor-grab shrink-0" />
-                        <span className="text-[13px] text-[var(--text-primary)] flex-1">{val}</span>
+                        <span className="text-[13px] text-[var(--text-primary)] flex-1">{val.label}</span>
                         <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100">
                           <button
-                            className="text-[var(--text-tertiary)] hover:text-[var(--text-primary)] p-0.5 disabled:opacity-30"
-                            disabled={idx === 0}
-                            onClick={() => moveValue(cat.id, idx, "up")}
-                            title="Move up"
-                          >
-                            <ChevronRight className="h-3 w-3 -rotate-90" />
-                          </button>
-                          <button
-                            className="text-[var(--text-tertiary)] hover:text-[var(--text-primary)] p-0.5 disabled:opacity-30"
-                            disabled={idx === cat.values.length - 1}
-                            onClick={() => moveValue(cat.id, idx, "down")}
-                            title="Move down"
-                          >
-                            <ChevronRight className="h-3 w-3 rotate-90" />
-                          </button>
-                          <button
                             className="text-[var(--text-tertiary)] hover:text-red-400 p-0.5"
-                            onClick={() => removeValue(cat.id, idx)}
+                            onClick={() => removeValue(val.id)}
                             title="Remove"
                           >
                             <Trash2 className="h-3 w-3" />
@@ -175,10 +173,10 @@ export default function DropdownConfigPage() {
                       value={expandedId === cat.id ? newValue : ""}
                       onChange={(e) => setNewValue(e.target.value)}
                       onKeyDown={(e) => {
-                        if (e.key === "Enter") addValue(cat.id);
+                        if (e.key === "Enter") addValueInline(cat.id);
                       }}
                     />
-                    <Button variant="outline" size="sm" onClick={() => addValue(cat.id)}>
+                    <Button variant="outline" size="sm" onClick={() => addValueInline(cat.id)}>
                       <Plus className="h-3.5 w-3.5" />
                       Add
                     </Button>
@@ -199,13 +197,17 @@ export default function DropdownConfigPage() {
         onClose={() => setAddValueCategory(null)}
         onSubmit={async (data) => {
           if (addValueCategory) {
-            setCategories((prev) =>
-              prev.map((cat) =>
-                cat.id === addValueCategory
-                  ? { ...cat, values: [...cat.values, data.displayLabel] }
-                  : cat
-              )
-            );
+            try {
+              await createDropdownValue({
+                displayLabel: data.displayLabel,
+                categoryId: addValueCategory,
+                sortOrder: data.sortOrder,
+              });
+              toast("Value added", { variant: "success" });
+              load();
+            } catch (err: any) {
+              toast(err.message || "Failed to add value", { variant: "error" });
+            }
           }
           setAddValueCategory(null);
         }}

@@ -65,7 +65,10 @@ const CreateBriefingFromCaseModal = dynamic(() => import("@/components/modals/wo
 const CreateWorkOrderFromCaseModal = dynamic(() => import("@/components/modals/workflows/CreateWorkOrderFromCaseModal").then(m => ({ default: m.CreateWorkOrderFromCaseModal })), { ssr: false });
 
 import { Loader2, AlertCircle } from "lucide-react";
+import { useRouter } from "next/navigation";
 import { fetchCaseById, updateCaseStatus, deleteCase, type CaseDetail } from "@/lib/queries/cases";
+import { createBriefing } from "@/lib/queries/briefings";
+import { createWorkOrder } from "@/lib/queries/work-orders";
 import { formatDateTime, formatRelativeTime } from "@/lib/utils/time";
 
 /* ================================================================
@@ -312,6 +315,7 @@ export default function CaseDetailPage({
   params: Promise<{ id: string }>;
 }) {
   const { toast } = useToast();
+  const router = useRouter();
   const { id } = use(params);
   const [activeTab, setActiveTab] = useState("overview");
 
@@ -626,8 +630,20 @@ export default function CaseDetailPage({
         open={createBriefingModal}
         onClose={() => setCreateBriefingModal(false)}
         onSubmit={async (data) => {
-          toast("Briefing created from case", { variant: "success" });
-          setCreateBriefingModal(false);
+          try {
+            const result = await createBriefing({
+              orgId: caseData.orgId,
+              propertyId: caseData.propertyId,
+              title: (data as any).title || `Briefing from ${caseData.recordNumber}`,
+              content: (data as any).content || caseData.synopsis || "",
+              priority: (data as any).priority || caseData.escalationLevel || "medium",
+            });
+            toast(`Briefing "${result.title}" created`, { variant: "success" });
+            setCreateBriefingModal(false);
+            router.push("/briefings");
+          } catch (err: any) {
+            toast(err.message || "Failed to create briefing", { variant: "error" });
+          }
         }}
         caseData={{
           id: c.id,
@@ -644,8 +660,21 @@ export default function CaseDetailPage({
         open={createWorkOrderModal}
         onClose={() => setCreateWorkOrderModal(false)}
         onSubmit={async (data) => {
-          toast("Work order created from case", { variant: "success" });
-          setCreateWorkOrderModal(false);
+          try {
+            const result = await createWorkOrder({
+              orgId: caseData.orgId,
+              propertyId: caseData.propertyId,
+              title: (data as any).title || `Work Order from ${caseData.recordNumber}`,
+              description: (data as any).description || caseData.synopsis || "",
+              category: (data as any).category || "case-related",
+              priority: (data as any).priority || caseData.escalationLevel || "medium",
+            });
+            toast(`Work Order ${result.record_number} created`, { variant: "success" });
+            setCreateWorkOrderModal(false);
+            router.push(`/work-orders/${result.id}`);
+          } catch (err: any) {
+            toast(err.message || "Failed to create work order", { variant: "error" });
+          }
         }}
         caseData={{
           id: c.id,

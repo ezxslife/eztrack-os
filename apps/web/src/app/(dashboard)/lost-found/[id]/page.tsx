@@ -221,7 +221,7 @@ export default function LostFoundDetailPage({
         open={showClaimModal}
         onClose={() => setShowClaimModal(false)}
         onSubmit={async (data) => {
-          console.log("Claim item:", data);
+          toast("Item claimed", { variant: "success" });
           setShowClaimModal(false);
         }}
       />

@@ -1,45 +1,71 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect, useCallback } from "react";
 import Link from "next/link";
-import { ArrowLeft, Plus, Building, MapPin, MoreHorizontal } from "lucide-react";
+import { ArrowLeft, Plus, Building, MapPin, MoreHorizontal, Loader2, AlertCircle } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { Badge } from "@/components/ui/Badge";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/Card";
 import { AddPropertyModal } from "@/components/modals/settings";
 import { useToast } from "@/components/ui/Toast";
-
-interface Property {
-  id: string;
-  name: string;
-  address: string;
-  type: string;
-  zones: number;
-  status: "active" | "inactive";
-}
-
-const mockProperties: Property[] = [
-  {
-    id: "1",
-    name: "Bellagio Resort & Casino",
-    address: "3600 S Las Vegas Blvd, Las Vegas, NV 89109",
-    type: "Casino & Resort",
-    zones: 12,
-    status: "active",
-  },
-  {
-    id: "2",
-    name: "Bellagio Convention Center",
-    address: "3720 S Las Vegas Blvd, Las Vegas, NV 89109",
-    type: "Convention Center",
-    zones: 6,
-    status: "active",
-  },
-];
+import { getSupabaseBrowser } from "@/lib/supabase-browser";
+import {
+  fetchProperties,
+  createProperty,
+  deleteProperty,
+  type PropertyRow,
+} from "@/lib/queries/settings";
 
 export default function PropertiesSettingsPage() {
   const { toast } = useToast();
+  const [properties, setProperties] = useState<PropertyRow[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [orgId, setOrgId] = useState<string | null>(null);
   const [addPropertyOpen, setAddPropertyOpen] = useState(false);
+
+  const load = useCallback(async () => {
+    try {
+      setLoading(true);
+      setError(null);
+      const supabase = getSupabaseBrowser();
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) throw new Error("Not authenticated");
+      const { data: profile } = await supabase
+        .from("profiles")
+        .select("org_id")
+        .eq("id", user.id)
+        .single();
+      if (!profile?.org_id) throw new Error("Organization not found");
+      setOrgId(profile.org_id);
+      const data = await fetchProperties(profile.org_id);
+      setProperties(data);
+    } catch (err: any) {
+      setError(err.message || "Failed to load properties");
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => { load(); }, [load]);
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center py-20">
+        <Loader2 className="h-6 w-6 animate-spin text-[var(--text-tertiary)]" />
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="flex flex-col items-center justify-center py-20 gap-3">
+        <AlertCircle className="h-6 w-6 text-red-400" />
+        <p className="text-[13px] text-[var(--text-secondary)]">{error}</p>
+        <Button variant="outline" size="sm" onClick={load}>Retry</Button>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
@@ -65,7 +91,7 @@ export default function PropertiesSettingsPage() {
       </div>
 
       <div className="grid gap-4 sm:grid-cols-2">
-        {mockProperties.map((prop) => (
+        {properties.map((prop) => (
           <Card key={prop.id}>
             <CardHeader>
               <div className="flex items-start justify-between w-full">
@@ -76,8 +102,8 @@ export default function PropertiesSettingsPage() {
                   <div>
                     <CardTitle>{prop.name}</CardTitle>
                     <div className="flex items-center gap-2 mt-1">
-                      <Badge tone="default">{prop.type}</Badge>
-                      <Badge tone="success" dot>{prop.status === "active" ? "Active" : "Inactive"}</Badge>
+                      <Badge tone="default">{prop.propertyType ?? "Property"}</Badge>
+                      <Badge tone={prop.status === "active" ? "success" : "default"} dot>{prop.status === "active" ? "Active" : "Inactive"}</Badge>
                     </div>
                   </div>
                 </div>
@@ -90,10 +116,9 @@ export default function PropertiesSettingsPage() {
               <div className="space-y-2 text-[13px]">
                 <div className="flex items-start gap-2">
                   <MapPin className="h-3.5 w-3.5 text-[var(--text-tertiary)] mt-0.5 shrink-0" />
-                  <span className="text-[var(--text-secondary)]">{prop.address}</span>
+                  <span className="text-[var(--text-secondary)]">{prop.address ?? "No address"}</span>
                 </div>
                 <div className="flex items-center justify-between pt-2 border-t border-[var(--border-default)]">
-                  <span className="text-[var(--text-tertiary)]">{prop.zones} zones configured</span>
                   <Link href="/settings/locations" className="text-[var(--action-primary)] hover:underline text-[12px]">
                     Manage Zones
                   </Link>
@@ -102,13 +127,25 @@ export default function PropertiesSettingsPage() {
             </CardContent>
           </Card>
         ))}
+        {properties.length === 0 && (
+          <div className="col-span-2 text-center py-12 text-[var(--text-tertiary)] text-[13px]">
+            No properties yet. Add your first property to get started.
+          </div>
+        )}
       </div>
 
       <AddPropertyModal
         open={addPropertyOpen}
         onClose={() => setAddPropertyOpen(false)}
         onSubmit={async (data) => {
-          toast("Property created successfully", { variant: "success" });
+          if (!orgId) return;
+          try {
+            await createProperty({ name: data.name, address: data.address, propertyType: data.propertyType, orgId });
+            toast("Property created successfully", { variant: "success" });
+            load();
+          } catch (err: any) {
+            toast(err.message || "Failed to create property", { variant: "error" });
+          }
         }}
       />
     </div>
