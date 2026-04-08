@@ -169,6 +169,212 @@ export async function deleteCase(id: string) {
   if (error) throw error;
 }
 
+/* ─── Update case fields (generic partial update) ── */
+
+export async function updateCase(id: string, fields: Record<string, unknown>) {
+  const supabase = getSupabaseBrowser();
+
+  const { error } = await supabase
+    .from("cases")
+    .update(fields)
+    .eq("id", id);
+
+  if (error) throw error;
+}
+
+/* ─── Create case evidence ──────────────────────── */
+
+export async function createCaseEvidence(
+  caseId: string,
+  data: {
+    title: string;
+    description?: string;
+    type: string;
+    status?: string;
+    storageLocation?: string;
+    storageFacility?: string;
+    itemNumber?: string;
+    externalIdentifier?: string;
+  }
+) {
+  const supabase = getSupabaseBrowser();
+
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  const { error } = await supabase.from("case_evidence").insert({
+    case_id: caseId,
+    title: data.title,
+    description: data.description || null,
+    type: data.type,
+    status: data.status || "collected",
+    storage_location: data.storageLocation || null,
+    storage_facility: data.storageFacility || null,
+    item_number: data.itemNumber || null,
+    external_identifier: data.externalIdentifier || null,
+    created_by: user?.id || null,
+  });
+
+  if (error) throw error;
+}
+
+/* ─── Create case task ──────────────────────────── */
+
+export async function createCaseTask(
+  caseId: string,
+  orgId: string,
+  data: {
+    title: string;
+    description?: string;
+    priority?: string;
+    assignedTo?: string | null;
+    dueDate?: string | null;
+    sortOrder?: number;
+  }
+) {
+  const supabase = getSupabaseBrowser();
+
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) throw new Error("Not authenticated");
+
+  const { error } = await supabase.from("case_tasks").insert({
+    case_id: caseId,
+    org_id: orgId,
+    title: data.title,
+    description: data.description || null,
+    priority: (data.priority || "medium") as Enums<"case_task_priority">,
+    status: "pending" as Enums<"case_task_status">,
+    assigned_to: data.assignedTo || null,
+    due_date: data.dueDate || null,
+    sort_order: data.sortOrder ?? 0,
+    created_by: user.id,
+  });
+
+  if (error) throw error;
+}
+
+/* ─── Create case narrative ─────────────────────── */
+
+export async function createCaseNarrative(
+  caseId: string,
+  data: {
+    title: string;
+    content: string;
+  }
+) {
+  const supabase = getSupabaseBrowser();
+
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  const { error } = await supabase.from("case_narratives").insert({
+    case_id: caseId,
+    title: data.title,
+    content: data.content,
+    author_id: user?.id || null,
+  });
+
+  if (error) throw error;
+}
+
+/* ─── Create evidence transfer ──────────────────── */
+
+export async function createEvidenceTransfer(
+  orgId: string,
+  data: {
+    evidenceId: string;
+    transferredToId: string;
+    transferReason: string;
+    notes?: string;
+  }
+) {
+  const supabase = getSupabaseBrowser();
+
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  const { error } = await supabase.from("case_evidence_transfers").insert({
+    evidence_id: data.evidenceId,
+    org_id: orgId,
+    transferred_from_id: user?.id || null,
+    transferred_to_id: data.transferredToId,
+    transfer_reason: data.transferReason as Enums<"evidence_transfer_reason">,
+    notes: data.notes || null,
+    signature_acknowledged: true,
+  });
+
+  if (error) throw error;
+}
+
+/* ─── Create case related record ────────────────── */
+
+export async function createCaseRelatedRecord(
+  caseId: string,
+  orgId: string,
+  data: {
+    relatedRecordId: string;
+    relatedRecordType: string;
+    relationshipDescription?: string;
+  }
+) {
+  const supabase = getSupabaseBrowser();
+
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) throw new Error("Not authenticated");
+
+  const { error } = await supabase.from("case_related_records").insert({
+    case_id: caseId,
+    org_id: orgId,
+    related_record_id: data.relatedRecordId,
+    related_record_type: data.relatedRecordType as Enums<"case_related_record_type">,
+    relationship_description: data.relationshipDescription || null,
+    linked_by: user.id,
+  });
+
+  if (error) throw error;
+}
+
+/* ─── Create case cost ──────────────────────────── */
+
+export async function createCaseCost(
+  caseId: string,
+  orgId: string,
+  data: {
+    costType: string;
+    amount: number;
+    description: string;
+    vendor?: string;
+    paidDate?: string;
+  }
+) {
+  const supabase = getSupabaseBrowser();
+
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) throw new Error("Not authenticated");
+
+  const { error } = await supabase.from("case_costs").insert({
+    case_id: caseId,
+    org_id: orgId,
+    cost_type: data.costType as Enums<"case_cost_type">,
+    amount: data.amount,
+    description: data.description,
+    vendor: data.vendor || null,
+    paid_date: data.paidDate || null,
+    created_by: user.id,
+  });
+
+  if (error) throw error;
+}
+
 /* ─── Sub-resource types ─────────────────────── */
 
 export interface CaseEvidenceItem {

@@ -348,6 +348,41 @@ export async function fetchAvailableOfficers() {
   }));
 }
 
+/* ─── Update dispatch fields ───────────────────────────────── */
+
+export async function updateDispatch(
+  id: string,
+  updates: {
+    dispatchCode?: string;
+    priority?: string;
+    description?: string;
+    sublocation?: string;
+    reporterName?: string;
+    reporterPhone?: string;
+    anonymous?: boolean;
+    callSource?: string;
+  }
+) {
+  const supabase = getSupabaseBrowser();
+
+  const payload: Record<string, unknown> = {};
+  if (updates.dispatchCode !== undefined) payload.dispatch_code = updates.dispatchCode;
+  if (updates.priority !== undefined) payload.priority = updates.priority;
+  if (updates.description !== undefined) payload.description = updates.description;
+  if (updates.sublocation !== undefined) payload.sublocation = updates.sublocation;
+  if (updates.reporterName !== undefined) payload.reporter_name = updates.reporterName;
+  if (updates.reporterPhone !== undefined) payload.reporter_phone = updates.reporterPhone;
+  if (updates.anonymous !== undefined) payload.anonymous = updates.anonymous;
+  if (updates.callSource !== undefined) payload.call_source = updates.callSource;
+
+  const { error } = await supabase
+    .from("dispatches")
+    .update(payload)
+    .eq("id", id);
+
+  if (error) throw error;
+}
+
 /* ─── Supabase Realtime subscription helper ─────────────────── */
 
 export function subscribeToDispatches(

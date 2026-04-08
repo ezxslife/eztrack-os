@@ -26,7 +26,8 @@ import {
   SignInModal,
   SignOutModal,
 } from "@/components/modals/visitors";
-import { fetchVisitors, updateVisitorStatus, type VisitorRow } from "@/lib/queries/visitors";
+import { fetchVisitors, createVisitor, updateVisitorStatus, type VisitorRow } from "@/lib/queries/visitors";
+import { getSupabaseBrowser } from "@/lib/supabase-browser";
 import { useToast } from "@/components/ui/Toast";
 import { Loader2, AlertCircle } from "lucide-react";
 import { formatDateTime } from "@/lib/utils/time";
@@ -102,6 +103,7 @@ export default function VisitorsPage() {
   const [visitorData, setVisitorData] = useState<VisitorRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [userProfile, setUserProfile] = useState<{ orgId: string; propertyId: string | null } | null>(null);
   const [view, setView] = useState<"today" | "all">("today");
   const [search, setSearch] = useState("");
   const [purposeFilter, setPurposeFilter] = useState("");
@@ -117,6 +119,20 @@ export default function VisitorsPage() {
       setError(null);
       const data = await fetchVisitors();
       setVisitorData(data);
+
+      // Get user profile for create visitor
+      if (!userProfile) {
+        const supabase = getSupabaseBrowser();
+        const { data: { user } } = await supabase.auth.getUser();
+        if (user) {
+          const { data: profile } = await supabase
+            .from("profiles")
+            .select("org_id, property_id")
+            .eq("id", user.id)
+            .single();
+          if (profile) setUserProfile({ orgId: profile.org_id, propertyId: profile.property_id });
+        }
+      }
     } catch (err: any) {
       setError(err.message || "Failed to load visitors");
     } finally {
@@ -425,9 +441,32 @@ export default function VisitorsPage() {
         open={createOpen}
         onClose={() => setCreateOpen(false)}
         onSubmit={async (data) => {
-          toast("Visit created", { variant: "success" });
-          setCreateOpen(false);
-          loadVisitors();
+          try {
+            if (!userProfile) {
+              toast("Unable to determine your organization", { variant: "error" });
+              return;
+            }
+            await createVisitor({
+              orgId: userProfile.orgId,
+              propertyId: userProfile.propertyId,
+              firstName: (data as any).firstName || "",
+              lastName: (data as any).lastName || "",
+              purpose: (data as any).purpose || "vip_guest",
+              hostName: (data as any).hostName,
+              hostDepartment: (data as any).hostDepartment,
+              company: (data as any).company,
+              email: (data as any).email,
+              phone: (data as any).phone,
+              expectedDate: (data as any).expectedDate,
+              expectedTime: (data as any).expectedTime,
+              ndaRequired: (data as any).ndaRequired,
+            });
+            toast("Visit created", { variant: "success" });
+            setCreateOpen(false);
+            loadVisitors();
+          } catch (err: any) {
+            toast(err.message || "Failed to create visit", { variant: "error" });
+          }
         }}
       />
       <SignInModal

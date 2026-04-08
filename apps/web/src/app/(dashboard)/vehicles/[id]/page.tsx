@@ -18,7 +18,8 @@ import { Badge } from "@/components/ui/Badge";
 import { StatusBadge } from "@/components/ui/Badge";
 import { Skeleton } from "@/components/ui/Skeleton";
 import { EditVehicleModal, DeleteVehicleModal } from "@/components/modals/vehicles";
-import { fetchVehicleById, type VehicleDetail } from "@/lib/queries/vehicles";
+import { useRouter } from "next/navigation";
+import { fetchVehicleById, updateVehicle, deleteVehicle, type VehicleDetail } from "@/lib/queries/vehicles";
 import { getSupabaseBrowser } from "@/lib/supabase-browser";
 
 /* ── Vehicle type config ── */
@@ -94,6 +95,7 @@ export default function VehicleDetailPage({
 }) {
   const { id } = use(params);
   const { toast } = useToast();
+  const router = useRouter();
 
   const [vehicle, setVehicle] = useState<VehicleDetail | null>(null);
   const [incidents, setIncidents] = useState<LinkedIncident[]>([]);
@@ -102,46 +104,47 @@ export default function VehicleDetailPage({
   const [editOpen, setEditOpen] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
 
-  useEffect(() => {
-    async function load() {
-      try {
-        setLoading(true);
-        const v = await fetchVehicleById(id);
-        setVehicle(v);
+  async function loadData() {
+    try {
+      setLoading(true);
+      const v = await fetchVehicleById(id);
+      setVehicle(v);
 
-        // Fetch linked incidents via vehicle_incidents junction
-        const supabase = getSupabaseBrowser();
-        const { data: linkedData } = await supabase
-          .from("vehicle_incidents")
-          .select("incident:incidents(id, record_number, incident_type, status, created_at)")
-          .eq("vehicle_id", id);
+      // Fetch linked incidents via vehicle_incidents junction
+      const supabase = getSupabaseBrowser();
+      const { data: linkedData } = await supabase
+        .from("vehicle_incidents")
+        .select("incident:incidents(id, record_number, incident_type, status, created_at)")
+        .eq("vehicle_id", id);
 
-        if (linkedData) {
-          setIncidents(
-            linkedData
-              .filter((r: any) => r.incident)
-              .map((r: any) => ({
-                id: r.incident.id,
-                recordNumber: r.incident.record_number ?? "-",
-                type: r.incident.incident_type ?? "-",
-                date: r.incident.created_at
-                  ? new Date(r.incident.created_at).toLocaleDateString("en-US", {
-                      month: "short",
-                      day: "numeric",
-                      year: "numeric",
-                    })
-                  : "-",
-                status: r.incident.status ?? "open",
-              }))
-          );
-        }
-      } catch (err) {
-        setError(err instanceof Error ? err.message : "Failed to load vehicle");
-      } finally {
-        setLoading(false);
+      if (linkedData) {
+        setIncidents(
+          linkedData
+            .filter((r: any) => r.incident)
+            .map((r: any) => ({
+              id: r.incident.id,
+              recordNumber: r.incident.record_number ?? "-",
+              type: r.incident.incident_type ?? "-",
+              date: r.incident.created_at
+                ? new Date(r.incident.created_at).toLocaleDateString("en-US", {
+                    month: "short",
+                    day: "numeric",
+                    year: "numeric",
+                  })
+                : "-",
+              status: r.incident.status ?? "open",
+            }))
+        );
       }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to load vehicle");
+    } finally {
+      setLoading(false);
     }
-    load();
+  }
+
+  useEffect(() => {
+    loadData();
   }, [id]);
 
   if (loading) {
@@ -323,9 +326,27 @@ export default function VehicleDetailPage({
       <EditVehicleModal
         open={editOpen}
         onClose={() => setEditOpen(false)}
-        onSubmit={async () => {
-          toast("Vehicle updated successfully", { variant: "success" });
-          setEditOpen(false);
+        onSubmit={async (data: any) => {
+          try {
+            await updateVehicle(id, {
+              make: data.make,
+              model: data.model,
+              vehicleType: data.vehicleType,
+              licensePlate: data.licensePlate,
+              licenseState: data.licenseState,
+              year: data.year ? Number(data.year) : undefined,
+              color: data.color,
+              vin: data.vin,
+              ownerType: data.ownerType,
+              ownerId: data.ownerId,
+              notes: data.notes,
+            });
+            toast("Vehicle updated successfully", { variant: "success" });
+            setEditOpen(false);
+            loadData();
+          } catch (err: any) {
+            toast(err.message || "Failed to update vehicle", { variant: "error" });
+          }
         }}
         vehicle={{
           make: vehicle.make,
@@ -345,8 +366,14 @@ export default function VehicleDetailPage({
         open={deleteOpen}
         onClose={() => setDeleteOpen(false)}
         onConfirm={async () => {
-          toast("Vehicle deleted successfully", { variant: "success" });
-          setDeleteOpen(false);
+          try {
+            await deleteVehicle(id);
+            toast("Vehicle deleted successfully", { variant: "success" });
+            setDeleteOpen(false);
+            router.push("/vehicles");
+          } catch (err: any) {
+            toast(err.message || "Failed to delete vehicle", { variant: "error" });
+          }
         }}
       />
     </div>

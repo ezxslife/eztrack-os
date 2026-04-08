@@ -11,7 +11,8 @@ import {
 import { Button } from "@/components/ui/Button";
 import { Badge } from "@/components/ui/Badge";
 import { CreateVehicleModal } from "@/components/modals/vehicles";
-import { fetchVehicles, type VehicleRow } from "@/lib/queries/vehicles";
+import { fetchVehicles, createVehicle, type VehicleRow } from "@/lib/queries/vehicles";
+import { getSupabaseBrowser } from "@/lib/supabase-browser";
 import { useToast } from "@/components/ui/Toast";
 import { Loader2, AlertCircle } from "lucide-react";
 
@@ -82,6 +83,7 @@ export default function VehiclesPage() {
   const [search, setSearch] = useState("");
   const [typeFilter, setTypeFilter] = useState<VehicleType | "all">("all");
   const [createOpen, setCreateOpen] = useState(false);
+  const [userProfile, setUserProfile] = useState<{ orgId: string; propertyId: string | null } | null>(null);
 
   const loadVehicles = useCallback(async () => {
     try {
@@ -89,6 +91,17 @@ export default function VehiclesPage() {
       setError(null);
       const data = await fetchVehicles();
       setVehicles(data);
+
+      const supabase = getSupabaseBrowser();
+      const { data: { user } } = await supabase.auth.getUser();
+      if (user) {
+        const { data: profile } = await supabase
+          .from("profiles")
+          .select("org_id, property_id")
+          .eq("id", user.id)
+          .single();
+        if (profile) setUserProfile({ orgId: profile.org_id, propertyId: profile.property_id });
+      }
     } catch (err: any) {
       setError(err.message || "Failed to load vehicles");
     } finally {
@@ -299,9 +312,27 @@ export default function VehiclesPage() {
         open={createOpen}
         onClose={() => setCreateOpen(false)}
         onSubmit={async (data) => {
-          toast("Vehicle added", { variant: "success" });
-          setCreateOpen(false);
-          loadVehicles();
+          try {
+            if (!userProfile) throw new Error("User profile not loaded");
+            await createVehicle({
+              orgId: userProfile.orgId,
+              make: data.make,
+              model: data.model,
+              vehicleType: data.vehicleType || "car",
+              licensePlate: data.licensePlate || undefined,
+              licenseState: data.licenseState || undefined,
+              year: data.year || undefined,
+              color: data.color || undefined,
+              vin: data.vin || undefined,
+              ownerType: data.ownerType || undefined,
+              ownerId: data.ownerId || undefined,
+            });
+            toast("Vehicle added", { variant: "success" });
+            setCreateOpen(false);
+            loadVehicles();
+          } catch (err: any) {
+            toast(err.message || "Failed to add vehicle", { variant: "error" });
+          }
         }}
       />
     </div>

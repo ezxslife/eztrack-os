@@ -181,6 +181,53 @@ export async function updateVisitorStatus(
   if (error) throw error;
 }
 
+/* ─── Update visitor fields ────────────────────── */
+
+export async function updateVisitor(
+  id: string,
+  updates: {
+    firstName?: string;
+    lastName?: string;
+    purpose?: string;
+    hostName?: string;
+    hostDepartment?: string;
+    company?: string;
+    email?: string;
+    phone?: string;
+    expectedDate?: string;
+    expectedTime?: string;
+    idType?: string;
+    idNumber?: string;
+    vehiclePlate?: string;
+    ndaRequired?: boolean;
+  }
+) {
+  const supabase = getSupabaseBrowser();
+
+  const payload: Record<string, unknown> = {};
+  if (updates.firstName !== undefined) payload.first_name = updates.firstName;
+  if (updates.lastName !== undefined) payload.last_name = updates.lastName;
+  if (updates.purpose !== undefined) payload.purpose = updates.purpose;
+  if (updates.hostName !== undefined) payload.host_name = updates.hostName;
+  if (updates.hostDepartment !== undefined) payload.host_department = updates.hostDepartment;
+  if (updates.company !== undefined) payload.company = updates.company;
+  if (updates.email !== undefined) payload.email = updates.email;
+  if (updates.phone !== undefined) payload.phone = updates.phone;
+  if (updates.expectedDate !== undefined) payload.expected_date = updates.expectedDate;
+  if (updates.expectedTime !== undefined) payload.expected_time = updates.expectedTime;
+  if (updates.idType !== undefined) payload.id_type = updates.idType;
+  if (updates.idNumber !== undefined) payload.id_number = updates.idNumber;
+  if (updates.vehiclePlate !== undefined) payload.vehicle_plate = updates.vehiclePlate;
+  if (updates.ndaRequired !== undefined) payload.nda_required = updates.ndaRequired;
+
+  const { error } = await supabase
+    .from("visitors")
+    .update(payload)
+    .eq("id", id);
+
+  if (error) throw error;
+}
+
 /* ─── Soft-delete a visitor ─────────────────────── */
 
 export async function deleteVisitor(id: string) {

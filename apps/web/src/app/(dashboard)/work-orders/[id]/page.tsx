@@ -35,7 +35,7 @@ const DeleteWorkOrderModal = dynamic(() => import("@/components/modals/work-orde
 
 import { Loader2, AlertCircle } from "lucide-react";
 import { useToast } from "@/components/ui/Toast";
-import { fetchWorkOrderById, updateWorkOrderStatus, deleteWorkOrder, type WorkOrderDetail } from "@/lib/queries/work-orders";
+import { fetchWorkOrderById, updateWorkOrderStatus, updateWorkOrder, deleteWorkOrder, type WorkOrderDetail } from "@/lib/queries/work-orders";
 import { formatDateTime } from "@/lib/utils/time";
 
 const STATUS_STEPS = [
@@ -45,29 +45,8 @@ const STATUS_STEPS = [
   { key: "completed", label: "Completed" },
 ];
 
-const NOTES = [
-  {
-    id: "n1",
-    author: "Lt. Nguyen",
-    timestamp: "Apr 4, 2026 9:15 AM",
-    content:
-      "Work order created following security assessment. Gate 3 latch failure identified during morning patrol. Immediate monitoring required.",
-  },
-  {
-    id: "n2",
-    author: "Sarah Martinez",
-    timestamp: "Apr 4, 2026 10:42 AM",
-    content:
-      "Inspected the gate on-site. The entire latch assembly needs replacing — corrosion has compromised the housing and the internal spring is snapped. Ordered replacement part (Kaba Mas X-10 gate latch assembly) from Henderson Supply. ETA tomorrow morning.",
-  },
-  {
-    id: "n3",
-    author: "Lt. Nguyen",
-    timestamp: "Apr 4, 2026 11:00 AM",
-    content:
-      "Confirmed with dispatch — Gate 3 will have a posted officer until repair is complete. Added to evening briefing notes.",
-  },
-];
+// Notes are stored in work order description for now (no work_order_notes table exists)
+const NOTES: { id: string; author: string; timestamp: string; content: string }[] = [];
 
 /* ═══════════════════════════════════════════════════════════════
    HELPERS
@@ -568,11 +547,35 @@ export default function WorkOrderDetailPage({
             </span>
           </div>
           <div className="flex items-center gap-2">
-            <Button variant="outline" size="md">
+            <Button
+              variant="outline"
+              size="md"
+              onClick={async () => {
+                try {
+                  await updateWorkOrderStatus(workOrderData.id, "on_hold" as any);
+                  toast("Work order paused", { variant: "success" });
+                  loadWorkOrder();
+                } catch (err: any) {
+                  toast(err.message || "Failed to pause work order", { variant: "error" });
+                }
+              }}
+            >
               <PauseCircle className="h-3.5 w-3.5" />
               Pause
             </Button>
-            <Button variant="secondary" size="md">
+            <Button
+              variant="secondary"
+              size="md"
+              onClick={async () => {
+                try {
+                  await updateWorkOrderStatus(workOrderData.id, "follow_up" as any);
+                  toast("Work order marked for follow-up", { variant: "success" });
+                  loadWorkOrder();
+                } catch (err: any) {
+                  toast(err.message || "Failed to mark follow-up", { variant: "error" });
+                }
+              }}
+            >
               <PlayCircle className="h-3.5 w-3.5" />
               Mark Follow-up
             </Button>
@@ -589,8 +592,16 @@ export default function WorkOrderDetailPage({
         open={showAssignModal}
         onClose={() => setShowAssignModal(false)}
         onSubmit={async (data) => {
-          toast("Work order assigned", { variant: "success" });
-          setShowAssignModal(false);
+          try {
+            await updateWorkOrder(workOrderData.id, {
+              assignedTo: (data as any).assigneeId || null,
+            });
+            toast("Work order assigned", { variant: "success" });
+            setShowAssignModal(false);
+            loadWorkOrder();
+          } catch (err: any) {
+            toast(err.message || "Failed to assign work order", { variant: "error" });
+          }
         }}
         currentAssignee={wo.assignedTo.name}
       />
@@ -627,8 +638,19 @@ export default function WorkOrderDetailPage({
         open={showNoteModal}
         onClose={() => setShowNoteModal(false)}
         onSubmit={async (data) => {
-          toast("Note added", { variant: "success" });
-          setShowNoteModal(false);
+          try {
+            // No work_order_notes table — append note to description
+            const existing = workOrderData.description || "";
+            const timestamp = new Date().toLocaleString();
+            const separator = existing ? "\n\n---\n" : "";
+            const newDescription = `${existing}${separator}[${timestamp}] ${(data as any).content}`;
+            await updateWorkOrder(workOrderData.id, { description: newDescription });
+            toast("Note added", { variant: "success" });
+            setShowNoteModal(false);
+            loadWorkOrder();
+          } catch (err: any) {
+            toast(err.message || "Failed to add note", { variant: "error" });
+          }
         }}
       />
       <DeleteWorkOrderModal

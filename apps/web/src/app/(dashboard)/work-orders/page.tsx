@@ -10,7 +10,8 @@ import { DataGrid } from "@/components/ui/DataGrid";
 import { StatusBadge, Badge } from "@/components/ui/Badge";
 import { PriorityBadge } from "@/components/ui/PriorityBadge";
 import { CreateWorkOrderModal } from "@/components/modals/work-orders";
-import { fetchWorkOrders, type WorkOrderRow } from "@/lib/queries/work-orders";
+import { fetchWorkOrders, createWorkOrder, type WorkOrderRow } from "@/lib/queries/work-orders";
+import { getSupabaseBrowser } from "@/lib/supabase-browser";
 import { formatRelativeTime } from "@/lib/utils/time";
 import { useToast } from "@/components/ui/Toast";
 
@@ -44,6 +45,7 @@ export default function WorkOrdersPage() {
   const [sortKey, setSortKey] = useState("woNumber");
   const [sortDir, setSortDir] = useState<"asc" | "desc">("desc");
   const [showCreateModal, setShowCreateModal] = useState(false);
+  const [userProfile, setUserProfile] = useState<{ orgId: string; propertyId: string | null } | null>(null);
 
   const loadWorkOrders = useCallback(async () => {
     try {
@@ -51,6 +53,17 @@ export default function WorkOrdersPage() {
       setError(null);
       const data = await fetchWorkOrders();
       setWorkOrders(data);
+
+      const supabase = getSupabaseBrowser();
+      const { data: { user } } = await supabase.auth.getUser();
+      if (user) {
+        const { data: profile } = await supabase
+          .from("profiles")
+          .select("org_id, property_id")
+          .eq("id", user.id)
+          .single();
+        if (profile) setUserProfile({ orgId: profile.org_id, propertyId: profile.property_id });
+      }
     } catch (err: any) {
       setError(err.message || "Failed to load work orders");
     } finally {
@@ -215,9 +228,27 @@ export default function WorkOrdersPage() {
         open={showCreateModal}
         onClose={() => setShowCreateModal(false)}
         onSubmit={async (data) => {
-          toast("Work order created", { variant: "success" });
-          setShowCreateModal(false);
-          loadWorkOrders();
+          try {
+            if (!userProfile) throw new Error("User profile not loaded");
+            await createWorkOrder({
+              orgId: userProfile.orgId,
+              propertyId: userProfile.propertyId,
+              title: data.title,
+              description: data.description || undefined,
+              category: data.category,
+              priority: data.priority,
+              locationId: data.location || null,
+              assignedTo: data.assignTo || null,
+              dueDate: data.dueDate || undefined,
+              scheduledDate: data.scheduledDate || undefined,
+              estimatedCost: data.estimatedCost || undefined,
+            });
+            toast("Work order created", { variant: "success" });
+            setShowCreateModal(false);
+            loadWorkOrders();
+          } catch (err: any) {
+            toast(err.message || "Failed to create work order", { variant: "error" });
+          }
         }}
       />
     </div>

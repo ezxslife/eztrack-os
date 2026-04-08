@@ -18,6 +18,7 @@ import { Badge } from "@/components/ui/Badge";
 import { StatusBadge } from "@/components/ui/Badge";
 import { Tabs } from "@/components/ui/Tabs";
 import { Loader2, AlertCircle } from "lucide-react";
+import { useRouter } from "next/navigation";
 import dynamic from "next/dynamic";
 import { fetchPatronById, updatePatron, updatePatronFlag, deletePatron, type PatronDetail as PatronDetailType } from "@/lib/queries/patrons";
 import { getSupabaseBrowser } from "@/lib/supabase-browser";
@@ -117,6 +118,7 @@ export default function PatronDetailPage({
 }) {
   const { id } = use(params);
   const { toast } = useToast();
+  const router = useRouter();
   const [patronData, setPatronData] = useState<PatronDetailType | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -427,9 +429,24 @@ export default function PatronDetailPage({
       <EditPatronModal
         open={showEditModal}
         onClose={() => setShowEditModal(false)}
-        onSubmit={async (data) => {
-          toast("Patron updated", { variant: "success" });
-          setShowEditModal(false);
+        onSubmit={async (data: any) => {
+          try {
+            await updatePatron(id, {
+              firstName: data.firstName,
+              lastName: data.lastName,
+              email: data.email,
+              phone: data.phone,
+              dob: data.dob,
+              ticketType: data.ticketType,
+              idType: data.idType,
+              idNumber: data.idNumber,
+            });
+            toast("Patron updated", { variant: "success" });
+            setShowEditModal(false);
+            loadPatron();
+          } catch (err: any) {
+            toast(err.message || "Failed to update patron", { variant: "error" });
+          }
         }}
         patron={{
           firstName: patron.firstName,
@@ -446,33 +463,57 @@ export default function PatronDetailPage({
       <PatronFlagModal
         open={showFlagModal}
         onClose={() => setShowFlagModal(false)}
-        onSubmit={async (data) => {
-          toast("Patron flag updated", { variant: "success" });
-          setShowFlagModal(false);
+        onSubmit={async (data: any) => {
+          try {
+            await updatePatronFlag(id, data.flag, data.reason || data.notes);
+            toast("Patron flag updated", { variant: "success" });
+            setShowFlagModal(false);
+            loadPatron();
+          } catch (err: any) {
+            toast(err.message || "Failed to update flag", { variant: "error" });
+          }
         }}
       />
       <PatronBanModal
         open={showBanModal}
         onClose={() => setShowBanModal(false)}
-        onConfirm={async (reason) => {
-          toast("Patron banned", { variant: "success" });
-          setShowBanModal(false);
+        onConfirm={async (reason?: string) => {
+          try {
+            await updatePatronFlag(id, "banned" as any, reason || "Banned");
+            toast("Patron banned", { variant: "success" });
+            setShowBanModal(false);
+            loadPatron();
+          } catch (err: any) {
+            toast(err.message || "Failed to ban patron", { variant: "error" });
+          }
         }}
       />
       <PatronNoteModal
         open={showNoteModal}
         onClose={() => setShowNoteModal(false)}
-        onSubmit={async (data) => {
-          toast("Note added", { variant: "success" });
-          setShowNoteModal(false);
+        onSubmit={async (data: any) => {
+          try {
+            await updatePatron(id, { notes: data.notes || data.note || data.content });
+            toast("Note added", { variant: "success" });
+            setShowNoteModal(false);
+            loadPatron();
+          } catch (err: any) {
+            toast(err.message || "Failed to add note", { variant: "error" });
+          }
         }}
       />
       <DeletePatronModal
         open={showDeleteModal}
         onClose={() => setShowDeleteModal(false)}
         onConfirm={async () => {
-          toast("Patron deleted", { variant: "info" });
-          setShowDeleteModal(false);
+          try {
+            await deletePatron(id);
+            toast("Patron deleted", { variant: "info" });
+            setShowDeleteModal(false);
+            router.push("/patrons");
+          } catch (err: any) {
+            toast(err.message || "Failed to delete patron", { variant: "error" });
+          }
         }}
       />
     </div>

@@ -13,9 +13,11 @@ import { CreateFoundItemModal } from "@/components/modals/lost-found";
 import {
   fetchFoundItems,
   fetchLostReports,
+  createFoundItem,
   type FoundItemRow,
   type LostReportRow,
 } from "@/lib/queries/lost-found";
+import { getSupabaseBrowser } from "@/lib/supabase-browser";
 import { formatRelativeTime } from "@/lib/utils/time";
 import { useToast } from "@/components/ui/Toast";
 
@@ -29,6 +31,7 @@ export default function LostFoundPage() {
   const [activeTab, setActiveTab] = useState("found");
   const [search, setSearch] = useState("");
   const [showCreateModal, setShowCreateModal] = useState(false);
+  const [userProfile, setUserProfile] = useState<{ orgId: string; propertyId: string | null } | null>(null);
 
   const loadData = useCallback(async () => {
     try {
@@ -40,6 +43,17 @@ export default function LostFoundPage() {
       ]);
       setFoundItems(found);
       setLostReports(lost);
+
+      const supabase = getSupabaseBrowser();
+      const { data: { user } } = await supabase.auth.getUser();
+      if (user) {
+        const { data: profile } = await supabase
+          .from("profiles")
+          .select("org_id, property_id")
+          .eq("id", user.id)
+          .single();
+        if (profile) setUserProfile({ orgId: profile.org_id, propertyId: profile.property_id });
+      }
     } catch (err: any) {
       setError(err.message || "Failed to load lost & found data");
     } finally {
@@ -226,9 +240,24 @@ export default function LostFoundPage() {
         open={showCreateModal}
         onClose={() => setShowCreateModal(false)}
         onSubmit={async (data) => {
-          toast("Found item logged", { variant: "success" });
-          setShowCreateModal(false);
-          loadData();
+          try {
+            if (!userProfile) throw new Error("User profile not loaded");
+            await createFoundItem({
+              orgId: userProfile.orgId,
+              propertyId: userProfile.propertyId,
+              description: data.description,
+              category: data.category,
+              foundLocationId: data.foundLocation || null,
+              foundBy: data.foundBy || undefined,
+              storageLocation: data.storageLocation || undefined,
+              notes: data.notes || undefined,
+            });
+            toast("Found item logged", { variant: "success" });
+            setShowCreateModal(false);
+            loadData();
+          } catch (err: any) {
+            toast(err.message || "Failed to log found item", { variant: "error" });
+          }
         }}
       />
     </div>

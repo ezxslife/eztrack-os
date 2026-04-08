@@ -14,7 +14,8 @@ import {
 import { Button } from "@/components/ui/Button";
 import { Badge } from "@/components/ui/Badge";
 import { CreateContactModal } from "@/components/modals/contacts";
-import { fetchContacts, type ContactRow } from "@/lib/queries/contacts";
+import { fetchContacts, createContact, type ContactRow } from "@/lib/queries/contacts";
+import { getSupabaseBrowser } from "@/lib/supabase-browser";
 import { useToast } from "@/components/ui/Toast";
 import { Loader2, AlertCircle } from "lucide-react";
 
@@ -61,6 +62,7 @@ export default function ContactsPage() {
   const [search, setSearch] = useState("");
   const [categoryFilter, setCategoryFilter] = useState<ContactCategory | "all">("all");
   const [createOpen, setCreateOpen] = useState(false);
+  const [userProfile, setUserProfile] = useState<{ orgId: string; propertyId: string | null } | null>(null);
 
   const loadContacts = useCallback(async () => {
     try {
@@ -68,6 +70,17 @@ export default function ContactsPage() {
       setError(null);
       const data = await fetchContacts();
       setContacts(data);
+
+      const supabase = getSupabaseBrowser();
+      const { data: { user } } = await supabase.auth.getUser();
+      if (user) {
+        const { data: profile } = await supabase
+          .from("profiles")
+          .select("org_id, property_id")
+          .eq("id", user.id)
+          .single();
+        if (profile) setUserProfile({ orgId: profile.org_id, propertyId: profile.property_id });
+      }
     } catch (err: any) {
       setError(err.message || "Failed to load contacts");
     } finally {
@@ -279,9 +292,26 @@ export default function ContactsPage() {
         open={createOpen}
         onClose={() => setCreateOpen(false)}
         onSubmit={async (data) => {
-          toast("Contact created", { variant: "success" });
-          setCreateOpen(false);
-          loadContacts();
+          try {
+            if (!userProfile) throw new Error("User profile not loaded");
+            await createContact({
+              orgId: userProfile.orgId,
+              firstName: data.firstName || undefined,
+              lastName: data.lastName || undefined,
+              organizationName: data.organizationName || undefined,
+              category: data.category,
+              contactType: data.contactType,
+              title: data.title || undefined,
+              phone: data.phone || undefined,
+              email: data.email || undefined,
+              address: data.address || undefined,
+            });
+            toast("Contact created", { variant: "success" });
+            setCreateOpen(false);
+            loadContacts();
+          } catch (err: any) {
+            toast(err.message || "Failed to create contact", { variant: "error" });
+          }
         }}
       />
     </div>

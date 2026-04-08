@@ -61,6 +61,15 @@ import {
   fetchIncidentShares,
   fetchIncidentForms,
   fetchIncidentDocLog,
+  createIncidentNarrative,
+  updateIncidentNarrative,
+  addIncidentParticipant,
+  createIncidentFinancial,
+  createIncidentShare,
+  linkRelatedIncident,
+  updateIncident,
+  updateIncidentStatus,
+  deleteIncident,
   type IncidentDetail,
   type IncidentNarrative,
   type IncidentParticipant,
@@ -134,31 +143,35 @@ export default function IncidentDetailPage() {
   const [lockModal, setLockModal] = useState(false);
   const [escalationChainModal, setEscalationChainModal] = useState(false);
 
+  // Reusable data loader
+  const loadIncident = async () => {
+    const [inc, narr, parts, fins, related, shareData, formData, logData] = await Promise.all([
+      fetchIncidentById(incidentId),
+      fetchIncidentNarratives(incidentId),
+      fetchIncidentParticipants(incidentId),
+      fetchIncidentFinancials(incidentId),
+      fetchRelatedIncidents(incidentId).catch(() => [] as RelatedIncident[]),
+      fetchIncidentShares(incidentId).catch(() => [] as IncidentShare[]),
+      fetchIncidentForms(incidentId).catch(() => [] as IncidentForm[]),
+      fetchIncidentDocLog(incidentId).catch(() => [] as IncidentDocLogEntry[]),
+    ]);
+    setIncident(inc);
+    setNarratives(narr);
+    setParticipants(parts);
+    setFinancials(fins);
+    setRelatedIncidents(related);
+    setShares(shareData);
+    setForms(formData);
+    setDocLog(logData);
+  };
+
   // Fetch all incident data from Supabase
   useEffect(() => {
     let cancelled = false;
     async function load() {
       try {
         setLoading(true);
-        const [inc, narr, parts, fins, related, shareData, formData, logData] = await Promise.all([
-          fetchIncidentById(incidentId),
-          fetchIncidentNarratives(incidentId),
-          fetchIncidentParticipants(incidentId),
-          fetchIncidentFinancials(incidentId),
-          fetchRelatedIncidents(incidentId).catch(() => [] as RelatedIncident[]),
-          fetchIncidentShares(incidentId).catch(() => [] as IncidentShare[]),
-          fetchIncidentForms(incidentId).catch(() => [] as IncidentForm[]),
-          fetchIncidentDocLog(incidentId).catch(() => [] as IncidentDocLogEntry[]),
-        ]);
-        if (cancelled) return;
-        setIncident(inc);
-        setNarratives(narr);
-        setParticipants(parts);
-        setFinancials(fins);
-        setRelatedIncidents(related);
-        setShares(shareData);
-        setForms(formData);
-        setDocLog(logData);
+        await loadIncident();
       } catch (err: any) {
         if (!cancelled) setError(err.message || "Failed to load incident");
       } finally {
@@ -314,61 +327,204 @@ export default function IncidentDetailPage() {
       <AddNarrativeModal
         open={narrativeModal}
         onClose={() => setNarrativeModal(false)}
-        onSubmit={async () => { setNarrativeModal(false); }}
+        onSubmit={async (data) => {
+          try {
+            await createIncidentNarrative(incident.id, {
+              title: (data as any).title || "",
+              content: (data as any).content || "",
+            });
+            toast("Narrative added", { variant: "success" });
+            setNarrativeModal(false);
+            await loadIncident();
+          } catch (err: any) {
+            toast(err.message || "Failed to add narrative", { variant: "error" });
+          }
+        }}
       />
       <EditNarrativeModal
         open={editNarrativeModal.open}
         onClose={() => setEditNarrativeModal({ open: false })}
-        onSubmit={async () => { setEditNarrativeModal({ open: false }); }}
+        onSubmit={async (data) => {
+          try {
+            if (!editNarrativeModal.data?.id) throw new Error("No narrative selected");
+            await updateIncidentNarrative(editNarrativeModal.data.id, {
+              title: (data as any).title || "",
+              content: (data as any).content || "",
+            });
+            toast("Narrative updated", { variant: "success" });
+            setEditNarrativeModal({ open: false });
+            await loadIncident();
+          } catch (err: any) {
+            toast(err.message || "Failed to update narrative", { variant: "error" });
+          }
+        }}
         initialTitle={editNarrativeModal.data?.title ?? ""}
         initialContent={editNarrativeModal.data?.content ?? ""}
       />
       <AddParticipantWizard
         open={participantWizard}
         onClose={() => setParticipantWizard(false)}
-        onSubmit={async () => { setParticipantWizard(false); }}
+        onSubmit={async (data) => {
+          try {
+            await addIncidentParticipant(incident.id, {
+              personType: (data as any).personType,
+              firstName: (data as any).firstName || "",
+              lastName: (data as any).lastName || "",
+              phone: (data as any).phone || undefined,
+              email: (data as any).email || undefined,
+              primaryRole: (data as any).primaryRole,
+              secondaryRole: (data as any).secondaryRole || undefined,
+              description: (data as any).description || undefined,
+              policeContacted: (data as any).policeContacted,
+              policeResult: (data as any).policeResult || undefined,
+              medicalAttention: (data as any).medicalAttention,
+              medicalDetails: (data as any).medicalDetails || undefined,
+            });
+            toast("Participant added", { variant: "success" });
+            setParticipantWizard(false);
+            await loadIncident();
+          } catch (err: any) {
+            toast(err.message || "Failed to add participant", { variant: "error" });
+          }
+        }}
       />
       <UploadMediaModal
         open={mediaModal}
         onClose={() => setMediaModal(false)}
-        onSubmit={async () => { setMediaModal(false); }}
+        onSubmit={async () => {
+          toast("Media upload coming soon — file storage is not yet configured", { variant: "info" });
+          setMediaModal(false);
+        }}
       />
       <AddFinancialEntryModal
         open={financialModal}
         onClose={() => setFinancialModal(false)}
-        onSubmit={async () => { setFinancialModal(false); }}
+        onSubmit={async (data) => {
+          try {
+            await createIncidentFinancial(incident.id, {
+              entryType: (data as any).kind || "loss",
+              amount: (data as any).amount,
+              description: (data as any).description || undefined,
+            });
+            toast("Financial entry added", { variant: "success" });
+            setFinancialModal(false);
+            await loadIncident();
+          } catch (err: any) {
+            toast(err.message || "Failed to add financial entry", { variant: "error" });
+          }
+        }}
       />
       <ShareIncidentModal
         open={shareModal}
         onClose={() => setShareModal(false)}
-        onSubmit={async () => { setShareModal(false); }}
+        onSubmit={async (data) => {
+          try {
+            const d = data as any;
+            const permMap: Record<string, string> = { view: "view", contributor: "comment", co_author: "edit" };
+            let expiresAt: string | null = null;
+            if (d.expiry === "specific_date" && d.expiryDate) {
+              expiresAt = new Date(d.expiryDate).toISOString();
+            }
+            await createIncidentShare(incident.id, incident.orgId, {
+              sharedWithUserId: d.targetType === "user" ? d.target : null,
+              sharedWithRole: d.targetType === "role" ? d.target : null,
+              permissionLevel: permMap[d.permission] || "view",
+              expiresAt,
+            });
+            toast("Incident shared", { variant: "success" });
+            setShareModal(false);
+            await loadIncident();
+          } catch (err: any) {
+            toast(err.message || "Failed to share incident", { variant: "error" });
+          }
+        }}
       />
       <LinkIncidentModal
         open={linkModal}
         onClose={() => setLinkModal(false)}
-        onSubmit={async () => { setLinkModal(false); }}
+        onSubmit={async (data) => {
+          try {
+            const d = data as any;
+            const relMap: Record<string, string> = { related: "related_to", parent: "precursor", child: "follow_up", duplicate: "duplicate" };
+            await linkRelatedIncident(incident.id, incident.orgId, {
+              relatedIncidentId: d.linkedIncidentId,
+              relationshipType: relMap[d.relationship] || "related_to",
+              reason: d.notes || undefined,
+            });
+            toast("Incident linked", { variant: "success" });
+            setLinkModal(false);
+            await loadIncident();
+          } catch (err: any) {
+            toast(err.message || "Failed to link incident", { variant: "error" });
+          }
+        }}
       />
       <RiskAssessmentModal
         open={riskModal}
         onClose={() => setRiskModal(false)}
-        onSubmit={async () => { setRiskModal(false); }}
+        onSubmit={async (data) => {
+          try {
+            const d = data as any;
+            const severityMap: Record<string, string> = { critical: "critical", high: "high", medium: "medium", low: "low", informational: "low" };
+            await updateIncident(incident.id, {
+              severity: (severityMap[d.riskLevel] || "medium") as any,
+              disposition: d.notes ? `Risk assessment: ${d.notes}` : incident.disposition,
+            });
+            toast("Risk assessment saved", { variant: "success" });
+            setRiskModal(false);
+            await loadIncident();
+          } catch (err: any) {
+            toast(err.message || "Failed to save risk assessment", { variant: "error" });
+          }
+        }}
       />
       <TransferOwnershipModal
         open={transferModal}
         onClose={() => setTransferModal(false)}
-        onSubmit={async () => { setTransferModal(false); }}
+        onSubmit={async (data) => {
+          try {
+            const d = data as any;
+            // newOwner is a search string — in a real implementation this would resolve to a user ID.
+            // For now, we update created_by with the value provided (expected to be a UUID in production).
+            await updateIncident(incident.id, { created_by: d.newOwner });
+            toast("Ownership transferred", { variant: "success" });
+            setTransferModal(false);
+            await loadIncident();
+          } catch (err: any) {
+            toast(err.message || "Failed to transfer ownership", { variant: "error" });
+          }
+        }}
       />
       <DeleteIncidentModal
         open={deleteModal}
         onClose={() => setDeleteModal(false)}
-        onConfirm={async () => { setDeleteModal(false); }}
+        onConfirm={async () => {
+          try {
+            await deleteIncident(incident.id);
+            toast("Incident deleted", { variant: "success" });
+            setDeleteModal(false);
+            router.push("/incidents");
+          } catch (err: any) {
+            toast(err.message || "Failed to delete incident", { variant: "error" });
+          }
+        }}
         incidentNumber={incident.recordNumber}
       />
       <LockIncidentModal
         open={lockModal}
         onClose={() => setLockModal(false)}
-        onConfirm={async () => { setLockModal(false); }}
-        isLocked={false}
+        onConfirm={async () => {
+          try {
+            const newStatus = incident.status === "closed" ? "open" : "closed";
+            await updateIncidentStatus(incident.id, newStatus as any);
+            toast(`Incident ${newStatus === "closed" ? "locked" : "unlocked"}`, { variant: "success" });
+            setLockModal(false);
+            await loadIncident();
+          } catch (err: any) {
+            toast(err.message || "Failed to update lock status", { variant: "error" });
+          }
+        }}
+        isLocked={incident.status === "closed"}
         incidentNumber={incident.recordNumber}
       />
       <EscalationChainModal

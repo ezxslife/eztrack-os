@@ -125,6 +125,35 @@ export async function createBriefing(input: {
   return data;
 }
 
+/* ─── Update a briefing ────────────────────────── */
+
+export async function updateBriefing(
+  id: string,
+  updates: {
+    title?: string;
+    content?: string;
+    priority?: string;
+    linkUrl?: string;
+    sourceModule?: string;
+  }
+) {
+  const supabase = getSupabaseBrowser();
+
+  const payload: Record<string, unknown> = {};
+  if (updates.title !== undefined) payload.title = updates.title;
+  if (updates.content !== undefined) payload.content = updates.content;
+  if (updates.priority !== undefined) payload.priority = updates.priority;
+  if (updates.linkUrl !== undefined) payload.link_url = updates.linkUrl;
+  if (updates.sourceModule !== undefined) payload.source_module = updates.sourceModule;
+
+  const { error } = await supabase
+    .from("briefings")
+    .update(payload)
+    .eq("id", id);
+
+  if (error) throw error;
+}
+
 /* ─── Soft-delete a briefing ────────────────────── */
 
 export async function deleteBriefing(id: string) {

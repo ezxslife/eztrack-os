@@ -133,6 +133,51 @@ export async function createContact(input: {
   return data;
 }
 
+/* ─── Update a contact ─────────────────────────── */
+
+export async function updateContact(
+  id: string,
+  updates: {
+    firstName?: string;
+    lastName?: string;
+    organizationName?: string;
+    category?: string;
+    contactType?: string;
+    title?: string;
+    phone?: string;
+    secondaryPhone?: string;
+    email?: string;
+    address?: string;
+    idType?: string;
+    idNumber?: string;
+    notes?: string;
+  }
+) {
+  const supabase = getSupabaseBrowser();
+
+  const payload: Record<string, unknown> = {};
+  if (updates.firstName !== undefined) payload.first_name = updates.firstName;
+  if (updates.lastName !== undefined) payload.last_name = updates.lastName;
+  if (updates.organizationName !== undefined) payload.organization_name = updates.organizationName;
+  if (updates.category !== undefined) payload.category = updates.category;
+  if (updates.contactType !== undefined) payload.contact_type = updates.contactType;
+  if (updates.title !== undefined) payload.title = updates.title;
+  if (updates.phone !== undefined) payload.phone = updates.phone;
+  if (updates.secondaryPhone !== undefined) payload.secondary_phone = updates.secondaryPhone;
+  if (updates.email !== undefined) payload.email = updates.email;
+  if (updates.address !== undefined) payload.address = updates.address;
+  if (updates.idType !== undefined) payload.id_type = updates.idType;
+  if (updates.idNumber !== undefined) payload.id_number = updates.idNumber;
+  if (updates.notes !== undefined) payload.notes = updates.notes;
+
+  const { error } = await supabase
+    .from("contacts")
+    .update(payload)
+    .eq("id", id);
+
+  if (error) throw error;
+}
+
 /* ─── Soft-delete a contact ─────────────────────── */
 
 export async function deleteContact(id: string) {

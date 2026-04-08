@@ -11,7 +11,8 @@ import { EditBriefingModal, DeleteBriefingModal } from "@/components/modals/brie
 import { Avatar } from "@/components/ui/Avatar";
 import { Card, CardContent } from "@/components/ui/Card";
 import { ProgressBar } from "@/components/ui/ProgressBar";
-import { fetchBriefingById, type BriefingDetail } from "@/lib/queries/briefings";
+import { useRouter } from "next/navigation";
+import { fetchBriefingById, updateBriefing, deleteBriefing, type BriefingDetail } from "@/lib/queries/briefings";
 import { formatRelativeTime } from "@/lib/utils/time";
 
 const priorityTone: Record<string, "critical" | "warning" | "info"> = {
@@ -27,6 +28,7 @@ export default function BriefingDetailPage({
 }) {
   const { id } = use(params);
   const { toast } = useToast();
+  const router = useRouter();
 
   const [briefing, setBriefing] = useState<BriefingDetail | null>(null);
   const [loading, setLoading] = useState(true);
@@ -36,19 +38,20 @@ export default function BriefingDetailPage({
   const [editOpen, setEditOpen] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
 
-  useEffect(() => {
-    async function load() {
-      try {
-        setLoading(true);
-        const data = await fetchBriefingById(id);
-        setBriefing(data);
-      } catch (err) {
-        setError(err instanceof Error ? err.message : "Failed to load briefing");
-      } finally {
-        setLoading(false);
-      }
+  async function loadData() {
+    try {
+      setLoading(true);
+      const data = await fetchBriefingById(id);
+      setBriefing(data);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to load briefing");
+    } finally {
+      setLoading(false);
     }
-    load();
+  }
+
+  useEffect(() => {
+    loadData();
   }, [id]);
 
   if (loading) {
@@ -235,9 +238,21 @@ export default function BriefingDetailPage({
       <EditBriefingModal
         open={editOpen}
         onClose={() => setEditOpen(false)}
-        onSubmit={async () => {
-          toast("Briefing updated successfully", { variant: "success" });
-          setEditOpen(false);
+        onSubmit={async (data: any) => {
+          try {
+            await updateBriefing(id, {
+              title: data.title,
+              content: data.content,
+              priority: data.priority,
+              linkUrl: data.linkUrl,
+              sourceModule: data.sourceModule,
+            });
+            toast("Briefing updated successfully", { variant: "success" });
+            setEditOpen(false);
+            loadData();
+          } catch (err: any) {
+            toast(err.message || "Failed to update briefing", { variant: "error" });
+          }
         }}
         briefing={{
           title: briefing.title,
@@ -252,8 +267,14 @@ export default function BriefingDetailPage({
         open={deleteOpen}
         onClose={() => setDeleteOpen(false)}
         onConfirm={async () => {
-          toast("Briefing deleted successfully", { variant: "success" });
-          setDeleteOpen(false);
+          try {
+            await deleteBriefing(id);
+            toast("Briefing deleted successfully", { variant: "success" });
+            setDeleteOpen(false);
+            router.push("/briefings");
+          } catch (err: any) {
+            toast(err.message || "Failed to delete briefing", { variant: "error" });
+          }
         }}
       />
     </div>

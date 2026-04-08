@@ -24,6 +24,7 @@ import {
   fetchDispatches,
   fetchOnDutyOfficers,
   createDispatch,
+  updateDispatch,
   assignOfficerToDispatch,
   clearDispatch as clearDispatchApi,
   type DispatchCard as DispatchCardType,
@@ -796,8 +797,25 @@ export default function DispatchPage() {
         open={editModal.open}
         onClose={() => setEditModal({ open: false })}
         onSubmit={async (data) => {
-          toast("Dispatch updated", { variant: "success" });
-          setEditModal({ open: false });
+          try {
+            const realId = editModal.data?._realId || editModal.data?.id;
+            if (!realId) throw new Error("No dispatch selected");
+            await updateDispatch(realId, {
+              dispatchCode: (data as any).dispatchCode,
+              priority: (data as any).priority,
+              description: (data as any).synopsis,
+              sublocation: (data as any).sublocation,
+              reporterName: (data as any).reporterName,
+              reporterPhone: (data as any).reporterPhone,
+              anonymous: (data as any).anonymous,
+              callSource: (data as any).callSource,
+            });
+            toast("Dispatch updated", { variant: "success" });
+            setEditModal({ open: false });
+            loadData();
+          } catch (err: any) {
+            toast(err.message || "Failed to update dispatch", { variant: "error" });
+          }
         }}
         initialData={editModal.data ?? null}
       />

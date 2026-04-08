@@ -15,6 +15,7 @@ import {
 } from "@/components/modals/lost-found";
 import {
   fetchFoundItemById,
+  updateFoundItem,
   updateFoundItemStatus,
   deleteFoundItem,
   type FoundItemDetail,
@@ -205,9 +206,20 @@ export default function LostFoundDetailPage({
         open={showEditModal}
         onClose={() => setShowEditModal(false)}
         onSubmit={async (data) => {
-          toast("Item updated", { variant: "success" });
-          setShowEditModal(false);
-          loadItem();
+          try {
+            await updateFoundItem(id, {
+              description: (data as any).description,
+              category: (data as any).category,
+              foundBy: (data as any).foundBy,
+              storageLocation: (data as any).storageLocation,
+              notes: (data as any).notes,
+            });
+            toast("Item updated", { variant: "success" });
+            setShowEditModal(false);
+            loadItem();
+          } catch (err: any) {
+            toast(err.message || "Failed to update item", { variant: "error" });
+          }
         }}
         initialData={{
           description: item.description,
@@ -221,8 +233,16 @@ export default function LostFoundDetailPage({
         open={showClaimModal}
         onClose={() => setShowClaimModal(false)}
         onSubmit={async (data) => {
-          toast("Item claimed", { variant: "success" });
-          setShowClaimModal(false);
+          try {
+            await updateFoundItemStatus(id, "pending_return", {
+              returnedTo: (data as any).claimantName || undefined,
+            });
+            toast("Item claimed", { variant: "success" });
+            setShowClaimModal(false);
+            loadItem();
+          } catch (err: any) {
+            toast(err.message || "Failed to claim item", { variant: "error" });
+          }
         }}
       />
       <ReturnItemModal

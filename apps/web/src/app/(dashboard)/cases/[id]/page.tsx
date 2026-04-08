@@ -69,6 +69,7 @@ import { useRouter } from "next/navigation";
 import {
   fetchCaseById,
   updateCaseStatus,
+  updateCase,
   deleteCase,
   fetchCaseEvidence,
   fetchCaseTasks,
@@ -76,6 +77,12 @@ import {
   fetchCaseCosts,
   fetchCaseRelatedRecords,
   fetchCaseAudit,
+  createCaseEvidence,
+  createCaseTask,
+  createCaseNarrative,
+  createEvidenceTransfer,
+  createCaseRelatedRecord,
+  createCaseCost,
   type CaseDetail,
   type CaseEvidenceItem,
   type CaseTask,
@@ -311,7 +318,7 @@ export default function CaseDetailPage({
         open={addResourceModal}
         onClose={() => setAddResourceModal(false)}
         onSubmit={async (data) => {
-          toast("Resource added to case", { variant: "success" });
+          toast("Resource management is not yet available — this feature is coming soon.", { variant: "info" });
           setAddResourceModal(false);
         }}
       />
@@ -320,8 +327,22 @@ export default function CaseDetailPage({
         open={addEvidenceModal}
         onClose={() => setAddEvidenceModal(false)}
         onSubmit={async (data) => {
-          toast("Evidence added to case", { variant: "success" });
-          setAddEvidenceModal(false);
+          try {
+            await createCaseEvidence(caseData.id, {
+              title: (data as any).title,
+              description: (data as any).description,
+              type: (data as any).type,
+              storageLocation: (data as any).storageLocation,
+              storageFacility: (data as any).storageFacility,
+              itemNumber: (data as any).itemNumber,
+              externalIdentifier: (data as any).externalIdentifier,
+            });
+            toast("Evidence added to case", { variant: "success" });
+            setAddEvidenceModal(false);
+            loadCase();
+          } catch (err: any) {
+            toast(err.message || "Failed to add evidence", { variant: "error" });
+          }
         }}
       />
 
@@ -329,8 +350,20 @@ export default function CaseDetailPage({
         open={addTaskModal}
         onClose={() => setAddTaskModal(false)}
         onSubmit={async (data) => {
-          toast("Task added", { variant: "success" });
-          setAddTaskModal(false);
+          try {
+            await createCaseTask(caseData.id, caseData.orgId, {
+              title: (data as any).title,
+              description: (data as any).description,
+              priority: (data as any).priority,
+              assignedTo: (data as any).assignee || null,
+              dueDate: (data as any).dueDate || null,
+            });
+            toast("Task added", { variant: "success" });
+            setAddTaskModal(false);
+            loadCase();
+          } catch (err: any) {
+            toast(err.message || "Failed to add task", { variant: "error" });
+          }
         }}
       />
 
@@ -355,8 +388,17 @@ export default function CaseDetailPage({
         open={addNarrativeModal}
         onClose={() => setAddNarrativeModal(false)}
         onSubmit={async (data) => {
-          toast("Narrative added", { variant: "success" });
-          setAddNarrativeModal(false);
+          try {
+            await createCaseNarrative(caseData.id, {
+              title: (data as any).title,
+              content: (data as any).content,
+            });
+            toast("Narrative added", { variant: "success" });
+            setAddNarrativeModal(false);
+            loadCase();
+          } catch (err: any) {
+            toast(err.message || "Failed to add narrative", { variant: "error" });
+          }
         }}
       />
 
@@ -364,8 +406,23 @@ export default function CaseDetailPage({
         open={chainOfCustodyModal}
         onClose={() => setChainOfCustodyModal(false)}
         onSubmit={async (data) => {
-          toast("Chain of custody transferred", { variant: "success" });
-          setChainOfCustodyModal(false);
+          try {
+            const d = data as any;
+            const selectedItems: string[] = d.selectedItems || [];
+            for (const evidenceId of selectedItems) {
+              await createEvidenceTransfer(caseData.orgId, {
+                evidenceId,
+                transferredToId: d.receivedBy,
+                transferReason: d.transferReason,
+                notes: d.notes || undefined,
+              });
+            }
+            toast("Chain of custody transferred", { variant: "success" });
+            setChainOfCustodyModal(false);
+            loadCase();
+          } catch (err: any) {
+            toast(err.message || "Failed to transfer custody", { variant: "error" });
+          }
         }}
         caseId={c.id}
         evidenceItems={evidence.map((ev) => ({
@@ -379,8 +436,19 @@ export default function CaseDetailPage({
         open={linkRecordModal}
         onClose={() => setLinkRecordModal(false)}
         onSubmit={async (data) => {
-          toast("Record linked to case", { variant: "success" });
-          setLinkRecordModal(false);
+          try {
+            const d = data as any;
+            await createCaseRelatedRecord(caseData.id, caseData.orgId, {
+              relatedRecordId: d.recordId,
+              relatedRecordType: d.recordType,
+              relationshipDescription: d.relationship + (d.notes ? ` — ${d.notes}` : ""),
+            });
+            toast("Record linked to case", { variant: "success" });
+            setLinkRecordModal(false);
+            loadCase();
+          } catch (err: any) {
+            toast(err.message || "Failed to link record", { variant: "error" });
+          }
         }}
       />
 
@@ -388,8 +456,17 @@ export default function CaseDetailPage({
         open={escalateCaseModal}
         onClose={() => setEscalateCaseModal(false)}
         onSubmit={async (data) => {
-          toast("Case escalated", { variant: "success" });
-          setEscalateCaseModal(false);
+          try {
+            const d = data as any;
+            await updateCase(caseData.id, {
+              escalation_level: d.priority || "high",
+            });
+            toast("Case escalated", { variant: "success" });
+            setEscalateCaseModal(false);
+            loadCase();
+          } catch (err: any) {
+            toast(err.message || "Failed to escalate case", { variant: "error" });
+          }
         }}
       />
 
@@ -397,8 +474,14 @@ export default function CaseDetailPage({
         open={closeCaseModal}
         onClose={() => setCloseCaseModal(false)}
         onSubmit={async (data) => {
-          toast("Case closed", { variant: "success" });
-          setCloseCaseModal(false);
+          try {
+            await updateCaseStatus(caseData.id, "closed" as any);
+            toast("Case closed", { variant: "success" });
+            setCloseCaseModal(false);
+            loadCase();
+          } catch (err: any) {
+            toast(err.message || "Failed to close case", { variant: "error" });
+          }
         }}
         openTaskCount={tasks.filter((t) => t.status !== "done").length}
       />
@@ -423,7 +506,7 @@ export default function CaseDetailPage({
         open={advanceStageModal}
         onClose={() => setAdvanceStageModal(false)}
         onConfirm={async (reason) => {
-          toast("Case advanced to next stage", { variant: "success" });
+          toast("Stage tracking is not yet available — this feature is coming soon.", { variant: "info" });
           setAdvanceStageModal(false);
         }}
         currentStage={STAGES[currentStageIndex]?.label ?? ""}
@@ -434,8 +517,20 @@ export default function CaseDetailPage({
         open={addFinancialModal}
         onClose={() => setAddFinancialModal(false)}
         onSubmit={async (data) => {
-          toast("Financial entry added", { variant: "success" });
-          setAddFinancialModal(false);
+          try {
+            const d = data as any;
+            await createCaseCost(caseData.id, caseData.orgId, {
+              costType: d.category || "other",
+              amount: parseFloat(d.amount) || 0,
+              description: d.description || d.type || "",
+              vendor: d.type || undefined,
+            });
+            toast("Financial entry added", { variant: "success" });
+            setAddFinancialModal(false);
+            loadCase();
+          } catch (err: any) {
+            toast(err.message || "Failed to add financial entry", { variant: "error" });
+          }
         }}
       />
 
@@ -443,8 +538,24 @@ export default function CaseDetailPage({
         open={transferEvidenceModal}
         onClose={() => setTransferEvidenceModal(false)}
         onSubmit={async (data) => {
-          toast("Evidence transferred", { variant: "success" });
-          setTransferEvidenceModal(false);
+          try {
+            const d = data as any;
+            // The wizard provides newCustodian (name/id) and reason
+            // We create a transfer record for the first evidence item if available
+            if (evidence.length > 0) {
+              await createEvidenceTransfer(caseData.orgId, {
+                evidenceId: evidence[0].id,
+                transferredToId: d.newCustodian,
+                transferReason: "storage",
+                notes: d.reason || d.notes || undefined,
+              });
+            }
+            toast("Evidence transferred", { variant: "success" });
+            setTransferEvidenceModal(false);
+            loadCase();
+          } catch (err: any) {
+            toast(err.message || "Failed to transfer evidence", { variant: "error" });
+          }
         }}
         evidence={null}
       />
@@ -453,8 +564,17 @@ export default function CaseDetailPage({
         open={outcomeModal}
         onClose={() => setOutcomeModal(false)}
         onSubmit={async (data) => {
-          toast("Outcome documented", { variant: "success" });
-          setOutcomeModal(false);
+          try {
+            const d = data as any;
+            await updateCase(caseData.id, {
+              synopsis: d.outcomeNotes || caseData.synopsis,
+            });
+            toast("Outcome documented", { variant: "success" });
+            setOutcomeModal(false);
+            loadCase();
+          } catch (err: any) {
+            toast(err.message || "Failed to document outcome", { variant: "error" });
+          }
         }}
       />
 
@@ -462,8 +582,20 @@ export default function CaseDetailPage({
         open={closureWizardModal}
         onClose={() => setClosureWizardModal(false)}
         onSubmit={async (data) => {
-          toast("Case closure completed", { variant: "success" });
-          setClosureWizardModal(false);
+          try {
+            const d = data as any;
+            await updateCase(caseData.id, {
+              status: "closed",
+              synopsis: d.closureNotes
+                ? `${caseData.synopsis || ""}\n\n[Closure Notes] ${d.closureNotes}`.trim()
+                : caseData.synopsis,
+            });
+            toast("Case closure completed", { variant: "success" });
+            setClosureWizardModal(false);
+            loadCase();
+          } catch (err: any) {
+            toast(err.message || "Failed to close case", { variant: "error" });
+          }
         }}
       />
 
