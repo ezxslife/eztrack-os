@@ -1,11 +1,15 @@
 import {
+  CaseStatus,
   DailyLogStatus,
   DispatchPriority,
   DispatchStatus,
   IncidentSeverity,
   IncidentStatus,
+  LostFoundStatus,
   OfficerStatus,
+  PatronFlag,
   StaffRole,
+  WorkOrderStatus,
 } from "@eztrack/shared";
 
 export const previewProfile = {
@@ -299,3 +303,242 @@ export const previewRecentActivity = [
     id: "act-3",
   },
 ] as const;
+
+export const previewPatrons = [
+  {
+    createdAt: "2026-04-07T08:14:00.000Z",
+    email: "maia.cole@example.com",
+    firstName: "Maia",
+    flag: PatronFlag.Watch,
+    id: "patron-1",
+    lastName: "Cole",
+    notes: "Monitor re-entry attempts after prior credential mismatch.",
+    phone: "555-0101",
+  },
+  {
+    createdAt: "2026-04-06T22:05:00.000Z",
+    email: "oliver.nash@example.com",
+    firstName: "Oliver",
+    flag: PatronFlag.VIP,
+    id: "patron-2",
+    lastName: "Nash",
+    notes: "Premium guest with dedicated concierge escort.",
+    phone: "555-0112",
+  },
+  {
+    createdAt: "2026-04-06T18:42:00.000Z",
+    email: null,
+    firstName: "Skyler",
+    flag: PatronFlag.None,
+    id: "patron-3",
+    lastName: "Brooks",
+    notes: null,
+    phone: "555-0198",
+  },
+];
+
+export const previewCases = [
+  {
+    caseNumber: "CSE-1012",
+    caseType: "Credential Fraud",
+    created: "2026-04-07T07:30:00.000Z",
+    id: "case-1",
+    leadInvestigator: "Jordan Hughes",
+    priority: "high",
+    status: CaseStatus.Open,
+    synopsis: "Forged contractor credentials tied to a repeated dock entry attempt.",
+  },
+  {
+    caseNumber: "CSE-1011",
+    caseType: "Property Damage",
+    created: "2026-04-06T21:10:00.000Z",
+    id: "case-2",
+    leadInvestigator: "Riley Chen",
+    priority: "medium",
+    status: CaseStatus.OnHold,
+    synopsis: "Barrier strike under camera review pending insurance follow-up.",
+  },
+  {
+    caseNumber: "CSE-1008",
+    caseType: "Trespass",
+    created: "2026-04-05T15:24:00.000Z",
+    id: "case-3",
+    leadInvestigator: null,
+    priority: "low",
+    status: CaseStatus.Closed,
+    synopsis: "Perimeter trespass incident cleared after identification and escort.",
+  },
+];
+
+export const previewFoundItems = [
+  {
+    category: "Bag",
+    description: "Black tote bag with venue credential lanyard.",
+    foundBy: "Unit Echo",
+    foundDate: "2026-04-07T09:04:00.000Z",
+    id: "found-1",
+    itemNumber: "FND-3001",
+    locationFound: "VIP West",
+    photoUrl: null,
+    status: LostFoundStatus.Stored,
+    storageLocation: "Locker B-12",
+  },
+  {
+    category: "Electronics",
+    description: "Tablet recovered near Section 112.",
+    foundBy: "Guest Services",
+    foundDate: "2026-04-07T08:22:00.000Z",
+    id: "found-2",
+    itemNumber: "FND-3000",
+    locationFound: "Section 112",
+    photoUrl: null,
+    status: LostFoundStatus.PendingReturn,
+    storageLocation: "Front Office Safe",
+  },
+];
+
+export const previewLostReports = [
+  {
+    category: "Wallet",
+    date: "2026-04-07T08:46:00.000Z",
+    description: "Brown leather wallet reported missing after concession stop.",
+    id: "lost-1",
+    lastSeenLocation: "South Concourse",
+    reportNumber: "LST-2104",
+    reportedBy: "Dana Reed",
+    reportedByContact: "555-0130",
+    status: "open",
+  },
+  {
+    category: "Outerwear",
+    date: "2026-04-06T19:40:00.000Z",
+    description: "Blue rain jacket left in premium club.",
+    id: "lost-2",
+    lastSeenLocation: "Club East",
+    reportNumber: "LST-2103",
+    reportedBy: "Guest Hotline",
+    reportedByContact: null,
+    status: "pending",
+  },
+];
+
+export const previewBriefings = [
+  {
+    author: "Avery Tran",
+    createdAt: "2026-04-07T06:45:00.000Z",
+    id: "briefing-1",
+    preview: "Reinforce north gate credential checks during vendor turnover between 11:00 and 12:30.",
+    priority: "high" as const,
+    title: "North gate turnover watch",
+  },
+  {
+    author: "Jordan Hughes",
+    createdAt: "2026-04-06T17:15:00.000Z",
+    id: "briefing-2",
+    preview: "Dispatch supervisors should stage a floating unit near Dock 3 for extended load-out coverage.",
+    priority: "medium" as const,
+    title: "Dock 3 staging note",
+  },
+];
+
+export const previewWorkOrders = [
+  {
+    assignedTo: "Facilities Alpha",
+    category: "Electrical",
+    dueDate: "2026-04-07T16:00:00.000Z",
+    id: "wo-1",
+    priority: DispatchPriority.High,
+    status: WorkOrderStatus.Assigned,
+    title: "Replace dock alarm relay",
+    woNumber: "WO-2207",
+  },
+  {
+    assignedTo: null,
+    category: "Safety",
+    dueDate: null,
+    id: "wo-2",
+    priority: DispatchPriority.Medium,
+    status: WorkOrderStatus.Open,
+    title: "Inspect west stair handrail",
+    woNumber: "WO-2206",
+  },
+];
+
+export const previewVisitors = [
+  {
+    checkedInAt: "2026-04-07T09:11:00.000Z",
+    checkedOutAt: null,
+    company: "North Dock Logistics",
+    expectedDate: "2026-04-07",
+    expectedTime: "09:00",
+    firstName: "Amir",
+    hostName: "Jordan Hughes",
+    id: "visitor-1",
+    lastName: "Santos",
+    purpose: "Vendor delivery",
+    status: "signed_in",
+  },
+  {
+    checkedInAt: null,
+    checkedOutAt: null,
+    company: "City EMS",
+    expectedDate: "2026-04-07",
+    expectedTime: "11:30",
+    firstName: "Leah",
+    hostName: "Control Room",
+    id: "visitor-2",
+    lastName: "Porter",
+    purpose: "Standby coordination",
+    status: "pending",
+  },
+];
+
+export const previewVehicles = [
+  {
+    color: "Black",
+    id: "vehicle-1",
+    make: "Ford",
+    model: "Transit",
+    ownerId: null,
+    ownerType: "vendor",
+    plate: "NSX-314",
+    type: "Van",
+    year: 2024,
+  },
+  {
+    color: "White",
+    id: "vehicle-2",
+    make: "Chevrolet",
+    model: "Tahoe",
+    ownerId: null,
+    ownerType: "staff",
+    plate: "SEC-204",
+    type: "SUV",
+    year: 2023,
+  },
+];
+
+export const previewContacts = [
+  {
+    category: "Emergency",
+    contactType: "external",
+    email: "ops@harborpower.example",
+    firstName: "Nina",
+    id: "contact-1",
+    lastName: "Morris",
+    organization: "Harbor Power",
+    phone: "555-0144",
+    title: "Duty Manager",
+  },
+  {
+    category: "Vendor",
+    contactType: "contractor",
+    email: "dispatch@northdock.example",
+    firstName: "Rafael",
+    id: "contact-2",
+    lastName: "Vega",
+    organization: "North Dock Logistics",
+    phone: "555-0177",
+    title: "Dispatch Lead",
+  },
+];

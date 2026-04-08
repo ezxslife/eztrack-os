@@ -1,0 +1,180 @@
+import { useMemo } from "react";
+import {
+  StyleSheet,
+  Text,
+  View,
+} from "react-native";
+
+import { ScreenContainer } from "@/components/layout/ScreenContainer";
+import { FilterChips } from "@/components/ui/FilterChips";
+import { SearchField } from "@/components/ui/SearchField";
+import { SectionCard } from "@/components/ui/SectionCard";
+import { StatusBadge } from "@/components/ui/StatusBadge";
+import { formatRelativeTimestamp } from "@/lib/format";
+import { usePatrons } from "@/lib/queries/secondary-modules";
+import {
+  defaultFilterState,
+  useFilterStore,
+} from "@/stores/filter-store";
+import { useThemeColors } from "@/theme";
+
+const moduleKey = "patrons";
+const flagFilters = [
+  { label: "All", value: "" },
+  { label: "Watch", value: "watch" },
+  { label: "VIP", value: "vip" },
+  { label: "Banned", value: "banned" },
+  { label: "Warning", value: "warning" },
+] as const;
+
+export default function PatronsScreen() {
+  const colors = useThemeColors();
+  const styles = createStyles(colors);
+  const patronsQuery = usePatrons();
+  const patrons = patronsQuery.data ?? [];
+  const filtersState = useFilterStore(
+    (state) => state.filters[moduleKey] ?? defaultFilterState
+  );
+  const setFilter = useFilterStore((state) => state.setFilter);
+  const query = filtersState.search;
+  const selectedFlag = filtersState.status;
+  const selectedFlagLabel =
+    flagFilters.find((filter) => filter.value === selectedFlag)?.label ?? "All";
+
+  const filtered = useMemo(
+    () =>
+      patrons.filter((patron) => {
+        const matchesQuery =
+          !query ||
+          [
+            patron.firstName,
+            patron.lastName,
+            patron.email,
+            patron.phone,
+            patron.notes,
+          ]
+            .join(" ")
+            .toLowerCase()
+            .includes(query.toLowerCase());
+
+        const matchesFlag = !selectedFlag || patron.flag === selectedFlag;
+        return matchesQuery && matchesFlag;
+      }),
+    [patrons, query, selectedFlag]
+  );
+
+  return (
+    <ScreenContainer
+      accessory={
+        <View style={styles.accessory}>
+          <SearchField
+            onChangeText={(value) => setFilter(moduleKey, { search: value })}
+            placeholder="Search patrons, contact info, or notes"
+            value={query}
+          />
+          <FilterChips
+            onSelect={(value) => {
+              const match = flagFilters.find((filter) => filter.label === value);
+              setFilter(moduleKey, { status: match?.value ?? "" });
+            }}
+            options={flagFilters.map((filter) => filter.label)}
+            selected={selectedFlagLabel}
+          />
+        </View>
+      }
+      onRefresh={() => {
+        void patronsQuery.refetch();
+      }}
+      refreshing={patronsQuery.isRefetching}
+      subtitle="Patron watch states and contact context in a fast mobile register."
+      title="Patrons"
+    >
+      <SectionCard
+        subtitle={
+          patronsQuery.isLoading
+            ? "Loading patron register"
+            : `${filtered.length} patrons visible`
+        }
+        title="Patron register"
+      >
+        <View style={styles.list}>
+          {filtered.length ? (
+            filtered.map((patron) => (
+              <View key={patron.id} style={styles.card}>
+                <View style={styles.rowBetween}>
+                  <View style={styles.grow}>
+                    <Text style={styles.title}>
+                      {patron.firstName} {patron.lastName}
+                    </Text>
+                    <Text style={styles.meta}>
+                      Added {formatRelativeTimestamp(patron.createdAt)}
+                    </Text>
+                  </View>
+                  <StatusBadge
+                    status={patron.flag === "none" ? "archived" : patron.flag}
+                  />
+                </View>
+                <Text style={styles.copy}>
+                  {patron.notes ?? patron.email ?? patron.phone ?? "No notes or contact details recorded."}
+                </Text>
+                <Text style={styles.meta}>
+                  {[patron.email, patron.phone].filter(Boolean).join(" · ") || "No contact info"}
+                </Text>
+              </View>
+            ))
+          ) : (
+            <Text style={styles.emptyCopy}>
+              No patrons match the current search and filter.
+            </Text>
+          )}
+        </View>
+      </SectionCard>
+    </ScreenContainer>
+  );
+}
+
+function createStyles(colors: ReturnType<typeof useThemeColors>) {
+  return StyleSheet.create({
+    accessory: {
+      gap: 12,
+    },
+    card: {
+      backgroundColor: colors.surfaceSecondary,
+      borderRadius: 18,
+      gap: 8,
+      padding: 14,
+    },
+    copy: {
+      color: colors.textSecondary,
+      fontSize: 14,
+      lineHeight: 20,
+    },
+    emptyCopy: {
+      color: colors.textTertiary,
+      fontSize: 14,
+      lineHeight: 20,
+    },
+    grow: {
+      flex: 1,
+      gap: 4,
+    },
+    list: {
+      gap: 12,
+    },
+    meta: {
+      color: colors.textTertiary,
+      fontSize: 13,
+    },
+    rowBetween: {
+      alignItems: "center",
+      flexDirection: "row",
+      gap: 12,
+      justifyContent: "space-between",
+    },
+    title: {
+      color: colors.textPrimary,
+      fontSize: 16,
+      fontWeight: "700",
+    },
+  });
+}

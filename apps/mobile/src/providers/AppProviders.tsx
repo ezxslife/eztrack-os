@@ -6,7 +6,10 @@ import {
 } from "@tanstack/react-query";
 
 import { AuthBootstrap } from "@/providers/AuthBootstrap";
+import { NetworkBridge } from "@/providers/NetworkBridge";
+import { OfflineQueueBridge } from "@/providers/OfflineQueueBridge";
 import { RealtimeBridge } from "@/providers/RealtimeBridge";
+import { StorageHealthBootstrap } from "@/providers/StorageHealthBootstrap";
 
 interface AppProvidersProps {
   children: ReactNode;
@@ -31,7 +34,10 @@ export function AppProviders({ children }: AppProvidersProps) {
 
   return (
     <QueryClientProvider client={queryClient}>
+      <StorageHealthBootstrap />
+      <NetworkBridge />
       <AuthBootstrap />
+      <OfflineQueueBridge />
       <RealtimeBridge />
       {children}
     </QueryClientProvider>

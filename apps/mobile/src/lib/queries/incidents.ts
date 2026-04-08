@@ -1,19 +1,34 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import {
-  IncidentSchema,
-  IncidentStatus,
   type IncidentSeverity,
 } from "@eztrack/shared";
 
-import { useSessionContext } from "@/hooks/useSessionContext";
-import { getSupabase } from "@/lib/supabase";
 import {
   previewIncidentFinancials,
   previewIncidentNarratives,
   previewIncidentParticipants,
   previewIncidents,
 } from "@/data/mock";
+import { useSessionContext } from "@/hooks/useSessionContext";
+import {
+  readThroughCachedQuery,
+  useHydrateQueryFromCache,
+} from "@/lib/cache/sqlite-cache";
+import {
+  findQueuedIncidentDetail,
+  mergePendingIncidentRows,
+} from "@/lib/offline/optimistic";
+import {
+  queueIncidentCreate,
+  shouldQueueMutationError,
+  type QueuedMutationResult,
+} from "@/lib/offline/queue";
+import type { QueuedCreateIncidentInput } from "@/lib/offline/types";
+import { createIncidentRecord } from "@/lib/services/incidents";
+import { getSupabase } from "@/lib/supabase";
+import { useNetworkStore } from "@/stores/network-store";
+import { useOfflineStore } from "@/stores/offline-store";
 
 export interface IncidentRow {
   assignedTo: string | null;
@@ -72,13 +87,7 @@ export interface IncidentFinancial {
   id: string;
 }
 
-export interface CreateIncidentInput {
-  incidentType: string;
-  locationId: string;
-  reportedBy?: string;
-  severity: IncidentSeverity;
-  synopsis: string;
-}
+export type CreateIncidentInput = QueuedCreateIncidentInput;
 
 async function fetchIncidents(orgId: string): Promise<IncidentRow[]> {
   const supabase = getSupabase();
@@ -233,70 +242,54 @@ async function fetchIncidentFinancials(id: string): Promise<IncidentFinancial[]>
   }));
 }
 
-async function createIncident(input: CreateIncidentInput, profile: { id: string; orgId: string; propertyId: string | null }) {
-  const parsed = IncidentSchema.safeParse({
-    incident_type: input.incidentType,
-    location_id: input.locationId,
-    reported_by: input.reportedBy,
-    severity: input.severity,
-    status: IncidentStatus.Open,
-    synopsis: input.synopsis,
-  });
-
-  if (!parsed.success) {
-    throw new Error(parsed.error.issues[0]?.message ?? "Incident validation failed.");
-  }
-
-  const supabase = getSupabase();
-  const { data: recNum, error: recNumError } = await supabase.rpc("next_record_number", {
-    p_org_id: profile.orgId,
-    p_prefix: "INC",
-  });
-
-  if (recNumError || !recNum) {
-    throw new Error("Failed to generate the incident record number.");
-  }
-
-  const { data, error } = await supabase
-    .from("incidents")
-    .insert({
-      created_by: profile.id,
-      description: input.synopsis,
-      incident_type: input.incidentType,
-      location_id: input.locationId,
-      org_id: profile.orgId,
-      property_id: profile.propertyId,
-      record_number: recNum,
-      reported_by: input.reportedBy ?? null,
-      severity: input.severity,
-      status: IncidentStatus.Open,
-      synopsis: input.synopsis,
-    })
-    .select("id, record_number")
-    .single();
-
-  if (error) {
-    throw error;
-  }
-
-  return data;
-}
-
 export function useIncidents() {
   const { canAccessProtected, orgId, usePreviewData } = useSessionContext();
+  const pendingActions = useOfflineStore((state) => state.pendingActions);
+  const queryKey = ["incidents", "list", orgId ?? "preview"] as const;
+  const cacheKey = usePreviewData || !orgId ? null : `incidents:list:${orgId}`;
 
-  return useQuery<IncidentRow[]>({
+  useHydrateQueryFromCache<IncidentRow[]>(
+    queryKey,
+    cacheKey,
+    canAccessProtected && !usePreviewData && Boolean(orgId)
+  );
+
+  const query = useQuery<IncidentRow[]>({
     enabled: canAccessProtected && (usePreviewData || Boolean(orgId)),
     queryFn: () =>
       usePreviewData
         ? Promise.resolve(previewIncidents.map((incident) => ({ ...incident })))
-        : fetchIncidents(orgId!),
-    queryKey: ["incidents", "list", orgId ?? "preview"],
+        : readThroughCachedQuery({
+            cacheKey: cacheKey!,
+            fetcher: () => fetchIncidents(orgId!),
+            ttlMs: 5 * 60 * 1000,
+          }),
+    queryKey,
   });
+
+  return {
+    ...query,
+    data: usePreviewData
+      ? query.data
+      : mergePendingIncidentRows(query.data, pendingActions),
+  };
 }
 
 export function useIncidentDetail(id: string) {
   const { canAccessProtected, orgId, usePreviewData } = useSessionContext();
+  const pendingActions = useOfflineStore((state) => state.pendingActions);
+  const queryKey = ["incidents", "detail", id, orgId ?? "preview"] as const;
+  const cacheKey =
+    usePreviewData || !orgId || !id ? null : `incidents:detail:${orgId}:${id}`;
+
+  useHydrateQueryFromCache<IncidentDetail>(
+    queryKey,
+    cacheKey,
+    canAccessProtected &&
+      !usePreviewData &&
+      Boolean(orgId) &&
+      Boolean(id)
+  );
 
   return useQuery({
     enabled: canAccessProtected && Boolean(id) && (usePreviewData || Boolean(orgId)),
@@ -322,54 +315,128 @@ export function useIncidentDetail(id: string) {
         } satisfies IncidentDetail;
       }
 
-      return fetchIncidentDetail(orgId!, id);
+      const queuedDetail = findQueuedIncidentDetail(id, pendingActions);
+
+      if (queuedDetail) {
+        return queuedDetail;
+      }
+
+      return readThroughCachedQuery({
+        cacheKey: cacheKey!,
+        fetcher: () => fetchIncidentDetail(orgId!, id),
+        ttlMs: 10 * 60 * 1000,
+      });
     },
-    queryKey: ["incidents", "detail", id, orgId ?? "preview"],
+    queryKey,
   });
 }
 
 export function useIncidentNarratives(id: string) {
   const { canAccessProtected, orgId, usePreviewData } = useSessionContext();
+  const pendingActions = useOfflineStore((state) => state.pendingActions);
+  const queryKey = ["incidents", "narratives", id, orgId ?? "preview"] as const;
+  const cacheKey =
+    usePreviewData || !orgId || !id
+      ? null
+      : `incidents:narratives:${orgId}:${id}`;
+
+  useHydrateQueryFromCache<IncidentNarrative[]>(
+    queryKey,
+    cacheKey,
+    canAccessProtected &&
+      !usePreviewData &&
+      Boolean(orgId) &&
+      Boolean(id)
+  );
 
   return useQuery({
     enabled: canAccessProtected && Boolean(id) && (usePreviewData || Boolean(orgId)),
     queryFn: () =>
       usePreviewData
         ? Promise.resolve(previewIncidentNarratives[id] ?? [])
-        : fetchIncidentNarratives(id),
-    queryKey: ["incidents", "narratives", id, orgId ?? "preview"],
+        : findQueuedIncidentDetail(id, pendingActions)
+          ? Promise.resolve([])
+          : readThroughCachedQuery({
+              cacheKey: cacheKey!,
+              fetcher: () => fetchIncidentNarratives(id),
+              ttlMs: 10 * 60 * 1000,
+            }),
+    queryKey,
   });
 }
 
 export function useIncidentParticipants(id: string) {
   const { canAccessProtected, orgId, usePreviewData } = useSessionContext();
+  const pendingActions = useOfflineStore((state) => state.pendingActions);
+  const queryKey = ["incidents", "participants", id, orgId ?? "preview"] as const;
+  const cacheKey =
+    usePreviewData || !orgId || !id
+      ? null
+      : `incidents:participants:${orgId}:${id}`;
+
+  useHydrateQueryFromCache<IncidentParticipant[]>(
+    queryKey,
+    cacheKey,
+    canAccessProtected &&
+      !usePreviewData &&
+      Boolean(orgId) &&
+      Boolean(id)
+  );
 
   return useQuery({
     enabled: canAccessProtected && Boolean(id) && (usePreviewData || Boolean(orgId)),
     queryFn: () =>
       usePreviewData
         ? Promise.resolve(previewIncidentParticipants[id] ?? [])
-        : fetchIncidentParticipants(id),
-    queryKey: ["incidents", "participants", id, orgId ?? "preview"],
+        : findQueuedIncidentDetail(id, pendingActions)
+          ? Promise.resolve([])
+          : readThroughCachedQuery({
+              cacheKey: cacheKey!,
+              fetcher: () => fetchIncidentParticipants(id),
+              ttlMs: 10 * 60 * 1000,
+            }),
+    queryKey,
   });
 }
 
 export function useIncidentFinancials(id: string) {
   const { canAccessProtected, orgId, usePreviewData } = useSessionContext();
+  const pendingActions = useOfflineStore((state) => state.pendingActions);
+  const queryKey = ["incidents", "financials", id, orgId ?? "preview"] as const;
+  const cacheKey =
+    usePreviewData || !orgId || !id
+      ? null
+      : `incidents:financials:${orgId}:${id}`;
+
+  useHydrateQueryFromCache<IncidentFinancial[]>(
+    queryKey,
+    cacheKey,
+    canAccessProtected &&
+      !usePreviewData &&
+      Boolean(orgId) &&
+      Boolean(id)
+  );
 
   return useQuery({
     enabled: canAccessProtected && Boolean(id) && (usePreviewData || Boolean(orgId)),
     queryFn: () =>
       usePreviewData
         ? Promise.resolve(previewIncidentFinancials[id] ?? [])
-        : fetchIncidentFinancials(id),
-    queryKey: ["incidents", "financials", id, orgId ?? "preview"],
+        : findQueuedIncidentDetail(id, pendingActions)
+          ? Promise.resolve([])
+          : readThroughCachedQuery({
+              cacheKey: cacheKey!,
+              fetcher: () => fetchIncidentFinancials(id),
+              ttlMs: 10 * 60 * 1000,
+            }),
+    queryKey,
   });
 }
 
 export function useCreateIncidentMutation() {
   const queryClient = useQueryClient();
   const { profile, usePreviewData } = useSessionContext();
+  const isOnline = useNetworkStore((state) => state.isOnline);
 
   return useMutation({
     mutationFn: async (input: CreateIncidentInput) => {
@@ -381,16 +448,35 @@ export function useCreateIncidentMutation() {
         return {
           id: `preview-incident-${Date.now()}`,
           record_number: "INC-PREVIEW",
+          queued: false,
         };
       }
 
-      return createIncident(input, {
+      const mutationProfile = {
         id: profile.id,
         orgId: profile.org_id,
         propertyId: profile.property_id,
-      });
+      };
+
+      if (!isOnline) {
+        return queueIncidentCreate(mutationProfile, input);
+      }
+
+      try {
+        const data = await createIncidentRecord(input, mutationProfile);
+        return {
+          ...data,
+          queued: false,
+        };
+      } catch (error) {
+        if (shouldQueueMutationError(error)) {
+          return queueIncidentCreate(mutationProfile, input);
+        }
+
+        throw error;
+      }
     },
-    onSuccess: async () => {
+    onSuccess: async (_result: { queued?: boolean } | QueuedMutationResult) => {
       await queryClient.invalidateQueries({ queryKey: ["dashboard"] });
       await queryClient.invalidateQueries({ queryKey: ["incidents"] });
     },

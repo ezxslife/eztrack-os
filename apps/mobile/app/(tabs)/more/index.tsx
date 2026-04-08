@@ -1,27 +1,76 @@
 import { useRouter } from "expo-router";
 import { useState } from "react";
-import { Alert, StyleSheet, Text, View } from "react-native";
+import {
+  Alert,
+  Pressable,
+  StyleSheet,
+  Text,
+  View,
+} from "react-native";
 
 import { NAV_BOTTOM_ITEMS, NAV_ITEMS } from "@eztrack/shared";
+import { useQueryClient } from "@tanstack/react-query";
 
 import { ScreenContainer } from "@/components/layout/ScreenContainer";
 import { Button } from "@/components/ui/Button";
 import { MaterialSurface } from "@/components/ui/MaterialSurface";
 import { SectionCard } from "@/components/ui/SectionCard";
 import { signOutCurrentUser } from "@/lib/auth";
+import { clearUserScopedAppData } from "@/lib/user-scoped-data";
+import { getPrimaryTabLabelsForRole } from "@/navigation/tab-specs";
 import { useAuthStore } from "@/stores/auth-store";
 import { useThemeColors } from "@/theme";
 
-const primaryTabs = new Set(["Dashboard", "Daily Log", "Dispatch", "Incidents"]);
+const availableModuleHrefs = new Set([
+  "/analytics",
+  "/briefings",
+  "/cases",
+  "/contacts",
+  "/lost-found",
+  "/personnel",
+  "/patrons",
+  "/reports",
+  "/vehicles",
+  "/visitors",
+  "/work-orders",
+]);
+
+const availableGlobalHrefs = new Set([
+  "/alerts",
+  "/notifications",
+  "/settings",
+]);
+
+const extraMobileMenuItems = [
+  { href: "/vehicles", label: "Vehicles" },
+  { href: "/contacts", label: "Contacts" },
+] as const;
 
 export default function MoreScreen() {
   const colors = useThemeColors();
   const styles = createStyles(colors);
   const router = useRouter();
+  const queryClient = useQueryClient();
   const profile = useAuthStore((state) => state.profile);
   const previewMode = useAuthStore((state) => state.previewMode);
   const setSignedOut = useAuthStore((state) => state.setSignedOut);
   const [submitting, setSubmitting] = useState(false);
+  const primaryTabs = getPrimaryTabLabelsForRole(profile?.role);
+  const moduleItems = [
+    ...NAV_ITEMS.map((item) => ({ href: item.href, label: item.label })),
+    ...extraMobileMenuItems,
+  ];
+  const readyModules = moduleItems.filter(
+    (item) =>
+      !primaryTabs.has(item.label) && availableModuleHrefs.has(item.href)
+  );
+  const queuedModules = moduleItems.filter(
+    (item) =>
+      !primaryTabs.has(item.label) && !availableModuleHrefs.has(item.href)
+  );
+  const globalDestinations = NAV_BOTTOM_ITEMS.filter((item) =>
+    availableGlobalHrefs.has(item.href)
+  );
 
   const handleSignOut = async () => {
     setSubmitting(true);
@@ -29,10 +78,12 @@ export default function MoreScreen() {
     try {
       if (!previewMode) {
         await signOutCurrentUser();
+      } else {
+        await clearUserScopedAppData();
+        queryClient.clear();
+        setSignedOut(null, "preview_exit");
+        router.replace("/login");
       }
-
-      setSignedOut(null);
-      router.replace("/login");
     } catch (error) {
       Alert.alert("Sign out failed", error instanceof Error ? error.message : "Could not sign out.");
     } finally {
@@ -72,20 +123,49 @@ export default function MoreScreen() {
         </View>
       </SectionCard>
 
-      <SectionCard title="Next modules to port">
+      <SectionCard
+        subtitle="These routes are now registered in the mobile shell."
+        title="Available destinations"
+      >
         <View style={styles.list}>
-          {NAV_ITEMS.filter((item) => !primaryTabs.has(item.label)).map((item) => (
-            <View key={item.label} style={styles.row}>
-              <Text style={styles.title}>{item.label}</Text>
-              <Text style={styles.meta}>{item.href}</Text>
-            </View>
-          ))}
+          {readyModules.length ? (
+            readyModules.map((item) => (
+              <Pressable
+                key={item.label}
+                onPress={() => router.push(item.href as never)}
+                style={styles.row}
+              >
+                <Text style={styles.title}>{item.label}</Text>
+                <Text style={styles.meta}>{item.href}</Text>
+              </Pressable>
+            ))
+          ) : (
+            <Text style={styles.meta}>Your current role already uses the available module tabs.</Text>
+          )}
         </View>
       </SectionCard>
 
       <SectionCard title="Global destinations">
         <View style={styles.list}>
-          {NAV_BOTTOM_ITEMS.map((item) => (
+          {globalDestinations.map((item) => (
+            <Pressable
+              key={item.label}
+              onPress={() => router.push(item.href as never)}
+              style={styles.row}
+            >
+              <Text style={styles.title}>{item.label}</Text>
+              <Text style={styles.meta}>{item.href}</Text>
+            </Pressable>
+          ))}
+        </View>
+      </SectionCard>
+
+      <SectionCard
+        subtitle="These modules still need their native screens and workflows."
+        title="Still queued for port"
+      >
+        <View style={styles.list}>
+          {queuedModules.map((item) => (
             <View key={item.label} style={styles.row}>
               <Text style={styles.title}>{item.label}</Text>
               <Text style={styles.meta}>{item.href}</Text>

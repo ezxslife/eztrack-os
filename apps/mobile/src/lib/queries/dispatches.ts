@@ -1,11 +1,32 @@
-import { useQuery } from "@tanstack/react-query";
+import {
+  DispatchStatus,
+} from "@eztrack/shared";
+import {
+  useMutation,
+  useQuery,
+  useQueryClient,
+} from "@tanstack/react-query";
 
-import { useSessionContext } from "@/hooks/useSessionContext";
-import { getSupabase } from "@/lib/supabase";
 import {
   previewDispatches,
   previewOfficers,
 } from "@/data/mock";
+import { useSessionContext } from "@/hooks/useSessionContext";
+import {
+  readThroughCachedQuery,
+  useHydrateQueryFromCache,
+} from "@/lib/cache/sqlite-cache";
+import { mergePendingDispatchRows } from "@/lib/offline/optimistic";
+import {
+  queueDispatchStatusUpdate,
+  shouldQueueMutationError,
+  type QueuedDispatchStatusResult,
+} from "@/lib/offline/queue";
+import type { QueuedUpdateDispatchStatusInput } from "@/lib/offline/types";
+import { updateDispatchStatusRecord } from "@/lib/services/dispatches";
+import { getSupabase } from "@/lib/supabase";
+import { useNetworkStore } from "@/stores/network-store";
+import { useOfflineStore } from "@/stores/offline-store";
 
 export interface DispatchCard {
   callSource: string | null;
@@ -30,6 +51,8 @@ export interface OfficerOnDuty {
   status: string;
   updatedAt: string;
 }
+
+export type UpdateDispatchStatusInput = QueuedUpdateDispatchStatusInput;
 
 async function fetchDispatches(orgId: string): Promise<DispatchCard[]> {
   const supabase = getSupabase();
@@ -103,26 +126,113 @@ async function fetchOnDutyOfficers(): Promise<OfficerOnDuty[]> {
 
 export function useDispatches() {
   const { canAccessProtected, orgId, usePreviewData } = useSessionContext();
+  const pendingActions = useOfflineStore((state) => state.pendingActions);
+  const queryKey = ["dispatches", "list", orgId ?? "preview"] as const;
+  const cacheKey = usePreviewData || !orgId ? null : `dispatches:list:${orgId}`;
 
-  return useQuery<DispatchCard[]>({
+  useHydrateQueryFromCache<DispatchCard[]>(
+    queryKey,
+    cacheKey,
+    canAccessProtected && !usePreviewData && Boolean(orgId)
+  );
+
+  const query = useQuery<DispatchCard[]>({
     enabled: canAccessProtected && (usePreviewData || Boolean(orgId)),
     queryFn: () =>
       usePreviewData
         ? Promise.resolve(previewDispatches.map((dispatch) => ({ ...dispatch })))
-        : fetchDispatches(orgId!),
-    queryKey: ["dispatches", "list", orgId ?? "preview"],
+        : readThroughCachedQuery({
+            cacheKey: cacheKey!,
+            fetcher: () => fetchDispatches(orgId!),
+            ttlMs: 3 * 60 * 1000,
+          }),
+    queryKey,
   });
+
+  return {
+    ...query,
+    data: usePreviewData
+      ? query.data
+      : mergePendingDispatchRows(query.data, pendingActions),
+  };
 }
 
 export function useOnDutyOfficers() {
   const { canAccessProtected, orgId, usePreviewData } = useSessionContext();
+  const queryKey = ["dispatches", "officers", orgId ?? "preview"] as const;
+  const cacheKey =
+    usePreviewData || !orgId ? null : `dispatches:officers:${orgId}`;
+
+  useHydrateQueryFromCache<OfficerOnDuty[]>(
+    queryKey,
+    cacheKey,
+    canAccessProtected && !usePreviewData && Boolean(orgId)
+  );
 
   return useQuery<OfficerOnDuty[]>({
     enabled: canAccessProtected && (usePreviewData || Boolean(orgId)),
     queryFn: () =>
       usePreviewData
         ? Promise.resolve(previewOfficers.map((officer) => ({ ...officer })))
-        : fetchOnDutyOfficers(),
-    queryKey: ["dispatches", "officers", orgId ?? "preview"],
+        : readThroughCachedQuery({
+            cacheKey: cacheKey!,
+            fetcher: () => fetchOnDutyOfficers(),
+            ttlMs: 60 * 1000,
+          }),
+    queryKey,
+  });
+}
+
+export function useUpdateDispatchStatusMutation() {
+  const queryClient = useQueryClient();
+  const { profile, usePreviewData } = useSessionContext();
+  const isOnline = useNetworkStore((state) => state.isOnline);
+
+  return useMutation({
+    mutationFn: async (input: UpdateDispatchStatusInput) => {
+      if (!profile) {
+        throw new Error("A profile is required before updating a dispatch.");
+      }
+
+      if (usePreviewData) {
+        return {
+          id: input.dispatchId,
+          queued: false,
+          status: input.nextStatus,
+        };
+      }
+
+      const mutationProfile = {
+        id: profile.id,
+        orgId: profile.org_id,
+        propertyId: profile.property_id,
+      };
+
+      if (!isOnline) {
+        return queueDispatchStatusUpdate(mutationProfile, input);
+      }
+
+      try {
+        const data = await updateDispatchStatusRecord(input);
+        return {
+          ...data,
+          queued: false,
+        };
+      } catch (error) {
+        if (shouldQueueMutationError(error)) {
+          return queueDispatchStatusUpdate(mutationProfile, input);
+        }
+
+        throw error;
+      }
+    },
+    onSuccess: async (
+      _result:
+        | { queued?: boolean; status: DispatchStatus }
+        | QueuedDispatchStatusResult
+    ) => {
+      await queryClient.invalidateQueries({ queryKey: ["dashboard"] });
+      await queryClient.invalidateQueries({ queryKey: ["dispatches"] });
+    },
   });
 }

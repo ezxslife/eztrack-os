@@ -2,6 +2,8 @@ import type { Profile } from "@eztrack/shared";
 
 import { appEnv } from "@/lib/env";
 import { getSupabase } from "@/lib/supabase";
+import { clearUserScopedAppData } from "@/lib/user-scoped-data";
+import { useAuthStore } from "@/stores/auth-store";
 
 export async function fetchCurrentProfile(userId: string): Promise<Profile> {
   const supabase = getSupabase();
@@ -48,13 +50,18 @@ export async function signInWithPassword(email: string, password: string) {
 
 export async function signOutCurrentUser() {
   if (!appEnv.authEnabled) {
+    await clearUserScopedAppData();
+    useAuthStore.getState().setSignedOut(null, "manual_sign_out");
     return;
   }
+
+  useAuthStore.getState().setLogoutIntent("manual_sign_out");
 
   const supabase = getSupabase();
   const { error } = await supabase.auth.signOut();
 
   if (error) {
+    useAuthStore.getState().clearLogoutIntent();
     throw error;
   }
 }

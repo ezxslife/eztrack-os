@@ -10,15 +10,19 @@ interface RouteGateProps {
 }
 
 export function RequireAuth({ children }: RouteGateProps) {
+  const authLifecycle = useAuthStore((state) => state.authLifecycle);
   const initialized = useAuthStore((state) => state.initialized);
   const previewMode = useAuthStore((state) => state.previewMode);
-  const status = useAuthStore((state) => state.status);
 
-  if (!initialized) {
+  if (
+    !initialized ||
+    (!previewMode &&
+      (authLifecycle === "initializing" || authLifecycle === "authenticating"))
+  ) {
     return <LoadingScreen />;
   }
 
-  if (!previewMode && status !== "signed_in") {
+  if (!previewMode && authLifecycle !== "active") {
     return <Redirect href="/login" />;
   }
 
@@ -26,15 +30,15 @@ export function RequireAuth({ children }: RouteGateProps) {
 }
 
 export function RequireGuest({ children }: RouteGateProps) {
+  const authLifecycle = useAuthStore((state) => state.authLifecycle);
   const initialized = useAuthStore((state) => state.initialized);
   const previewMode = useAuthStore((state) => state.previewMode);
-  const status = useAuthStore((state) => state.status);
 
-  if (!initialized) {
+  if (!initialized || authLifecycle === "initializing") {
     return <LoadingScreen />;
   }
 
-  if (previewMode || status === "signed_in") {
+  if (previewMode || authLifecycle === "active") {
     return <Redirect href="/dashboard" />;
   }
 

@@ -12,6 +12,23 @@ import { getPreviewMessage } from "@/lib/env";
 import { useAuthStore } from "@/stores/auth-store";
 import { useThemeColors } from "@/theme";
 
+function getLogoutMessage(reason: string | null) {
+  switch (reason) {
+    case "manual_sign_out":
+      return "You signed out on this device.";
+    case "preview_exit":
+      return "Preview mode ended. Sign in to continue with live data.";
+    case "session_ended":
+      return "Your session ended. Sign in again to continue.";
+    case "profile_unavailable":
+      return "The linked EZTrack profile could not be loaded. Sign in again after the profile is fixed.";
+    case "auth_error":
+      return "Authentication needs attention. Sign in again to continue.";
+    default:
+      return null;
+  }
+}
+
 export default function LoginScreen() {
   const colors = useThemeColors();
   const styles = createStyles(colors);
@@ -19,7 +36,11 @@ export default function LoginScreen() {
   const authEnabled = useAuthStore((state) => state.authEnabled);
   const authError = useAuthStore((state) => state.error);
   const enterPreviewMode = useAuthStore((state) => state.enterPreviewMode);
+  const lastLogoutReason = useAuthStore((state) => state.lastLogoutReason);
+  const setAuthenticating = useAuthStore((state) => state.setAuthenticating);
+  const setAuthError = useAuthStore((state) => state.setAuthError);
   const previewMessage = getPreviewMessage();
+  const logoutMessage = getLogoutMessage(lastLogoutReason);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [localError, setLocalError] = useState<string | null>(null);
@@ -33,12 +54,14 @@ export default function LoginScreen() {
 
     setLocalError(null);
     setSubmitting(true);
+    setAuthenticating();
 
     try {
       await signInWithPassword(email, password);
-      router.replace("/dashboard");
     } catch (error) {
-      setLocalError(error instanceof Error ? error.message : "Sign in failed.");
+      const message = error instanceof Error ? error.message : "Sign in failed.";
+      setAuthError(message);
+      setLocalError(message);
     } finally {
       setSubmitting(false);
     }
@@ -83,6 +106,9 @@ export default function LoginScreen() {
             secureTextEntry
             value={password}
           />
+          {!localError && !authError && logoutMessage ? (
+            <Text style={styles.notice}>{logoutMessage}</Text>
+          ) : null}
           {localError || authError ? <Text style={styles.error}>{localError || authError}</Text> : null}
           <Button disabled={!authEnabled} label="Sign In" loading={submitting} onPress={handleSignIn} />
         </View>
@@ -122,6 +148,11 @@ function createStyles(colors: ReturnType<typeof useThemeColors>) {
     },
     error: {
       color: colors.error,
+      fontSize: 14,
+      lineHeight: 20,
+    },
+    notice: {
+      color: colors.textSecondary,
       fontSize: 14,
       lineHeight: 20,
     },

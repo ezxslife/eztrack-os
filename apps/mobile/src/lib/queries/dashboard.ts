@@ -1,8 +1,17 @@
 import { useQuery } from "@tanstack/react-query";
 
-import { useSessionContext } from "@/hooks/useSessionContext";
-import { getSupabase } from "@/lib/supabase";
 import { previewDashboardStats, previewRecentActivity } from "@/data/mock";
+import { useSessionContext } from "@/hooks/useSessionContext";
+import {
+  readThroughCachedQuery,
+  useHydrateQueryFromCache,
+} from "@/lib/cache/sqlite-cache";
+import {
+  mergePendingDashboardStats,
+  mergePendingRecentActivity,
+} from "@/lib/offline/optimistic";
+import { getSupabase } from "@/lib/supabase";
+import { useOfflineStore } from "@/stores/offline-store";
 
 export interface DashboardStats {
   activeDispatches: number;
@@ -90,21 +99,69 @@ async function fetchRecentActivity(orgId: string, limit = 8): Promise<RecentActi
 
 export function useDashboardStats() {
   const { canAccessProtected, orgId, usePreviewData } = useSessionContext();
+  const pendingActions = useOfflineStore((state) => state.pendingActions);
+  const queryKey = ["dashboard", "stats", orgId ?? "preview"] as const;
+  const cacheKey = usePreviewData || !orgId ? null : `dashboard:stats:${orgId}`;
 
-  return useQuery({
+  useHydrateQueryFromCache<DashboardStats>(
+    queryKey,
+    cacheKey,
+    canAccessProtected && !usePreviewData && Boolean(orgId)
+  );
+
+  const query = useQuery({
     enabled: canAccessProtected && (usePreviewData || Boolean(orgId)),
-    queryFn: () => (usePreviewData ? Promise.resolve(previewDashboardStats) : fetchDashboardStats(orgId!)),
-    queryKey: ["dashboard", "stats", orgId ?? "preview"],
+    queryFn: () =>
+      usePreviewData
+        ? Promise.resolve(previewDashboardStats)
+        : readThroughCachedQuery({
+            cacheKey: cacheKey!,
+            fetcher: () => fetchDashboardStats(orgId!),
+            ttlMs: 2 * 60 * 1000,
+          }),
+    queryKey,
   });
+
+  return {
+    ...query,
+    data: usePreviewData
+      ? query.data
+      : mergePendingDashboardStats(query.data, pendingActions),
+  };
 }
 
 export function useRecentActivity(limit = 8) {
   const { canAccessProtected, orgId, usePreviewData } = useSessionContext();
+  const pendingActions = useOfflineStore((state) => state.pendingActions);
+  const queryKey = ["dashboard", "activity", orgId ?? "preview", limit] as const;
+  const cacheKey =
+    usePreviewData || !orgId
+      ? null
+      : `dashboard:activity:${orgId}:${limit}`;
 
-  return useQuery({
+  useHydrateQueryFromCache<RecentActivityItem[]>(
+    queryKey,
+    cacheKey,
+    canAccessProtected && !usePreviewData && Boolean(orgId)
+  );
+
+  const query = useQuery({
     enabled: canAccessProtected && (usePreviewData || Boolean(orgId)),
     queryFn: () =>
-      usePreviewData ? Promise.resolve(previewRecentActivity.slice(0, limit)) : fetchRecentActivity(orgId!, limit),
-    queryKey: ["dashboard", "activity", orgId ?? "preview", limit],
+      usePreviewData
+        ? Promise.resolve(previewRecentActivity.slice(0, limit))
+        : readThroughCachedQuery({
+            cacheKey: cacheKey!,
+            fetcher: () => fetchRecentActivity(orgId!, limit),
+            ttlMs: 2 * 60 * 1000,
+          }),
+    queryKey,
   });
+
+  return {
+    ...query,
+    data: usePreviewData
+      ? query.data
+      : mergePendingRecentActivity(query.data, pendingActions),
+  };
 }

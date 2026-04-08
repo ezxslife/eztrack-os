@@ -7,6 +7,8 @@ import {
 } from "expo-router/unstable-native-tabs";
 
 import { RequireAuth } from "@/components/auth/RouteGate";
+import { getTabsForRole } from "@/navigation/tab-specs";
+import { useAuthStore } from "@/stores/auth-store";
 import {
   useIsDark,
   useThemeColors,
@@ -15,6 +17,8 @@ import {
 export default function IOSTabLayout() {
   const colors = useThemeColors();
   const isDark = useIsDark();
+  const role = useAuthStore((state) => state.profile?.role);
+  const tabs = getTabsForRole(role);
   const defaultLabelColor = DynamicColorIOS({
     dark: "rgba(244, 244, 245, 0.72)",
     light: "rgba(24, 24, 27, 0.72)",
@@ -33,30 +37,12 @@ export default function IOSTabLayout() {
         shadowColor={colors.shadow}
         tintColor={colors.primaryStrong}
       >
-        <NativeTabs.Trigger name="dashboard/index">
-          <Icon sf={{ default: "rectangle.grid.2x2", selected: "rectangle.grid.2x2.fill" }} />
-          <Label>Dashboard</Label>
-        </NativeTabs.Trigger>
-
-        <NativeTabs.Trigger name="daily-log/index">
-          <Icon sf={{ default: "doc.text", selected: "doc.text.fill" }} />
-          <Label>Daily Log</Label>
-        </NativeTabs.Trigger>
-
-        <NativeTabs.Trigger name="dispatch/index">
-          <Icon sf={{ default: "dot.radiowaves.left.and.right", selected: "dot.radiowaves.left.and.right" }} />
-          <Label>Dispatch</Label>
-        </NativeTabs.Trigger>
-
-        <NativeTabs.Trigger name="incidents/index">
-          <Icon sf={{ default: "exclamationmark.shield", selected: "exclamationmark.shield.fill" }} />
-          <Label>Incidents</Label>
-        </NativeTabs.Trigger>
-
-        <NativeTabs.Trigger name="more/index">
-          <Icon sf={{ default: "ellipsis.circle", selected: "ellipsis.circle.fill" }} />
-          <Label>More</Label>
-        </NativeTabs.Trigger>
+        {tabs.map((tab) => (
+          <NativeTabs.Trigger key={tab.routeName} name={tab.routeName}>
+            <Icon sf={tab.sfSymbol as any} />
+            <Label>{tab.title}</Label>
+          </NativeTabs.Trigger>
+        ))}
       </NativeTabs>
     </RequireAuth>
   );

@@ -1,12 +1,27 @@
-import { useEffect } from "react";
+import {
+  useEffect,
+  useRef,
+} from "react";
 
-import { useQueryClient } from "@tanstack/react-query";
-import type { Session } from "@supabase/supabase-js";
+import {
+  focusManager,
+  useQueryClient,
+} from "@tanstack/react-query";
+import type {
+  AuthChangeEvent,
+  Session,
+} from "@supabase/supabase-js";
+import {
+  AppState,
+  type AppStateStatus,
+} from "react-native";
 
 import { fetchCurrentProfile } from "@/lib/auth";
 import { appEnv } from "@/lib/env";
 import { getSupabase } from "@/lib/supabase";
+import { clearUserScopedAppData } from "@/lib/user-scoped-data";
 import { useAuthStore } from "@/stores/auth-store";
+import { useOrganizationStore } from "@/stores/organization-store";
 
 async function resolveProfile(userId: string) {
   try {
@@ -19,8 +34,13 @@ async function resolveProfile(userId: string) {
 
 export function AuthBootstrap() {
   const queryClient = useQueryClient();
-  const setBootstrapped = useAuthStore((state) => state.setBootstrapped);
+  const previewMode = useAuthStore((state) => state.previewMode);
+  const setActive = useAuthStore((state) => state.setActive);
+  const setAuthenticating = useAuthStore((state) => state.setAuthenticating);
+  const setAuthError = useAuthStore((state) => state.setAuthError);
   const setSignedOut = useAuthStore((state) => state.setSignedOut);
+  const setContext = useOrganizationStore((state) => state.setContext);
+  const activeUserIdRef = useRef<string | null>(null);
 
   useEffect(() => {
     let isMounted = true;
@@ -34,17 +54,51 @@ export function AuthBootstrap() {
 
     const supabase = getSupabase();
 
-    const syncSession = async (session: Session | null) => {
+    const syncSession = async (
+      session: Session | null,
+      event?: AuthChangeEvent
+    ) => {
       if (!isMounted) {
         return;
       }
 
       if (!session?.user) {
+        const shouldClearUserData =
+          activeUserIdRef.current !== null || previewMode;
+        const pendingLogoutReason =
+          useAuthStore.getState().pendingLogoutReason;
+        const logoutReason =
+          pendingLogoutReason ??
+          (shouldClearUserData ? "session_ended" : null);
+
+        activeUserIdRef.current = null;
         queryClient.clear();
-        setSignedOut(null);
+        if (shouldClearUserData) {
+          await clearUserScopedAppData();
+        }
+        setContext({
+          organizationId: null,
+          propertyId: null,
+        });
+        setSignedOut(
+          null,
+          event === "SIGNED_OUT" && pendingLogoutReason === null
+            ? "manual_sign_out"
+            : logoutReason
+        );
         return;
       }
 
+      if (
+        activeUserIdRef.current !== null &&
+        activeUserIdRef.current !== session.user.id
+      ) {
+        queryClient.clear();
+        await clearUserScopedAppData();
+      }
+
+      activeUserIdRef.current = session.user.id;
+      setAuthenticating();
       const profile = await resolveProfile(session.user.id);
 
       if (!isMounted) {
@@ -52,18 +106,33 @@ export function AuthBootstrap() {
       }
 
       if (!profile) {
+        activeUserIdRef.current = null;
         queryClient.clear();
-        setSignedOut("Your user exists, but the mobile app could not load the linked profile.");
+        await clearUserScopedAppData();
+        setContext({
+          organizationId: null,
+          propertyId: null,
+        });
+        setAuthError(
+          "Your user exists, but the mobile app could not load the linked profile.",
+          "profile_unavailable"
+        );
         return;
       }
 
-      setBootstrapped({
+      setContext({
+        organizationId: profile.org_id,
+        propertyId: profile.property_id,
+      });
+      setActive({
         error: null,
         profile,
         session,
         user: session.user,
       });
     };
+
+    setAuthenticating();
 
     void supabase.auth.getSession().then(async ({ data, error }) => {
       if (error) {
@@ -72,7 +141,7 @@ export function AuthBootstrap() {
         }
 
         queryClient.clear();
-        setSignedOut(error.message);
+        setAuthError(error.message, "auth_error");
         return;
       }
 
@@ -81,15 +150,48 @@ export function AuthBootstrap() {
 
     const {
       data: { subscription },
-    } = supabase.auth.onAuthStateChange((_event, session) => {
-      void syncSession(session);
+    } = supabase.auth.onAuthStateChange((event, session) => {
+      void syncSession(session, event);
     });
 
     return () => {
       isMounted = false;
       subscription.unsubscribe();
     };
-  }, [queryClient, setBootstrapped, setSignedOut]);
+  }, [
+    previewMode,
+    queryClient,
+    setActive,
+    setAuthenticating,
+    setAuthError,
+    setContext,
+    setSignedOut,
+  ]);
+
+  useEffect(() => {
+    if (!appEnv.authEnabled) {
+      return;
+    }
+
+    const sub = AppState.addEventListener(
+      "change",
+      (state: AppStateStatus) => {
+        const supabase = getSupabase();
+
+        if (state === "active") {
+          focusManager.setFocused(true);
+          supabase.auth.startAutoRefresh();
+        } else {
+          focusManager.setFocused(false);
+          supabase.auth.stopAutoRefresh();
+        }
+      }
+    );
+
+    return () => {
+      sub.remove();
+    };
+  }, []);
 
   return null;
 }

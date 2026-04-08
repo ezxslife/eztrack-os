@@ -13,6 +13,7 @@ import {
   useThemeColors,
   useThemeTypography,
 } from "@/theme";
+import { useUIStore } from "@/stores/ui-store";
 
 interface ButtonProps {
   disabled?: boolean;
@@ -32,6 +33,7 @@ export function Button({
   style,
 }: ButtonProps) {
   const colors = useThemeColors();
+  const sensoryEnabled = useUIStore((state) => state.sensoryEnabled);
   const typography = useThemeTypography();
 
   const styles = StyleSheet.create({
@@ -81,7 +83,7 @@ export function Button({
       return;
     }
 
-    if (Platform.OS !== "web") {
+    if (sensoryEnabled && Platform.OS !== "web") {
       if (variant === "primary") {
         void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
       } else {

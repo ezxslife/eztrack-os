@@ -1,0 +1,179 @@
+import { useMemo } from "react";
+import {
+  StyleSheet,
+  Text,
+  View,
+} from "react-native";
+
+import { ScreenContainer } from "@/components/layout/ScreenContainer";
+import { FilterChips } from "@/components/ui/FilterChips";
+import { PriorityBadge } from "@/components/ui/PriorityBadge";
+import { SearchField } from "@/components/ui/SearchField";
+import { SectionCard } from "@/components/ui/SectionCard";
+import { StatusBadge } from "@/components/ui/StatusBadge";
+import { formatRelativeTimestamp } from "@/lib/format";
+import { useCases } from "@/lib/queries/secondary-modules";
+import {
+  defaultFilterState,
+  useFilterStore,
+} from "@/stores/filter-store";
+import { useThemeColors } from "@/theme";
+
+const moduleKey = "cases";
+const statusFilters = [
+  { label: "All", value: "" },
+  { label: "Open", value: "open" },
+  { label: "On Hold", value: "on_hold" },
+  { label: "Closed", value: "closed" },
+] as const;
+
+export default function CasesScreen() {
+  const colors = useThemeColors();
+  const styles = createStyles(colors);
+  const casesQuery = useCases();
+  const rows = casesQuery.data ?? [];
+  const filtersState = useFilterStore(
+    (state) => state.filters[moduleKey] ?? defaultFilterState
+  );
+  const setFilter = useFilterStore((state) => state.setFilter);
+  const query = filtersState.search;
+  const selectedStatus = filtersState.status;
+  const selectedStatusLabel =
+    statusFilters.find((filter) => filter.value === selectedStatus)?.label ??
+    "All";
+
+  const filtered = useMemo(
+    () =>
+      rows.filter((item) => {
+        const matchesQuery =
+          !query ||
+          [
+            item.caseNumber,
+            item.caseType,
+            item.synopsis,
+            item.leadInvestigator,
+          ]
+            .join(" ")
+            .toLowerCase()
+            .includes(query.toLowerCase());
+
+        const matchesStatus = !selectedStatus || item.status === selectedStatus;
+        return matchesQuery && matchesStatus;
+      }),
+    [rows, query, selectedStatus]
+  );
+
+  return (
+    <ScreenContainer
+      accessory={
+        <View style={styles.accessory}>
+          <SearchField
+            onChangeText={(value) => setFilter(moduleKey, { search: value })}
+            placeholder="Search case number, type, synopsis, or investigator"
+            value={query}
+          />
+          <FilterChips
+            onSelect={(value) => {
+              const match = statusFilters.find((filter) => filter.label === value);
+              setFilter(moduleKey, { status: match?.value ?? "" });
+            }}
+            options={statusFilters.map((filter) => filter.label)}
+            selected={selectedStatusLabel}
+          />
+        </View>
+      }
+      onRefresh={() => {
+        void casesQuery.refetch();
+      }}
+      refreshing={casesQuery.isRefetching}
+      subtitle="Case tracking, lead ownership, and escalation state in a field-friendly queue."
+      title="Cases"
+    >
+      <SectionCard
+        subtitle={
+          casesQuery.isLoading
+            ? "Loading case queue"
+            : `${filtered.length} cases visible`
+        }
+        title="Active cases"
+      >
+        <View style={styles.list}>
+          {filtered.length ? (
+            filtered.map((item) => (
+              <View key={item.id} style={styles.card}>
+                <View style={styles.rowBetween}>
+                  <Text style={styles.title}>{item.caseNumber}</Text>
+                  <PriorityBadge priority={item.priority ?? "none"} />
+                </View>
+                <Text style={styles.type}>{item.caseType}</Text>
+                <Text style={styles.copy}>
+                  {item.synopsis ?? "No synopsis recorded for this case."}
+                </Text>
+                <View style={styles.rowBetween}>
+                  <StatusBadge status={item.status} />
+                  <Text style={styles.meta}>
+                    {item.leadInvestigator ?? "Unassigned"}
+                  </Text>
+                </View>
+                <Text style={styles.meta}>
+                  Opened {formatRelativeTimestamp(item.created)}
+                </Text>
+              </View>
+            ))
+          ) : (
+            <Text style={styles.emptyCopy}>
+              No cases match the current search and filter.
+            </Text>
+          )}
+        </View>
+      </SectionCard>
+    </ScreenContainer>
+  );
+}
+
+function createStyles(colors: ReturnType<typeof useThemeColors>) {
+  return StyleSheet.create({
+    accessory: {
+      gap: 12,
+    },
+    card: {
+      backgroundColor: colors.surfaceSecondary,
+      borderRadius: 18,
+      gap: 8,
+      padding: 14,
+    },
+    copy: {
+      color: colors.textSecondary,
+      fontSize: 14,
+      lineHeight: 20,
+    },
+    emptyCopy: {
+      color: colors.textTertiary,
+      fontSize: 14,
+      lineHeight: 20,
+    },
+    list: {
+      gap: 12,
+    },
+    meta: {
+      color: colors.textTertiary,
+      fontSize: 13,
+    },
+    rowBetween: {
+      alignItems: "center",
+      flexDirection: "row",
+      gap: 12,
+      justifyContent: "space-between",
+    },
+    title: {
+      color: colors.textPrimary,
+      fontSize: 16,
+      fontWeight: "700",
+    },
+    type: {
+      color: colors.accent,
+      fontSize: 14,
+      fontWeight: "600",
+    },
+  });
+}

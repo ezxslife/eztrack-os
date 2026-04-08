@@ -1,8 +1,12 @@
 import { useQuery } from "@tanstack/react-query";
 
-import { useSessionContext } from "@/hooks/useSessionContext";
-import { getSupabase } from "@/lib/supabase";
 import { previewLocations } from "@/data/mock";
+import { useSessionContext } from "@/hooks/useSessionContext";
+import {
+  readThroughCachedQuery,
+  useHydrateQueryFromCache,
+} from "@/lib/cache/sqlite-cache";
+import { getSupabase } from "@/lib/supabase";
 
 export interface LocationOption {
   id: string;
@@ -53,13 +57,28 @@ async function fetchLocations(orgId: string, propertyId: string | null): Promise
 
 export function useLocations() {
   const { canAccessProtected, orgId, propertyId, usePreviewData } = useSessionContext();
+  const queryKey = ["locations", orgId ?? "preview", propertyId ?? "all"] as const;
+  const cacheKey =
+    usePreviewData || !orgId
+      ? null
+      : `locations:${orgId}:${propertyId ?? "all"}`;
+
+  useHydrateQueryFromCache<LocationOption[]>(
+    queryKey,
+    cacheKey,
+    canAccessProtected && !usePreviewData && Boolean(orgId)
+  );
 
   return useQuery<LocationOption[]>({
     enabled: canAccessProtected && (usePreviewData || Boolean(orgId)),
     queryFn: () =>
       usePreviewData
         ? Promise.resolve(previewLocations.map((location) => ({ ...location })))
-        : fetchLocations(orgId!, propertyId),
-    queryKey: ["locations", orgId ?? "preview", propertyId ?? "all"],
+        : readThroughCachedQuery({
+            cacheKey: cacheKey!,
+            fetcher: () => fetchLocations(orgId!, propertyId),
+            ttlMs: 12 * 60 * 60 * 1000,
+          }),
+    queryKey,
   });
 }

@@ -1,7 +1,15 @@
 import { useState } from "react";
-import { StyleSheet, Text, View } from "react-native";
+import {
+  Alert,
+  StyleSheet,
+  Text,
+  View,
+} from "react-native";
+
+import { DispatchStatus } from "@eztrack/shared";
 
 import { ScreenContainer } from "@/components/layout/ScreenContainer";
+import { Button } from "@/components/ui/Button";
 import { FilterChips } from "@/components/ui/FilterChips";
 import { MaterialSurface } from "@/components/ui/MaterialSurface";
 import { PriorityBadge } from "@/components/ui/PriorityBadge";
@@ -12,10 +20,39 @@ import { formatRelativeTimestamp } from "@/lib/format";
 import {
   useDispatches,
   useOnDutyOfficers,
+  useUpdateDispatchStatusMutation,
 } from "@/lib/queries/dispatches";
+import type { OfflineUpdateDispatchStatusAction } from "@/lib/offline/types";
+import { useOfflineStore } from "@/stores/offline-store";
 import { useThemeColors } from "@/theme";
 
 const filters = ["All", "Critical", "Scheduled", "On Scene"];
+
+function getDispatchActions(status: string) {
+  switch (status) {
+    case DispatchStatus.Pending:
+    case DispatchStatus.Scheduled:
+      return [
+        { label: "Start", nextStatus: DispatchStatus.InProgress },
+        { label: "On Scene", nextStatus: DispatchStatus.OnScene },
+      ];
+    case DispatchStatus.InProgress:
+    case DispatchStatus.Overdue:
+      return [
+        { label: "On Scene", nextStatus: DispatchStatus.OnScene },
+        { label: "Clear", nextStatus: DispatchStatus.Cleared },
+      ];
+    case DispatchStatus.OnScene:
+      return [
+        { label: "Clear", nextStatus: DispatchStatus.Cleared },
+        { label: "Complete", nextStatus: DispatchStatus.Completed },
+      ];
+    case DispatchStatus.Cleared:
+      return [{ label: "Complete", nextStatus: DispatchStatus.Completed }];
+    default:
+      return [];
+  }
+}
 
 export default function DispatchScreen() {
   const colors = useThemeColors();
@@ -24,6 +61,20 @@ export default function DispatchScreen() {
   const [selectedFilter, setSelectedFilter] = useState("All");
   const dispatchesQuery = useDispatches();
   const officersQuery = useOnDutyOfficers();
+  const updateDispatchStatus = useUpdateDispatchStatusMutation();
+  const pendingDispatchActionIds = useOfflineStore((state) =>
+    new Set(
+      state.pendingActions
+        .filter(
+          (
+            action
+          ): action is OfflineUpdateDispatchStatusAction =>
+            action.kind === "update-dispatch-status" &&
+            action.syncState === "pending"
+        )
+        .map((action) => action.payload.dispatchId)
+    )
+  );
 
   const dispatches = (dispatchesQuery.data ?? []).filter((dispatch) => {
     const matchesQuery =
@@ -45,6 +96,29 @@ export default function DispatchScreen() {
       dispatch.status.replace("_", " ").toLowerCase() === selectedFilter.toLowerCase()
     );
   });
+
+  const handleStatusUpdate = async (
+    dispatch: (typeof dispatches)[number],
+    nextStatus: DispatchStatus
+  ) => {
+    try {
+      await updateDispatchStatus.mutateAsync({
+        currentStatus: dispatch.status,
+        dispatchId: dispatch.id,
+        locationName: dispatch.location,
+        nextStatus,
+        officerName: dispatch.officerName,
+        recordNumber: dispatch.recordNumber,
+      });
+    } catch (error) {
+      Alert.alert(
+        "Update failed",
+        error instanceof Error
+          ? error.message
+          : "The dispatch status could not be updated."
+      );
+    }
+  };
 
   return (
     <ScreenContainer
@@ -88,6 +162,29 @@ export default function DispatchScreen() {
                   <StatusBadge status={dispatch.status} />
                   <Text style={styles.assignee}>{dispatch.officerName ?? "Unassigned"}</Text>
                 </View>
+                {pendingDispatchActionIds.has(dispatch.id) ? (
+                  <Text style={styles.pendingMeta}>Queued for sync</Text>
+                ) : null}
+                {getDispatchActions(dispatch.status).length ? (
+                  <View style={styles.actionRow}>
+                    {getDispatchActions(dispatch.status).map((action) => (
+                      <Button
+                        key={`${dispatch.id}:${action.nextStatus}`}
+                        label={action.label}
+                        loading={
+                          updateDispatchStatus.isPending &&
+                          updateDispatchStatus.variables?.dispatchId === dispatch.id &&
+                          updateDispatchStatus.variables?.nextStatus === action.nextStatus
+                        }
+                        onPress={() => {
+                          void handleStatusUpdate(dispatch, action.nextStatus);
+                        }}
+                        style={styles.actionButton}
+                        variant="secondary"
+                      />
+                    ))}
+                  </View>
+                ) : null}
                 <Text style={styles.meta}>{formatRelativeTimestamp(dispatch.createdAt)}</Text>
               </View>
             ))
@@ -122,6 +219,14 @@ function createStyles(colors: ReturnType<typeof useThemeColors>) {
     accessory: {
       gap: 12,
     },
+    actionButton: {
+      flex: 1,
+      minHeight: 40,
+    },
+    actionRow: {
+      flexDirection: "row",
+      gap: 10,
+    },
     assignee: {
       color: colors.textTertiary,
       fontSize: 13,
@@ -152,6 +257,11 @@ function createStyles(colors: ReturnType<typeof useThemeColors>) {
     meta: {
       color: colors.textTertiary,
       fontSize: 12,
+    },
+    pendingMeta: {
+      color: colors.accentSoft,
+      fontSize: 12,
+      fontWeight: "600",
     },
     officerRow: {
       alignItems: "center",

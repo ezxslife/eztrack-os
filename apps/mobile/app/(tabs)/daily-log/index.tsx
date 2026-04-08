@@ -1,6 +1,15 @@
 import { useRouter } from "expo-router";
-import { useState } from "react";
-import { Alert, StyleSheet, Text, TextInput, View } from "react-native";
+import {
+  useEffect,
+  useState,
+} from "react";
+import {
+  Alert,
+  StyleSheet,
+  Text,
+  TextInput,
+  View,
+} from "react-native";
 
 import { ScreenContainer } from "@/components/layout/ScreenContainer";
 import { Button } from "@/components/ui/Button";
@@ -13,17 +22,40 @@ import {
   useDailyLogs,
 } from "@/lib/queries/daily-logs";
 import { useLocations } from "@/lib/queries/locations";
+import {
+  getDraftKey,
+  useDraftStore,
+} from "@/stores/draft-store";
+import {
+  defaultFilterState,
+  useFilterStore,
+} from "@/stores/filter-store";
 import { useThemeColors } from "@/theme";
+
+const filterModuleKey = "daily-log";
+const quickEntryModuleKey = "daily-log-quick-entry";
 
 export default function DailyLogScreen() {
   const colors = useThemeColors();
   const styles = createStyles(colors);
   const router = useRouter();
-  const [query, setQuery] = useState("");
-  const [draft, setDraft] = useState("");
+  const filtersState = useFilterStore(
+    (state) => state.filters[filterModuleKey] ?? defaultFilterState
+  );
+  const quickEntryDraft = useDraftStore(
+    (state) =>
+      state.drafts[getDraftKey(quickEntryModuleKey)]?.data as
+        | { value?: string }
+        | undefined
+  );
+  const setFilter = useFilterStore((state) => state.setFilter);
+  const clearModuleDrafts = useDraftStore((state) => state.clearModuleDrafts);
+  const saveDraft = useDraftStore((state) => state.saveDraft);
+  const [draft, setDraft] = useState(quickEntryDraft?.value ?? "");
   const logsQuery = useDailyLogs();
   const locationsQuery = useLocations();
   const createLogMutation = useCreateDailyLogMutation();
+  const query = filtersState.search;
 
   const logs = (logsQuery.data ?? []).filter((log) =>
     [log.recordNumber, log.topic, log.synopsis, log.location]
@@ -31,6 +63,17 @@ export default function DailyLogScreen() {
       .toLowerCase()
       .includes(query.toLowerCase())
   );
+
+  useEffect(() => {
+    if (!draft.trim()) {
+      clearModuleDrafts(quickEntryModuleKey);
+      return;
+    }
+
+    saveDraft(quickEntryModuleKey, {
+      value: draft,
+    });
+  }, [clearModuleDrafts, draft, saveDraft]);
 
   const handleQuickEntry = async () => {
     const fallbackLocation = locationsQuery.data?.[0];
@@ -41,21 +84,34 @@ export default function DailyLogScreen() {
     }
 
     if (!fallbackLocation) {
-      Alert.alert("Location required", "Load a location first or use the full create flow.");
+      Alert.alert(
+        "Location required",
+        "Load a location first or use the full create flow."
+      );
       return;
     }
 
     try {
-      await createLogMutation.mutateAsync({
+      const result = await createLogMutation.mutateAsync({
         locationId: fallbackLocation.id,
+        locationName: fallbackLocation.name,
         priority: "medium",
         synopsis: draft.trim(),
         topic: draft.trim().slice(0, 60) || "Field note",
       });
+      clearModuleDrafts(quickEntryModuleKey);
       setDraft("");
-      Alert.alert("Queued", "The entry has been queued. Use the full form when you need location or priority changes.");
+      Alert.alert(
+        result.queued ? "Queued Offline" : "Saved",
+        result.queued
+          ? "The entry has been stored locally and will sync when the device reconnects."
+          : "The entry has been saved. Use the full form when you need location or priority changes."
+      );
     } catch (error) {
-      Alert.alert("Save failed", error instanceof Error ? error.message : "Could not queue the daily log.");
+      Alert.alert(
+        "Save failed",
+        error instanceof Error ? error.message : "Could not queue the daily log."
+      );
     }
   };
 
@@ -63,7 +119,7 @@ export default function DailyLogScreen() {
     <ScreenContainer
       accessory={
         <SearchField
-          onChangeText={setQuery}
+          onChangeText={(value) => setFilter(filterModuleKey, { search: value })}
           placeholder="Search previous log entries or people"
           value={query}
         />
@@ -78,8 +134,8 @@ export default function DailyLogScreen() {
       <MaterialSurface intensity={78} style={styles.hero} variant="panel">
         <Text style={styles.heroTitle}>Quick Entry</Text>
         <Text style={styles.heroCopy}>
-          Keep the first gesture short. Everything that slows the operator down belongs deeper in
-          the workflow.
+          Keep the first gesture short. Everything that slows the operator down
+          belongs deeper in the workflow.
         </Text>
         <TextInput
           multiline
@@ -92,8 +148,16 @@ export default function DailyLogScreen() {
           value={draft}
         />
         <View style={styles.heroActions}>
-          <Button label="Queue Entry" loading={createLogMutation.isPending} onPress={handleQuickEntry} />
-          <Button label="Full Entry" onPress={() => router.push("/daily-log/new")} variant="secondary" />
+          <Button
+            label="Queue Entry"
+            loading={createLogMutation.isPending}
+            onPress={handleQuickEntry}
+          />
+          <Button
+            label="Full Entry"
+            onPress={() => router.push("/daily-log/new")}
+            variant="secondary"
+          />
         </View>
         <Text style={styles.helper}>
           {locationsQuery.data?.[0]
@@ -103,7 +167,11 @@ export default function DailyLogScreen() {
       </MaterialSurface>
 
       <SectionCard
-        subtitle={logsQuery.isLoading ? "Loading operational notes" : `${logs.length} entries visible`}
+        subtitle={
+          logsQuery.isLoading
+            ? "Loading operational notes"
+            : `${logs.length} entries visible`
+        }
         title="Recent entries"
       >
         <View style={styles.list}>
@@ -116,23 +184,29 @@ export default function DailyLogScreen() {
                 </View>
                 <Text style={styles.item}>{log.synopsis}</Text>
                 <Text style={styles.meta}>
-                  {log.recordNumber} · {log.location} · {formatRelativeTimestamp(log.createdAt)}
+                  {log.recordNumber} · {log.location} ·{" "}
+                  {formatRelativeTimestamp(log.createdAt)}
                 </Text>
               </View>
             ))
           ) : (
-            <Text style={styles.copy}>No daily logs match the current search.</Text>
+            <Text style={styles.copy}>
+              No daily logs match the current search.
+            </Text>
           )}
         </View>
       </SectionCard>
 
       <SectionCard title="Foundation state">
         <Text style={styles.copy}>
-          The fast path now queues validated entries. The full create flow is still where operators
-          choose location and priority explicitly.
+          The fast path now queues validated entries. The full create flow is
+          still where operators choose location and priority explicitly.
         </Text>
         <View style={styles.actions}>
-          <Button label="Open Create Flow" onPress={() => router.push("/daily-log/new")} />
+          <Button
+            label="Open Create Flow"
+            onPress={() => router.push("/daily-log/new")}
+          />
         </View>
       </SectionCard>
     </ScreenContainer>

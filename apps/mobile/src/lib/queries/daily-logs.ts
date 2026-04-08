@@ -1,11 +1,23 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
-import { DailyLogSchema } from "@eztrack/shared";
-
-import { useSessionContext } from "@/hooks/useSessionContext";
-import { getSupabase } from "@/lib/supabase";
-import { previewDailyLogs } from "@/data/mock";
 import { DailyLogStatus } from "@eztrack/shared";
+import { previewDailyLogs } from "@/data/mock";
+import { useSessionContext } from "@/hooks/useSessionContext";
+import {
+  readThroughCachedQuery,
+  useHydrateQueryFromCache,
+} from "@/lib/cache/sqlite-cache";
+import { mergePendingDailyLogs } from "@/lib/offline/optimistic";
+import {
+  queueDailyLogCreate,
+  shouldQueueMutationError,
+  type QueuedMutationResult,
+} from "@/lib/offline/queue";
+import type { QueuedCreateDailyLogInput } from "@/lib/offline/types";
+import { createDailyLogRecord } from "@/lib/services/daily-logs";
+import { getSupabase } from "@/lib/supabase";
+import { useNetworkStore } from "@/stores/network-store";
+import { useOfflineStore } from "@/stores/offline-store";
 
 export interface DailyLogRow {
   createdAt: string;
@@ -19,12 +31,7 @@ export interface DailyLogRow {
   topic: string;
 }
 
-export interface CreateDailyLogInput {
-  locationId: string;
-  priority: "low" | "medium" | "high";
-  synopsis: string;
-  topic: string;
-}
+export type CreateDailyLogInput = QueuedCreateDailyLogInput;
 
 async function fetchDailyLogs(orgId: string): Promise<DailyLogRow[]> {
   const supabase = getSupabase();
@@ -62,68 +69,43 @@ async function fetchDailyLogs(orgId: string): Promise<DailyLogRow[]> {
   }));
 }
 
-async function createDailyLog(input: CreateDailyLogInput, profile: { id: string; orgId: string; propertyId: string | null }) {
-  const parsed = DailyLogSchema.safeParse({
-    location_id: input.locationId,
-    priority: input.priority,
-    status: DailyLogStatus.Open,
-    synopsis: input.synopsis,
-    topic: input.topic,
-  });
-
-  if (!parsed.success) {
-    throw new Error(parsed.error.issues[0]?.message ?? "Daily log validation failed.");
-  }
-
-  const supabase = getSupabase();
-  const { data: recNum, error: recNumError } = await supabase.rpc("next_record_number", {
-    p_org_id: profile.orgId,
-    p_prefix: "DL",
-  });
-
-  if (recNumError || !recNum) {
-    throw new Error("Failed to generate the daily log record number.");
-  }
-
-  const { data, error } = await supabase
-    .from("daily_logs")
-    .insert({
-      created_by: profile.id,
-      location_id: input.locationId,
-      org_id: profile.orgId,
-      priority: input.priority,
-      property_id: profile.propertyId,
-      record_number: recNum,
-      status: DailyLogStatus.Open,
-      synopsis: input.synopsis,
-      topic: input.topic,
-    })
-    .select("id, record_number")
-    .single();
-
-  if (error) {
-    throw error;
-  }
-
-  return data;
-}
-
 export function useDailyLogs() {
   const { canAccessProtected, orgId, usePreviewData } = useSessionContext();
+  const pendingActions = useOfflineStore((state) => state.pendingActions);
+  const queryKey = ["daily-logs", "list", orgId ?? "preview"] as const;
+  const cacheKey = usePreviewData || !orgId ? null : `daily-logs:list:${orgId}`;
 
-  return useQuery<DailyLogRow[]>({
+  useHydrateQueryFromCache<DailyLogRow[]>(
+    queryKey,
+    cacheKey,
+    canAccessProtected && !usePreviewData && Boolean(orgId)
+  );
+
+  const query = useQuery<DailyLogRow[]>({
     enabled: canAccessProtected && (usePreviewData || Boolean(orgId)),
     queryFn: () =>
       usePreviewData
         ? Promise.resolve(previewDailyLogs.map((log) => ({ ...log })))
-        : fetchDailyLogs(orgId!),
-    queryKey: ["daily-logs", "list", orgId ?? "preview"],
+        : readThroughCachedQuery({
+            cacheKey: cacheKey!,
+            fetcher: () => fetchDailyLogs(orgId!),
+            ttlMs: 5 * 60 * 1000,
+          }),
+    queryKey,
   });
+
+  return {
+    ...query,
+    data: usePreviewData
+      ? query.data
+      : mergePendingDailyLogs(query.data, pendingActions),
+  };
 }
 
 export function useCreateDailyLogMutation() {
   const queryClient = useQueryClient();
   const { profile, usePreviewData } = useSessionContext();
+  const isOnline = useNetworkStore((state) => state.isOnline);
 
   return useMutation({
     mutationFn: async (input: CreateDailyLogInput) => {
@@ -135,16 +117,35 @@ export function useCreateDailyLogMutation() {
         return {
           id: `preview-log-${Date.now()}`,
           record_number: "DL-PREVIEW",
+          queued: false,
         };
       }
 
-      return createDailyLog(input, {
+      const mutationProfile = {
         id: profile.id,
         orgId: profile.org_id,
         propertyId: profile.property_id,
-      });
+      };
+
+      if (!isOnline) {
+        return queueDailyLogCreate(mutationProfile, input);
+      }
+
+      try {
+        const data = await createDailyLogRecord(input, mutationProfile);
+        return {
+          ...data,
+          queued: false,
+        };
+      } catch (error) {
+        if (shouldQueueMutationError(error)) {
+          return queueDailyLogCreate(mutationProfile, input);
+        }
+
+        throw error;
+      }
     },
-    onSuccess: async () => {
+    onSuccess: async (_result: { queued?: boolean } | QueuedMutationResult) => {
       await queryClient.invalidateQueries({ queryKey: ["dashboard"] });
       await queryClient.invalidateQueries({ queryKey: ["daily-logs"] });
     },

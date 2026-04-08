@@ -1,6 +1,15 @@
 import { useRouter } from "expo-router";
-import { useEffect, useMemo, useState } from "react";
-import { Alert, StyleSheet, Text, View } from "react-native";
+import {
+  useEffect,
+  useMemo,
+  useState,
+} from "react";
+import {
+  Alert,
+  StyleSheet,
+  Text,
+  View,
+} from "react-native";
 
 import {
   INCIDENT_TYPES,
@@ -15,6 +24,10 @@ import { SectionCard } from "@/components/ui/SectionCard";
 import { TextField } from "@/components/ui/TextField";
 import { useCreateIncidentMutation } from "@/lib/queries/incidents";
 import { useLocations } from "@/lib/queries/locations";
+import {
+  getDraftKey,
+  useDraftStore,
+} from "@/stores/draft-store";
 import { useThemeColors } from "@/theme";
 
 const severities: IncidentSeverity[] = [
@@ -23,21 +36,44 @@ const severities: IncidentSeverity[] = [
   IncidentSeverity.High,
   IncidentSeverity.Critical,
 ];
+const draftModuleKey = "incident-create";
 
 export default function NewIncidentScreen() {
   const colors = useThemeColors();
   const styles = createStyles(colors);
   const router = useRouter();
-  const [incidentType, setIncidentType] = useState<string>(INCIDENT_TYPES[0]);
-  const [selectedSeverity, setSelectedSeverity] = useState<IncidentSeverity>(IncidentSeverity.Medium);
-  const [selectedLocationName, setSelectedLocationName] = useState("");
-  const [synopsis, setSynopsis] = useState("");
-  const [reportedBy, setReportedBy] = useState("");
+  const savedDraft = useDraftStore(
+    (state) =>
+      state.drafts[getDraftKey(draftModuleKey)]?.data as
+        | {
+            incidentType?: string;
+            reportedBy?: string;
+            selectedLocationName?: string;
+            selectedSeverity?: IncidentSeverity;
+            synopsis?: string;
+          }
+        | undefined
+  );
+  const clearModuleDrafts = useDraftStore((state) => state.clearModuleDrafts);
+  const saveDraft = useDraftStore((state) => state.saveDraft);
+  const [incidentType, setIncidentType] = useState<string>(
+    savedDraft?.incidentType ?? INCIDENT_TYPES[0]
+  );
+  const [selectedSeverity, setSelectedSeverity] = useState<IncidentSeverity>(
+    savedDraft?.selectedSeverity ?? IncidentSeverity.Medium
+  );
+  const [selectedLocationName, setSelectedLocationName] = useState(
+    savedDraft?.selectedLocationName ?? ""
+  );
+  const [synopsis, setSynopsis] = useState(savedDraft?.synopsis ?? "");
+  const [reportedBy, setReportedBy] = useState(savedDraft?.reportedBy ?? "");
   const locationsQuery = useLocations();
   const createIncidentMutation = useCreateIncidentMutation();
   const locationOptions = locationsQuery.data ?? [];
   const selectedLocation = useMemo(
-    () => locationOptions.find((location) => location.name === selectedLocationName) ?? null,
+    () =>
+      locationOptions.find((location) => location.name === selectedLocationName) ??
+      null,
     [locationOptions, selectedLocationName]
   );
 
@@ -47,24 +83,66 @@ export default function NewIncidentScreen() {
     }
   }, [locationOptions, selectedLocationName]);
 
+  useEffect(() => {
+    const hasMeaningfulDraft =
+      synopsis.trim().length > 0 ||
+      reportedBy.trim().length > 0 ||
+      incidentType !== INCIDENT_TYPES[0] ||
+      selectedSeverity !== IncidentSeverity.Medium;
+
+    if (!hasMeaningfulDraft) {
+      clearModuleDrafts(draftModuleKey);
+      return;
+    }
+
+    saveDraft(draftModuleKey, {
+      incidentType,
+      reportedBy,
+      selectedLocationName,
+      selectedSeverity,
+      synopsis,
+    });
+  }, [
+    clearModuleDrafts,
+    incidentType,
+    reportedBy,
+    saveDraft,
+    selectedLocationName,
+    selectedSeverity,
+    synopsis,
+  ]);
+
   const submit = async () => {
     if (!selectedLocation) {
-      Alert.alert("Location required", "Choose a location before saving the incident.");
+      Alert.alert(
+        "Location required",
+        "Choose a location before saving the incident."
+      );
       return;
     }
 
     try {
-      await createIncidentMutation.mutateAsync({
+      const result = await createIncidentMutation.mutateAsync({
         incidentType,
         locationId: selectedLocation.id,
+        locationName: selectedLocation.name,
         reportedBy: reportedBy.trim() || undefined,
         severity: selectedSeverity,
         synopsis,
       });
-      Alert.alert("Saved", "The incident draft has been created.");
+      Alert.alert(
+        result.queued ? "Queued Offline" : "Saved",
+        result.queued
+          ? "The incident draft is stored locally and will sync when the device reconnects."
+          : "The incident draft has been created."
+      );
+      clearModuleDrafts(draftModuleKey);
       router.back();
     } catch (error) {
-      Alert.alert("Save failed", error instanceof Error ? error.message : "Could not create the incident.");
+      Alert.alert(
+        "Save failed",
+        error instanceof Error ? error.message : "Could not create the incident."
+      );
     }
   };
 
@@ -74,8 +152,8 @@ export default function NewIncidentScreen() {
         <MaterialSurface intensity={80} style={styles.hero} variant="panel">
           <Text style={styles.heroTitle}>New Incident</Text>
           <Text style={styles.heroCopy}>
-            Keep the top of the form short and decisive. Operators should be able to start the
-            report without hunting through the interface.
+            Keep the top of the form short and decisive. Operators should be
+            able to start the report without hunting through the interface.
           </Text>
         </MaterialSurface>
       }
@@ -106,7 +184,9 @@ export default function NewIncidentScreen() {
             selected={selectedLocationName}
           />
         ) : (
-          <Text style={styles.helper}>A saved location is required before incidents can be created.</Text>
+          <Text style={styles.helper}>
+            A saved location is required before incidents can be created.
+          </Text>
         )}
       </SectionCard>
 
@@ -127,8 +207,16 @@ export default function NewIncidentScreen() {
             value={synopsis}
           />
           <View style={styles.actions}>
-            <Button label="Cancel" onPress={() => router.back()} variant="secondary" />
-            <Button label="Save Draft" loading={createIncidentMutation.isPending} onPress={submit} />
+            <Button
+              label="Cancel"
+              onPress={() => router.back()}
+              variant="secondary"
+            />
+            <Button
+              label="Save Draft"
+              loading={createIncidentMutation.isPending}
+              onPress={submit}
+            />
           </View>
         </View>
       </SectionCard>
