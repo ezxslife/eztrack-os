@@ -5,11 +5,14 @@ import {
   QueryClientProvider,
 } from "@tanstack/react-query";
 
+import { AppStatusBanner } from "@/components/feedback/AppStatusBanner";
 import { AuthBootstrap } from "@/providers/AuthBootstrap";
+import { BottomSheetProvider } from "@/providers/BottomSheetProvider";
 import { NetworkBridge } from "@/providers/NetworkBridge";
 import { OfflineQueueBridge } from "@/providers/OfflineQueueBridge";
 import { RealtimeBridge } from "@/providers/RealtimeBridge";
 import { StorageHealthBootstrap } from "@/providers/StorageHealthBootstrap";
+import { ToastProvider } from "@/providers/ToastProvider";
 
 interface AppProvidersProps {
   children: ReactNode;
@@ -39,7 +42,12 @@ export function AppProviders({ children }: AppProvidersProps) {
       <AuthBootstrap />
       <OfflineQueueBridge />
       <RealtimeBridge />
-      {children}
+      <BottomSheetProvider>
+        <ToastProvider>
+          {children}
+          <AppStatusBanner />
+        </ToastProvider>
+      </BottomSheetProvider>
     </QueryClientProvider>
   );
 }

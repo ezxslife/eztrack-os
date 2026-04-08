@@ -19,6 +19,7 @@ import {
   getOfflineActionTitle,
 } from "@/lib/offline/queue";
 import { syncOfflineQueueNow } from "@/lib/offline/sync";
+import { useToast } from "@/providers/ToastProvider";
 import { useAuthStore } from "@/stores/auth-store";
 import { useNetworkStore } from "@/stores/network-store";
 import { useOfflineStore } from "@/stores/offline-store";
@@ -37,6 +38,7 @@ function SyncCenterContent() {
   const colors = useThemeColors();
   const styles = createStyles(colors);
   const queryClient = useQueryClient();
+  const { showToast } = useToast();
   const profile = useAuthStore((state) => state.profile);
   const authStatus = useAuthStore((state) => state.status);
   const isOnline = useNetworkStore((state) => state.isOnline);
@@ -82,17 +84,20 @@ function SyncCenterContent() {
         propertyId: profile.property_id,
       });
 
-      Alert.alert(
-        "Queue processed",
-        `${result.processedCount} synced, ${result.failedCount} failed, ${result.deadLetterCount} moved to review.`
-      );
+      showToast({
+        message: `${result.processedCount} synced, ${result.deadLetterCount} moved to review.`,
+        title: "Queue processed",
+        tone: result.deadLetterCount > 0 ? "warning" : "success",
+      });
     } catch (error) {
-      Alert.alert(
-        "Sync failed",
-        error instanceof Error
-          ? error.message
-          : "Queued actions could not be processed."
-      );
+      showToast({
+        message:
+          error instanceof Error
+            ? error.message
+            : "Queued actions could not be processed.",
+        title: "Sync failed",
+        tone: "error",
+      });
     } finally {
       setBusyAction(null);
     }
@@ -105,22 +110,24 @@ function SyncCenterContent() {
     });
     setBusyAction(null);
 
-    Alert.alert(
-      "Failed actions retried",
-      reviewQueue.length
+    showToast({
+      message: reviewQueue.length
         ? `${reviewQueue.length} items were moved back into the pending queue.`
-        : "There were no failed actions to retry."
-    );
+        : "There were no failed actions to retry.",
+      title: "Retry queued",
+      tone: reviewQueue.length ? "success" : "info",
+    });
   };
 
   const handleClearFailed = () => {
     setBusyAction("clear");
     clearDeadLetters();
     setBusyAction(null);
-    Alert.alert(
-      "Failed actions cleared",
-      "Dead-letter queue entries were removed."
-    );
+    showToast({
+      message: "Dead-letter queue entries were removed.",
+      title: "Failed actions cleared",
+      tone: "success",
+    });
   };
 
   return (

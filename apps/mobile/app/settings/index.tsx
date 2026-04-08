@@ -22,11 +22,14 @@ import {
   getOfflineActionTitle,
 } from "@/lib/offline/queue";
 import { syncOfflineQueueNow } from "@/lib/offline/sync";
+import { useToast } from "@/providers/ToastProvider";
 import { useAuthStore } from "@/stores/auth-store";
+import { useCoachMarkStore } from "@/stores/coach-mark-store";
 import { useDraftStore } from "@/stores/draft-store";
 import { useFilterStore } from "@/stores/filter-store";
 import { useNetworkStore } from "@/stores/network-store";
 import { useOfflineStore } from "@/stores/offline-store";
+import { useRecentSearchStore } from "@/stores/recent-search-store";
 import { useStorageHealthStore } from "@/stores/storage-health-store";
 import { useUIStore } from "@/stores/ui-store";
 import { useThemeColors } from "@/theme";
@@ -61,6 +64,7 @@ export default function SettingsScreen() {
   const styles = createStyles(colors);
   const router = useRouter();
   const queryClient = useQueryClient();
+  const { showToast } = useToast();
   const profile = useAuthStore((state) => state.profile);
   const authStatus = useAuthStore((state) => state.status);
   const biometricLockEnabled = useUIStore((state) => state.biometricLockEnabled);
@@ -88,8 +92,21 @@ export default function SettingsScreen() {
   const filterCount = useFilterStore(
     (state) => Object.keys(state.filters).length
   );
+  const recentSearchCount = useRecentSearchStore((state) =>
+    Object.values(state.entriesByScope).reduce(
+      (total, entries) => total + entries.length,
+      0
+    )
+  );
+  const dismissedCoachMarkCount = useCoachMarkStore(
+    (state) => Object.keys(state.dismissedAt).length
+  );
   const clearAllDrafts = useDraftStore((state) => state.clearAllDrafts);
   const clearAllFilters = useFilterStore((state) => state.clearAllFilters);
+  const clearRecentSearches = useRecentSearchStore(
+    (state) => state.clearRecentSearches
+  );
+  const resetCoachMarks = useCoachMarkStore((state) => state.reset);
   const isOnline = useNetworkStore((state) => state.isOnline);
   const pendingActions = useOfflineStore((state) => state.pendingActions);
   const clearDeadLetters = useOfflineStore((state) => state.clearDeadLetters);
@@ -98,7 +115,14 @@ export default function SettingsScreen() {
   const queryCache = useStorageHealthStore((state) => state.queryCache);
   const storageTier = useStorageHealthStore((state) => state.tier);
   const [clearing, setClearing] = useState<
-    null | "dead_letters" | "drafts" | "filters" | "prefs" | "sync"
+    | null
+    | "coach_marks"
+    | "dead_letters"
+    | "drafts"
+    | "filters"
+    | "prefs"
+    | "recent_searches"
+    | "sync"
   >(null);
 
   const selectedThemeLabel =
@@ -134,15 +158,20 @@ export default function SettingsScreen() {
         propertyId: profile.property_id,
       });
 
-      Alert.alert(
-        "Queue processed",
-        `${result.processedCount} synced, ${result.failedCount} failed, ${result.deadLetterCount} moved to review.`
-      );
+      showToast({
+        message: `${result.processedCount} synced, ${result.deadLetterCount} moved to review.`,
+        title: "Queue processed",
+        tone: result.deadLetterCount > 0 ? "warning" : "success",
+      });
     } catch (error) {
-      Alert.alert(
-        "Sync failed",
-        error instanceof Error ? error.message : "Queued actions could not be processed."
-      );
+      showToast({
+        message:
+          error instanceof Error
+            ? error.message
+            : "Queued actions could not be processed.",
+        title: "Sync failed",
+        tone: "error",
+      });
     } finally {
       setClearing(null);
     }
@@ -241,6 +270,11 @@ export default function SettingsScreen() {
           />
           <DiagnosticRow label="Saved drafts" value={String(draftCount)} />
           <DiagnosticRow label="Saved filters" value={String(filterCount)} />
+          <DiagnosticRow label="Recent searches" value={String(recentSearchCount)} />
+          <DiagnosticRow
+            label="Dismissed coach marks"
+            value={String(dismissedCoachMarkCount)}
+          />
           <DiagnosticRow
             label="Queued offline actions"
             value={`${pendingQueueCount} pending / ${deadLetterCount} needs review`}
@@ -274,10 +308,11 @@ export default function SettingsScreen() {
                 setClearing("dead_letters");
                 clearDeadLetters();
                 setClearing(null);
-                Alert.alert(
-                  "Failed actions cleared",
-                  "Dead-letter queue entries were removed."
-                );
+                showToast({
+                  message: "Dead-letter queue entries were removed.",
+                  title: "Failed actions cleared",
+                  tone: "success",
+                });
               }}
               variant="secondary"
             />
@@ -332,7 +367,11 @@ export default function SettingsScreen() {
               setClearing("drafts");
               clearAllDrafts();
               setClearing(null);
-              Alert.alert("Drafts cleared", "Saved mobile drafts were removed.");
+              showToast({
+                message: "Saved mobile drafts were removed.",
+                title: "Drafts cleared",
+                tone: "success",
+              });
             }}
             variant="secondary"
           />
@@ -343,7 +382,11 @@ export default function SettingsScreen() {
               setClearing("filters");
               clearAllFilters();
               setClearing(null);
-              Alert.alert("Filters cleared", "Remembered list filters were removed.");
+              showToast({
+                message: "Remembered list filters were removed.",
+                title: "Filters cleared",
+                tone: "success",
+              });
             }}
             variant="secondary"
           />
@@ -354,7 +397,41 @@ export default function SettingsScreen() {
               setClearing("prefs");
               resetPreferences();
               setClearing(null);
-              Alert.alert("Preferences reset", "Theme and device preferences were reset.");
+              showToast({
+                message: "Theme and device preferences were reset.",
+                title: "Preferences reset",
+                tone: "success",
+              });
+            }}
+            variant="secondary"
+          />
+          <Button
+            label="Clear Recent Searches"
+            loading={clearing === "recent_searches"}
+            onPress={() => {
+              setClearing("recent_searches");
+              clearRecentSearches();
+              setClearing(null);
+              showToast({
+                message: "Saved dashboard search terms were removed.",
+                title: "Recent searches cleared",
+                tone: "success",
+              });
+            }}
+            variant="secondary"
+          />
+          <Button
+            label="Reset Coach Marks"
+            loading={clearing === "coach_marks"}
+            onPress={() => {
+              setClearing("coach_marks");
+              resetCoachMarks();
+              setClearing(null);
+              showToast({
+                message: "One-time operational hints will be shown again.",
+                title: "Coach marks reset",
+                tone: "success",
+              });
             }}
             variant="secondary"
           />
