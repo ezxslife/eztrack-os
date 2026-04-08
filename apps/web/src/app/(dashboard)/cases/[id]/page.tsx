@@ -77,12 +77,14 @@ import {
   fetchCaseCosts,
   fetchCaseRelatedRecords,
   fetchCaseAudit,
+  fetchCaseResources,
   createCaseEvidence,
   createCaseTask,
   createCaseNarrative,
   createEvidenceTransfer,
   createCaseRelatedRecord,
   createCaseCost,
+  createCaseResource,
   type CaseDetail,
   type CaseEvidenceItem,
   type CaseTask,
@@ -90,6 +92,7 @@ import {
   type CaseCostEntry,
   type CaseRelatedRecord,
   type CaseAuditEntry,
+  type CaseResource,
 } from "@/lib/queries/cases";
 import { createBriefing } from "@/lib/queries/briefings";
 import { createWorkOrder } from "@/lib/queries/work-orders";
@@ -161,6 +164,7 @@ export default function CaseDetailPage({
   const [costs, setCosts] = useState<CaseCostEntry[]>([]);
   const [relatedRecords, setRelatedRecords] = useState<CaseRelatedRecord[]>([]);
   const [auditLog, setAuditLog] = useState<CaseAuditEntry[]>([]);
+  const [resources, setResources] = useState<CaseResource[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -168,7 +172,7 @@ export default function CaseDetailPage({
     try {
       setLoading(true);
       setError(null);
-      const [data, ev, tk, nr, co, rr, al] = await Promise.all([
+      const [data, ev, tk, nr, co, rr, al, res] = await Promise.all([
         fetchCaseById(id),
         fetchCaseEvidence(id).catch(() => [] as CaseEvidenceItem[]),
         fetchCaseTasks(id).catch(() => [] as CaseTask[]),
@@ -176,6 +180,7 @@ export default function CaseDetailPage({
         fetchCaseCosts(id).catch(() => [] as CaseCostEntry[]),
         fetchCaseRelatedRecords(id).catch(() => [] as CaseRelatedRecord[]),
         fetchCaseAudit(id).catch(() => [] as CaseAuditEntry[]),
+        fetchCaseResources(id).catch(() => [] as CaseResource[]),
       ]);
       setCaseData(data);
       setEvidence(ev);
@@ -184,6 +189,7 @@ export default function CaseDetailPage({
       setCosts(co);
       setRelatedRecords(rr);
       setAuditLog(al);
+      setResources(res);
     } catch (err: any) {
       setError(err.message || "Failed to load case");
     } finally {
@@ -218,7 +224,7 @@ export default function CaseDetailPage({
   const c = {
     id: caseData.recordNumber,
     title: caseData.caseType,
-    stage: "assessment" as const,
+    stage: caseData.stage || "assessment",
     status: caseData.status,
     priority: (caseData.escalationLevel || "medium") as "critical" | "high" | "medium" | "low",
     daysOpen: Math.floor((Date.now() - new Date(caseData.createdAt).getTime()) / 86400000),
@@ -232,7 +238,7 @@ export default function CaseDetailPage({
     evidenceCount: evidence.length,
     taskCount: tasks.length,
     tasksCompleted,
-    resourceCount: 0,
+    resourceCount: resources.length,
     narrativeCount: narratives.length,
   };
   const currentStageIndex = STAGES.findIndex((s) => s.key === c.stage);
@@ -304,7 +310,7 @@ export default function CaseDetailPage({
 
       {/* ── Tab Content ── */}
       {activeTab === "overview" && <OverviewTab c={c} stageIndex={currentStageIndex} relatedRecords={relatedRecords} auditLog={auditLog} costs={costs} tasks={tasks} />}
-      {activeTab === "resources" && <ResourcesTab onAddResource={() => setAddResourceModal(true)} />}
+      {activeTab === "resources" && <ResourcesTab resources={resources} onAddResource={() => setAddResourceModal(true)} />}
       {activeTab === "related" && <RelatedRecordsTab relatedRecords={relatedRecords} onLinkRecord={() => setLinkRecordModal(true)} />}
       {activeTab === "evidence" && <EvidenceTab evidence={evidence} onAddEvidence={() => setAddEvidenceModal(true)} onTransferCustody={() => setChainOfCustodyModal(true)} />}
       {activeTab === "tasks" && <TasksTab tasks={tasks} onAddTask={() => setAddTaskModal(true)} />}
@@ -318,8 +324,19 @@ export default function CaseDetailPage({
         open={addResourceModal}
         onClose={() => setAddResourceModal(false)}
         onSubmit={async (data) => {
-          toast("Resource management is not yet available — this feature is coming soon.", { variant: "info" });
-          setAddResourceModal(false);
+          try {
+            await createCaseResource(caseData.id, caseData.orgId, {
+              name: data.userSearch,
+              alias: data.aliasActive ? data.alias : undefined,
+              role: data.role,
+              hourlyRate: data.hourlyRate ? parseFloat(data.hourlyRate) : undefined,
+            });
+            toast("Resource added to case", { variant: "success" });
+            setAddResourceModal(false);
+            loadCase();
+          } catch (err: any) {
+            toast(err.message || "Failed to add resource", { variant: "error" });
+          }
         }}
       />
 
@@ -506,8 +523,20 @@ export default function CaseDetailPage({
         open={advanceStageModal}
         onClose={() => setAdvanceStageModal(false)}
         onConfirm={async (reason) => {
-          toast("Stage tracking is not yet available — this feature is coming soon.", { variant: "info" });
-          setAdvanceStageModal(false);
+          try {
+            const nextStageKey = STAGES[currentStageIndex + 1]?.key;
+            if (!nextStageKey) {
+              toast("Case is already at the final stage.", { variant: "info" });
+              setAdvanceStageModal(false);
+              return;
+            }
+            await updateCase(caseData.id, { stage: nextStageKey });
+            toast(`Case advanced to ${STAGES[currentStageIndex + 1]?.label}`, { variant: "success" });
+            setAdvanceStageModal(false);
+            loadCase();
+          } catch (err: any) {
+            toast(err.message || "Failed to advance stage", { variant: "error" });
+          }
         }}
         currentStage={STAGES[currentStageIndex]?.label ?? ""}
         nextStage={STAGES[currentStageIndex + 1]?.label ?? "Complete"}
@@ -909,24 +938,68 @@ function OverviewTab({ c, stageIndex, relatedRecords, auditLog, costs, tasks }: 
    2. RESOURCES TAB
    ================================================================ */
 
-function ResourcesTab({ onAddResource }: { onAddResource: () => void }) {
+function ResourcesTab({ resources, onAddResource }: { resources: CaseResource[]; onAddResource: () => void }) {
   return (
     <Card>
       <CardHeader className="flex-row items-center justify-between">
-        <CardTitle>Assigned Resources</CardTitle>
+        <CardTitle>Assigned Resources ({resources.length})</CardTitle>
         <Button variant="outline" size="sm" onClick={onAddResource}>
           <Plus size={13} />
           Add Resource
         </Button>
       </CardHeader>
-      <CardContent>
-        <div className="flex flex-col items-center justify-center py-12 text-center">
-          <Users size={32} className="text-[var(--text-tertiary)] mb-3" />
-          <p className="text-[13px] font-medium text-[var(--text-secondary)]">No resources assigned yet</p>
-          <p className="text-[12px] text-[var(--text-tertiary)] mt-1">
-            Assign team members and investigators to this case
-          </p>
-        </div>
+      <CardContent className="p-0">
+        {resources.length === 0 ? (
+          <div className="flex flex-col items-center justify-center py-12 text-center">
+            <Users size={32} className="text-[var(--text-tertiary)] mb-3" />
+            <p className="text-[13px] font-medium text-[var(--text-secondary)]">No resources assigned yet</p>
+            <p className="text-[12px] text-[var(--text-tertiary)] mt-1">
+              Assign team members and investigators to this case
+            </p>
+          </div>
+        ) : (
+          <TableWrapper>
+            <thead>
+              <tr>
+                <Th>Name</Th>
+                <Th>Alias</Th>
+                <Th>Role</Th>
+                <Th>Hourly Rate</Th>
+                <Th>Hours Logged</Th>
+                <Th>Total Cost</Th>
+                <Th>Status</Th>
+              </tr>
+            </thead>
+            <tbody>
+              {resources.map((r) => {
+                const totalCost = (r.hourlyRate ?? 0) * r.hoursLogged;
+                return (
+                  <tr key={r.id} className="hover:bg-[var(--surface-hover)] transition-colors">
+                    <Td>
+                      <span className="font-medium">{r.name}</span>
+                    </Td>
+                    <Td>
+                      <span className="text-[12px] text-[var(--text-secondary)]">{r.alias || "—"}</span>
+                    </Td>
+                    <Td>
+                      <span className="capitalize text-[12px]">{r.role.replace(/_/g, " ")}</span>
+                    </Td>
+                    <Td>
+                      {r.hourlyRate != null ? `$${r.hourlyRate.toFixed(2)}` : "—"}
+                    </Td>
+                    <Td>{r.hoursLogged.toFixed(1)}</Td>
+                    <Td>
+                      <span className="font-medium">${totalCost.toFixed(2)}</span>
+                    </Td>
+                    <Td>
+                      <StatusBadge status={r.status} dot />
+                    </Td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </TableWrapper>
+        )}
       </CardContent>
     </Card>
   );

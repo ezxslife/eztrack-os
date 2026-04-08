@@ -61,6 +61,7 @@ import {
   fetchIncidentShares,
   fetchIncidentForms,
   fetchIncidentDocLog,
+  fetchIncidentMedia,
   createIncidentNarrative,
   updateIncidentNarrative,
   addIncidentParticipant,
@@ -70,6 +71,8 @@ import {
   updateIncident,
   updateIncidentStatus,
   deleteIncident,
+  createIncidentMedia,
+  uploadIncidentMediaFile,
   type IncidentDetail,
   type IncidentNarrative,
   type IncidentParticipant,
@@ -78,6 +81,7 @@ import {
   type IncidentShare,
   type IncidentForm,
   type IncidentDocLogEntry,
+  type IncidentMediaItem,
 } from "@/lib/queries/incidents";
 import { createCase } from "@/lib/queries/cases";
 import { getSupabaseBrowser } from "@/lib/supabase-browser";
@@ -123,6 +127,7 @@ export default function IncidentDetailPage() {
   const [shares, setShares] = useState<IncidentShare[]>([]);
   const [forms, setForms] = useState<IncidentForm[]>([]);
   const [docLog, setDocLog] = useState<IncidentDocLogEntry[]>([]);
+  const [media, setMedia] = useState<IncidentMediaItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -145,7 +150,7 @@ export default function IncidentDetailPage() {
 
   // Reusable data loader
   const loadIncident = async () => {
-    const [inc, narr, parts, fins, related, shareData, formData, logData] = await Promise.all([
+    const [inc, narr, parts, fins, related, shareData, formData, logData, mediaData] = await Promise.all([
       fetchIncidentById(incidentId),
       fetchIncidentNarratives(incidentId),
       fetchIncidentParticipants(incidentId),
@@ -154,6 +159,7 @@ export default function IncidentDetailPage() {
       fetchIncidentShares(incidentId).catch(() => [] as IncidentShare[]),
       fetchIncidentForms(incidentId).catch(() => [] as IncidentForm[]),
       fetchIncidentDocLog(incidentId).catch(() => [] as IncidentDocLogEntry[]),
+      fetchIncidentMedia(incidentId).catch(() => [] as IncidentMediaItem[]),
     ]);
     setIncident(inc);
     setNarratives(narr);
@@ -163,6 +169,7 @@ export default function IncidentDetailPage() {
     setShares(shareData);
     setForms(formData);
     setDocLog(logData);
+    setMedia(mediaData);
   };
 
   // Fetch all incident data from Supabase
@@ -298,7 +305,7 @@ export default function IncidentDetailPage() {
           <ParticipantsTab participants={participants} onAddParticipant={() => setParticipantWizard(true)} />
         )}
         {activeTab === "media" && (
-          <MediaTab onUploadMedia={() => setMediaModal(true)} />
+          <MediaTab media={media} onUploadMedia={() => setMediaModal(true)} />
         )}
         {activeTab === "related" && (
           <RelatedIncidentsTab relatedIncidents={relatedIncidents} onLinkIncident={() => setLinkModal(true)} />
@@ -391,9 +398,24 @@ export default function IncidentDetailPage() {
       <UploadMediaModal
         open={mediaModal}
         onClose={() => setMediaModal(false)}
-        onSubmit={async () => {
-          toast("Media upload coming soon — file storage is not yet configured", { variant: "info" });
-          setMediaModal(false);
+        onSubmit={async (data) => {
+          try {
+            // TODO: wire file upload once the modal provides an actual File object
+            // For now, create a metadata-only record
+            await createIncidentMedia(incident.id, incident.orgId, {
+              title: data.title || undefined,
+              description: data.description || undefined,
+              mediaType: "document",
+              fileName: data.title || "untitled",
+              filePath: `${incident.id}/${data.title || "untitled"}`,
+              mimeType: undefined,
+            });
+            toast("Media entry created", { variant: "success" });
+            setMediaModal(false);
+            await loadIncident();
+          } catch (err: any) {
+            toast(err.message || "Failed to upload media", { variant: "error" });
+          }
         }}
       />
       <AddFinancialEntryModal
@@ -1038,12 +1060,19 @@ function ParticipantRow({
    TAB 4: MEDIA
    ═══════════════════════════════════════════════════════════════ */
 
-function MediaTab({ onUploadMedia }: { onUploadMedia: () => void }) {
+function MediaTab({ media, onUploadMedia }: { media: IncidentMediaItem[]; onUploadMedia: () => void }) {
+  const formatFileSize = (bytes: number | null) => {
+    if (bytes == null) return "—";
+    if (bytes < 1024) return `${bytes} B`;
+    if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+    return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+  };
+
   return (
     <div className="max-w-5xl space-y-4">
       <div className="flex items-center justify-between">
         <h3 className="text-sm font-semibold text-[var(--text-primary)]">
-          Media
+          Media ({media.length})
         </h3>
         <div className="flex items-center gap-2">
           <Button variant="outline" size="sm" onClick={onUploadMedia}>
@@ -1061,15 +1090,55 @@ function MediaTab({ onUploadMedia }: { onUploadMedia: () => void }) {
         </div>
       </div>
 
-      <Card>
-        <CardContent className="py-12 text-center">
-          <ImageIcon className="h-8 w-8 mx-auto text-[var(--text-tertiary)] opacity-40 mb-3" />
-          <p className="text-[13px] text-[var(--text-secondary)]">No media files yet</p>
-          <p className="text-[12px] text-[var(--text-tertiary)] mt-1">
-            Upload photos, videos, or documents related to this incident
-          </p>
-        </CardContent>
-      </Card>
+      {media.length === 0 ? (
+        <Card>
+          <CardContent className="py-12 text-center">
+            <ImageIcon className="h-8 w-8 mx-auto text-[var(--text-tertiary)] opacity-40 mb-3" />
+            <p className="text-[13px] text-[var(--text-secondary)]">No media files yet</p>
+            <p className="text-[12px] text-[var(--text-tertiary)] mt-1">
+              Upload photos, videos, or documents related to this incident
+            </p>
+          </CardContent>
+        </Card>
+      ) : (
+        <Card>
+          <CardContent className="p-0">
+            <div className="overflow-x-auto">
+              <table className="w-full text-[13px]">
+                <thead>
+                  <tr>
+                    <th className="text-left text-[11px] font-semibold text-[var(--text-tertiary)] uppercase tracking-wider px-3 py-2 border-b border-[var(--border-default)]">Type</th>
+                    <th className="text-left text-[11px] font-semibold text-[var(--text-tertiary)] uppercase tracking-wider px-3 py-2 border-b border-[var(--border-default)]">Title</th>
+                    <th className="text-left text-[11px] font-semibold text-[var(--text-tertiary)] uppercase tracking-wider px-3 py-2 border-b border-[var(--border-default)]">Filename</th>
+                    <th className="text-left text-[11px] font-semibold text-[var(--text-tertiary)] uppercase tracking-wider px-3 py-2 border-b border-[var(--border-default)]">Size</th>
+                    <th className="text-left text-[11px] font-semibold text-[var(--text-tertiary)] uppercase tracking-wider px-3 py-2 border-b border-[var(--border-default)]">Uploaded By</th>
+                    <th className="text-left text-[11px] font-semibold text-[var(--text-tertiary)] uppercase tracking-wider px-3 py-2 border-b border-[var(--border-default)]">Date</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {media.map((m) => {
+                    const typeIcon = m.mediaType === "image" || m.mimeType?.startsWith("image/")
+                      ? <ImageIcon className="h-4 w-4 text-[var(--text-tertiary)]" />
+                      : m.mediaType === "video" || m.mimeType?.startsWith("video/")
+                        ? <Video className="h-4 w-4 text-[var(--text-tertiary)]" />
+                        : <File className="h-4 w-4 text-[var(--text-tertiary)]" />;
+                    return (
+                      <tr key={m.id} className="hover:bg-[var(--surface-hover)] transition-colors">
+                        <td className="px-3 py-2.5 border-b border-[var(--border-default)]">{typeIcon}</td>
+                        <td className="px-3 py-2.5 text-[var(--text-primary)] border-b border-[var(--border-default)] font-medium">{m.title || "—"}</td>
+                        <td className="px-3 py-2.5 text-[var(--text-secondary)] border-b border-[var(--border-default)] font-mono text-[12px]">{m.fileName}</td>
+                        <td className="px-3 py-2.5 text-[var(--text-secondary)] border-b border-[var(--border-default)]">{formatFileSize(m.fileSize)}</td>
+                        <td className="px-3 py-2.5 text-[var(--text-secondary)] border-b border-[var(--border-default)]">{m.uploadedByName || "—"}</td>
+                        <td className="px-3 py-2.5 text-[var(--text-tertiary)] border-b border-[var(--border-default)] text-[12px]">{formatDateTime(m.createdAt)}</td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          </CardContent>
+        </Card>
+      )}
     </div>
   );
 }

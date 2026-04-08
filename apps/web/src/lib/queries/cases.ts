@@ -20,6 +20,7 @@ export interface CaseDetail {
   recordNumber: string;
   caseType: string;
   status: string;
+  stage: string;
   synopsis: string | null;
   escalationLevel: string | null;
   leadInvestigator: { id: string; fullName: string } | null;
@@ -87,6 +88,7 @@ export async function fetchCaseById(id: string): Promise<CaseDetail> {
     recordNumber: data.record_number,
     caseType: data.case_type,
     status: data.status,
+    stage: data.stage ?? "assessment",
     synopsis: data.synopsis,
     escalationLevel: data.escalation_level,
     leadInvestigator: data.investigator
@@ -606,4 +608,118 @@ export async function fetchCaseAudit(caseId: string) {
     actorName: row.actor?.full_name || null,
     createdAt: row.created_at,
   }));
+}
+
+/* ─── Case Resource types & CRUD ─────────────── */
+
+export interface CaseResource {
+  id: string;
+  caseId: string;
+  orgId: string;
+  profileId: string | null;
+  name: string;
+  alias: string | null;
+  role: string;
+  hourlyRate: number | null;
+  hoursLogged: number;
+  status: string;
+  notes: string | null;
+  createdBy: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export async function fetchCaseResources(caseId: string): Promise<CaseResource[]> {
+  const supabase = getSupabaseBrowser();
+
+  const { data, error } = await supabase
+    .from("case_resources")
+    .select(`
+      id, case_id, org_id, profile_id, name, alias, role,
+      hourly_rate, hours_logged, status, notes, created_by,
+      created_at, updated_at,
+      profile:profiles!profile_id(full_name)
+    `)
+    .eq("case_id", caseId)
+    .order("created_at", { ascending: false });
+
+  if (error) throw error;
+
+  return (data || []).map((row: any) => ({
+    id: row.id,
+    caseId: row.case_id,
+    orgId: row.org_id,
+    profileId: row.profile_id,
+    name: (row.profile as any)?.full_name || row.name,
+    alias: row.alias,
+    role: row.role,
+    hourlyRate: row.hourly_rate != null ? Number(row.hourly_rate) : null,
+    hoursLogged: Number(row.hours_logged ?? 0),
+    status: row.status,
+    notes: row.notes,
+    createdBy: row.created_by,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+  }));
+}
+
+export async function createCaseResource(
+  caseId: string,
+  orgId: string,
+  data: {
+    name: string;
+    alias?: string;
+    role: string;
+    hourlyRate?: number;
+    profileId?: string | null;
+    notes?: string;
+  }
+) {
+  const supabase = getSupabaseBrowser();
+
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) throw new Error("Not authenticated");
+
+  const { error } = await supabase.from("case_resources").insert({
+    case_id: caseId,
+    org_id: orgId,
+    profile_id: data.profileId || null,
+    name: data.name,
+    alias: data.alias || null,
+    role: data.role,
+    hourly_rate: data.hourlyRate ?? null,
+    hours_logged: 0,
+    status: "active",
+    notes: data.notes || null,
+    created_by: user.id,
+  });
+
+  if (error) throw error;
+}
+
+export async function updateCaseResource(
+  id: string,
+  data: Record<string, unknown>
+) {
+  const supabase = getSupabaseBrowser();
+
+  const { error } = await supabase
+    .from("case_resources")
+    .update(data)
+    .eq("id", id);
+
+  if (error) throw error;
+}
+
+export async function deleteCaseResource(id: string) {
+  const supabase = getSupabaseBrowser();
+
+  const { error } = await supabase
+    .from("case_resources")
+    .delete()
+    .eq("id", id);
+
+  if (error) throw error;
 }

@@ -622,3 +622,137 @@ export async function linkRelatedIncident(incidentId: string, orgId: string, dat
 
   if (error) throw error;
 }
+
+/* ─── Incident Media types & CRUD ────────────── */
+
+export interface IncidentMediaItem {
+  id: string;
+  incidentId: string;
+  orgId: string;
+  mediaType: string | null;
+  title: string | null;
+  description: string | null;
+  fileName: string;
+  filePath: string;
+  fileSize: number | null;
+  mimeType: string | null;
+  storageBucket: string;
+  uploadedBy: string | null;
+  uploadedByName: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export async function fetchIncidentMedia(incidentId: string): Promise<IncidentMediaItem[]> {
+  const supabase = getSupabaseBrowser();
+
+  const { data, error } = await supabase
+    .from("incident_media")
+    .select(`
+      id, incident_id, org_id, media_type, title, description,
+      file_name, file_path, file_size, mime_type, storage_bucket,
+      uploaded_by, created_at, updated_at,
+      uploader:profiles!uploaded_by(full_name)
+    `)
+    .eq("incident_id", incidentId)
+    .order("created_at", { ascending: false });
+
+  if (error) throw error;
+
+  return (data || []).map((row: any) => ({
+    id: row.id,
+    incidentId: row.incident_id,
+    orgId: row.org_id,
+    mediaType: row.media_type,
+    title: row.title,
+    description: row.description,
+    fileName: row.file_name,
+    filePath: row.file_path,
+    fileSize: row.file_size != null ? Number(row.file_size) : null,
+    mimeType: row.mime_type,
+    storageBucket: row.storage_bucket,
+    uploadedBy: row.uploaded_by,
+    uploadedByName: (row.uploader as any)?.full_name || null,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+  }));
+}
+
+export async function createIncidentMedia(
+  incidentId: string,
+  orgId: string,
+  data: {
+    mediaType?: string;
+    title?: string;
+    description?: string;
+    fileName: string;
+    filePath: string;
+    fileSize?: number;
+    mimeType?: string;
+  }
+) {
+  const supabase = getSupabaseBrowser();
+
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) throw new Error("Not authenticated");
+
+  const { error } = await supabase.from("incident_media").insert({
+    incident_id: incidentId,
+    org_id: orgId,
+    media_type: data.mediaType || null,
+    title: data.title || null,
+    description: data.description || null,
+    file_name: data.fileName,
+    file_path: data.filePath,
+    file_size: data.fileSize ?? null,
+    mime_type: data.mimeType || null,
+    storage_bucket: "incident-media",
+    uploaded_by: user.id,
+  });
+
+  if (error) throw error;
+}
+
+export async function deleteIncidentMedia(id: string) {
+  const supabase = getSupabaseBrowser();
+
+  // Fetch the media row first to get file_path for storage cleanup
+  const { data: mediaRow } = await supabase
+    .from("incident_media")
+    .select("file_path, storage_bucket")
+    .eq("id", id)
+    .single();
+
+  // Remove from storage if possible
+  if (mediaRow?.file_path) {
+    await supabase.storage
+      .from(mediaRow.storage_bucket || "incident-media")
+      .remove([mediaRow.file_path]);
+  }
+
+  const { error } = await supabase
+    .from("incident_media")
+    .delete()
+    .eq("id", id);
+
+  if (error) throw error;
+}
+
+export async function uploadIncidentMediaFile(
+  incidentId: string,
+  file: File
+): Promise<string> {
+  const supabase = getSupabaseBrowser();
+
+  const filePath = `${incidentId}/${file.name}`;
+
+  const { error } = await supabase.storage
+    .from("incident-media")
+    .upload(filePath, file);
+
+  if (error) throw error;
+
+  return filePath;
+}
