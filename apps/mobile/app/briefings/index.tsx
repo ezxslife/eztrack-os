@@ -1,11 +1,14 @@
+import { useRouter } from "expo-router";
 import { useMemo } from "react";
 import {
+  Pressable,
   StyleSheet,
   Text,
   View,
 } from "react-native";
 
 import { ScreenContainer } from "@/components/layout/ScreenContainer";
+import { Button } from "@/components/ui/Button";
 import { FilterChips } from "@/components/ui/FilterChips";
 import { PriorityBadge } from "@/components/ui/PriorityBadge";
 import { SearchField } from "@/components/ui/SearchField";
@@ -29,6 +32,7 @@ const priorityFilters = [
 export default function BriefingsScreen() {
   const colors = useThemeColors();
   const styles = createStyles(colors);
+  const router = useRouter();
   const briefingsQuery = useBriefings();
   const rows = briefingsQuery.data ?? [];
   const filtersState = useFilterStore(
@@ -75,6 +79,11 @@ export default function BriefingsScreen() {
             options={priorityFilters.map((filter) => filter.label)}
             selected={selectedPriorityLabel}
           />
+          <Button
+            label="New Briefing"
+            onPress={() => router.push("/briefings/new")}
+            variant="secondary"
+          />
         </View>
       }
       onRefresh={() => {
@@ -95,7 +104,16 @@ export default function BriefingsScreen() {
         <View style={styles.list}>
           {filtered.length ? (
             filtered.map((item) => (
-              <View key={item.id} style={styles.card}>
+              <Pressable
+                key={item.id}
+                onPress={() =>
+                  router.push({
+                    pathname: "/briefings/[id]",
+                    params: { id: item.id },
+                  })
+                }
+                style={styles.card}
+              >
                 <View style={styles.rowBetween}>
                   <Text style={styles.title}>{item.title}</Text>
                   <PriorityBadge priority={item.priority} />
@@ -104,7 +122,7 @@ export default function BriefingsScreen() {
                 <Text style={styles.meta}>
                   {item.author} · {formatRelativeTimestamp(item.createdAt)}
                 </Text>
-              </View>
+              </Pressable>
             ))
           ) : (
             <Text style={styles.emptyCopy}>

@@ -1,11 +1,14 @@
+import { useRouter } from "expo-router";
 import { useMemo } from "react";
 import {
+  Pressable,
   StyleSheet,
   Text,
   View,
 } from "react-native";
 
 import { ScreenContainer } from "@/components/layout/ScreenContainer";
+import { Button } from "@/components/ui/Button";
 import { FilterChips } from "@/components/ui/FilterChips";
 import { SearchField } from "@/components/ui/SearchField";
 import { SectionCard } from "@/components/ui/SectionCard";
@@ -30,6 +33,7 @@ const flagFilters = [
 export default function PatronsScreen() {
   const colors = useThemeColors();
   const styles = createStyles(colors);
+  const router = useRouter();
   const patronsQuery = usePatrons();
   const patrons = patronsQuery.data ?? [];
   const filtersState = useFilterStore(
@@ -80,6 +84,11 @@ export default function PatronsScreen() {
             options={flagFilters.map((filter) => filter.label)}
             selected={selectedFlagLabel}
           />
+          <Button
+            label="New Patron"
+            onPress={() => router.push("/patrons/new")}
+            variant="secondary"
+          />
         </View>
       }
       onRefresh={() => {
@@ -100,7 +109,16 @@ export default function PatronsScreen() {
         <View style={styles.list}>
           {filtered.length ? (
             filtered.map((patron) => (
-              <View key={patron.id} style={styles.card}>
+              <Pressable
+                key={patron.id}
+                onPress={() =>
+                  router.push({
+                    pathname: "/patrons/[id]",
+                    params: { id: patron.id },
+                  })
+                }
+                style={styles.card}
+              >
                 <View style={styles.rowBetween}>
                   <View style={styles.grow}>
                     <Text style={styles.title}>
@@ -120,7 +138,7 @@ export default function PatronsScreen() {
                 <Text style={styles.meta}>
                   {[patron.email, patron.phone].filter(Boolean).join(" · ") || "No contact info"}
                 </Text>
-              </View>
+              </Pressable>
             ))
           ) : (
             <Text style={styles.emptyCopy}>

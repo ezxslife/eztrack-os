@@ -5,77 +5,88 @@ import {
 } from "react-native";
 
 import { ScreenContainer } from "@/components/layout/ScreenContainer";
+import { Button } from "@/components/ui/Button";
 import { SectionCard } from "@/components/ui/SectionCard";
-import { useNetworkStore } from "@/stores/network-store";
-import { useOfflineStore } from "@/stores/offline-store";
-import { useStorageHealthStore } from "@/stores/storage-health-store";
+import { formatRelativeTimestamp } from "@/lib/format";
+import {
+  useMarkAllNotificationsReadMutation,
+  useMarkNotificationReadMutation,
+  useNotifications,
+} from "@/lib/queries/notifications";
 import { useThemeColors } from "@/theme";
 
 export default function NotificationsScreen() {
   const colors = useThemeColors();
   const styles = createStyles(colors);
-  const isOnline = useNetworkStore((state) => state.isOnline);
-  const pendingActions = useOfflineStore((state) => state.pendingActions.length);
-  const storageTier = useStorageHealthStore((state) => state.tier);
+  const notificationsQuery = useNotifications();
+  const markReadMutation = useMarkNotificationReadMutation();
+  const markAllMutation = useMarkAllNotificationsReadMutation();
+  const notifications = notificationsQuery.data ?? [];
 
   return (
     <ScreenContainer
-      subtitle="Push registration and category-specific delivery are still pending. This screen establishes the route and the device-level context."
+      onRefresh={() => {
+        void notificationsQuery.refetch();
+      }}
+      refreshing={notificationsQuery.isRefetching}
+      subtitle="Real notification inbox with per-item and bulk read state."
       title="Notifications"
     >
-      <SectionCard title="Current device state">
+      <SectionCard
+        footer={
+          notifications.length ? (
+            <Button
+              label="Mark All Read"
+              loading={markAllMutation.isPending}
+              onPress={() => {
+                void markAllMutation.mutateAsync();
+              }}
+              variant="secondary"
+            />
+          ) : undefined
+        }
+        subtitle={notificationsQuery.isLoading ? "Loading inbox" : `${notifications.length} items`}
+        title="Inbox"
+      >
         <View style={styles.list}>
-          <StatusRow label="Network" value={isOnline ? "online" : "offline"} />
-          <StatusRow label="Storage tier" value={storageTier} />
-          <StatusRow
-            label="Queued offline actions"
-            value={String(pendingActions)}
-          />
+          {notifications.length ? (
+            notifications.map((notification) => (
+              <View key={notification.id} style={styles.row}>
+                <Text style={styles.label}>{notification.title}</Text>
+                {notification.message ? (
+                  <Text style={styles.copy}>{notification.message}</Text>
+                ) : null}
+                <Text style={styles.value}>
+                  {notification.type} · {formatRelativeTimestamp(notification.createdAt)}
+                </Text>
+                <Text style={styles.value}>{notification.read ? "Read" : "Unread"}</Text>
+                {!notification.read ? (
+                  <Button
+                    label="Mark Read"
+                    loading={
+                      markReadMutation.isPending &&
+                      markReadMutation.variables === notification.id
+                    }
+                    onPress={() => {
+                      void markReadMutation.mutateAsync(notification.id);
+                    }}
+                    variant="secondary"
+                  />
+                ) : null}
+              </View>
+            ))
+          ) : (
+            <Text style={styles.copy}>No notifications are available.</Text>
+          )}
         </View>
       </SectionCard>
 
-      <SectionCard title="Next notification tranche">
+      <SectionCard title="Delivery note">
         <Text style={styles.copy}>
-          Incident assignments, dispatch escalations, offline sync completion,
-          and alert acknowledgements still need Expo Notifications wiring and
-          server-side delivery rules.
+          Push registration and category-based delivery still depend on the mobile notifications tranche, but inbox state is now wired to live records.
         </Text>
       </SectionCard>
     </ScreenContainer>
-  );
-}
-
-function StatusRow({
-  label,
-  value,
-}: {
-  label: string;
-  value: string;
-}) {
-  const colors = useThemeColors();
-  const styles = StyleSheet.create({
-    label: {
-      color: colors.textPrimary,
-      fontSize: 15,
-      fontWeight: "700",
-    },
-    row: {
-      backgroundColor: colors.surfaceSecondary,
-      borderRadius: 18,
-      gap: 4,
-      padding: 14,
-    },
-    value: {
-      color: colors.textTertiary,
-      fontSize: 13,
-    },
-  });
-
-  return (
-    <View style={styles.row}>
-      <Text style={styles.label}>{label}</Text>
-      <Text style={styles.value}>{value}</Text>
-    </View>
   );
 }
 
@@ -86,8 +97,23 @@ function createStyles(colors: ReturnType<typeof useThemeColors>) {
       fontSize: 15,
       lineHeight: 22,
     },
+    label: {
+      color: colors.textPrimary,
+      fontSize: 15,
+      fontWeight: "700",
+    },
     list: {
       gap: 12,
+    },
+    row: {
+      backgroundColor: colors.surfaceSecondary,
+      borderRadius: 18,
+      gap: 8,
+      padding: 14,
+    },
+    value: {
+      color: colors.textTertiary,
+      fontSize: 13,
     },
   });
 }

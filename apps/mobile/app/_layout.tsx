@@ -58,6 +58,7 @@ function RootNavigator() {
         <Stack.Screen name="vehicles" />
         <Stack.Screen name="contacts" />
         <Stack.Screen name="settings" />
+        <Stack.Screen name="sync-center" />
         <Stack.Screen name="notifications" />
         <Stack.Screen name="alerts" />
         <Stack.Screen name="+not-found" />

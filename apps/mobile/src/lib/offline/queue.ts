@@ -1,17 +1,31 @@
 import type { DispatchStatus } from "@eztrack/shared";
 
 import type { MutationProfile } from "@/lib/services/mutation-profile";
-import { createDailyLogRecord } from "@/lib/services/daily-logs";
-import { updateDispatchStatusRecord } from "@/lib/services/dispatches";
-import { createIncidentRecord } from "@/lib/services/incidents";
+import {
+  createDailyLogRecord,
+  updateDailyLogRecord,
+} from "@/lib/services/daily-logs";
+import {
+  assignDispatchOfficer,
+  updateDispatchStatusRecord,
+} from "@/lib/services/dispatches";
+import {
+  createIncidentRecord,
+  createIncidentNarrativeRecord,
+  updateIncidentRecord,
+} from "@/lib/services/incidents";
 import { useOfflineStore } from "@/stores/offline-store";
 import type {
   OfflineAction,
   OfflineActionByKind,
   OfflineActionDraft,
+  QueuedCreateIncidentNarrativeInput,
+  QueuedAssignDispatchInput,
   QueuedCreateDailyLogInput,
   QueuedCreateIncidentInput,
+  QueuedUpdateDailyLogInput,
   QueuedUpdateDispatchStatusInput,
+  QueuedUpdateIncidentInput,
 } from "@/lib/offline/types";
 import {
   createOfflineActionId,
@@ -30,6 +44,18 @@ export interface QueuedDispatchStatusResult {
   id: string;
   queued: true;
   status: DispatchStatus;
+}
+
+export interface QueuedDispatchAssignmentResult {
+  assigned_staff_id: null | string;
+  id: string;
+  queued: true;
+}
+
+export interface QueuedIncidentNarrativeResult {
+  id: string;
+  queued: true;
+  title: string;
 }
 
 export interface QueueProcessingResult {
@@ -151,6 +177,90 @@ export function queueDailyLogCreate(
   };
 }
 
+export function queueIncidentUpdate(
+  profile: MutationProfile,
+  input: QueuedUpdateIncidentInput
+): QueuedMutationResult {
+  const action = createScopedAction({
+    attempts: 0,
+    createdAt: new Date().toISOString(),
+    error: null,
+    id: createOfflineActionId("update-incident"),
+    kind: "update-incident" as const,
+    lastAttemptAt: null,
+    payload: input,
+    scope: {
+      orgId: profile.orgId,
+      propertyId: profile.propertyId,
+      userId: profile.id,
+    },
+  });
+
+  useOfflineStore.getState().enqueueAction(action);
+
+  return {
+    id: input.incidentId,
+    queued: true,
+    record_number: input.recordNumber,
+  };
+}
+
+export function queueIncidentNarrativeCreate(
+  profile: MutationProfile,
+  input: QueuedCreateIncidentNarrativeInput
+): QueuedIncidentNarrativeResult {
+  const action = createScopedAction({
+    attempts: 0,
+    createdAt: new Date().toISOString(),
+    error: null,
+    id: createOfflineActionId("create-incident-narrative"),
+    kind: "create-incident-narrative" as const,
+    lastAttemptAt: null,
+    payload: input,
+    scope: {
+      orgId: profile.orgId,
+      propertyId: profile.propertyId,
+      userId: profile.id,
+    },
+  });
+
+  useOfflineStore.getState().enqueueAction(action);
+
+  return {
+    id: action.id,
+    queued: true,
+    title: input.title?.trim() || "Narrative",
+  };
+}
+
+export function queueDailyLogUpdate(
+  profile: MutationProfile,
+  input: QueuedUpdateDailyLogInput
+): QueuedMutationResult {
+  const action = createScopedAction({
+    attempts: 0,
+    createdAt: new Date().toISOString(),
+    error: null,
+    id: createOfflineActionId("update-daily-log"),
+    kind: "update-daily-log" as const,
+    lastAttemptAt: null,
+    payload: input,
+    scope: {
+      orgId: profile.orgId,
+      propertyId: profile.propertyId,
+      userId: profile.id,
+    },
+  });
+
+  useOfflineStore.getState().enqueueAction(action);
+
+  return {
+    id: input.dailyLogId,
+    queued: true,
+    record_number: input.recordNumber,
+  };
+}
+
 export function queueDispatchStatusUpdate(
   profile: MutationProfile,
   input: QueuedUpdateDispatchStatusInput
@@ -179,6 +289,34 @@ export function queueDispatchStatusUpdate(
   };
 }
 
+export function queueDispatchAssignment(
+  profile: MutationProfile,
+  input: QueuedAssignDispatchInput
+): QueuedDispatchAssignmentResult {
+  const action = createScopedAction({
+    attempts: 0,
+    createdAt: new Date().toISOString(),
+    error: null,
+    id: createOfflineActionId("assign-dispatch"),
+    kind: "assign-dispatch" as const,
+    lastAttemptAt: null,
+    payload: input,
+    scope: {
+      orgId: profile.orgId,
+      propertyId: profile.propertyId,
+      userId: profile.id,
+    },
+  });
+
+  useOfflineStore.getState().enqueueAction(action);
+
+  return {
+    assigned_staff_id: input.nextOfficerId,
+    id: input.dispatchId,
+    queued: true,
+  };
+}
+
 async function processOfflineAction(
   action: OfflineAction,
   profile: MutationProfile
@@ -187,8 +325,20 @@ async function processOfflineAction(
     case "create-incident":
       await createIncidentRecord(action.payload, profile);
       return;
+    case "create-incident-narrative":
+      await createIncidentNarrativeRecord(action.payload, profile);
+      return;
     case "create-daily-log":
       await createDailyLogRecord(action.payload, profile);
+      return;
+    case "update-incident":
+      await updateIncidentRecord(action.payload, profile);
+      return;
+    case "update-daily-log":
+      await updateDailyLogRecord(action.payload, profile);
+      return;
+    case "assign-dispatch":
+      await assignDispatchOfficer(action.payload);
       return;
     case "update-dispatch-status":
       await updateDispatchStatusRecord(action.payload);
@@ -202,8 +352,16 @@ export function getOfflineActionTitle(action: OfflineAction) {
   switch (action.kind) {
     case "create-incident":
       return "Queued incident";
+    case "create-incident-narrative":
+      return action.payload.incidentRecordNumber;
     case "create-daily-log":
       return action.payload.topic;
+    case "update-incident":
+      return action.payload.recordNumber;
+    case "update-daily-log":
+      return action.payload.recordNumber;
+    case "assign-dispatch":
+      return action.payload.recordNumber;
     case "update-dispatch-status":
       return action.payload.recordNumber;
     default:
@@ -215,8 +373,18 @@ export function getOfflineActionDescription(action: OfflineAction) {
   switch (action.kind) {
     case "create-incident":
       return `${action.payload.incidentType} at ${action.payload.locationName ?? "Unknown location"}`;
+    case "create-incident-narrative":
+      return action.payload.title?.trim() || "Narrative";
     case "create-daily-log":
       return `${action.payload.topic} at ${action.payload.locationName ?? "Unknown location"}`;
+    case "update-incident":
+      return `${action.payload.status.replace(/_/g, " ")} · ${action.payload.incidentType}`;
+    case "update-daily-log":
+      return `${action.payload.status.replace(/_/g, " ")} · ${action.payload.topic}`;
+    case "assign-dispatch":
+      return action.payload.nextOfficerName
+        ? `Assign to ${action.payload.nextOfficerName}`
+        : "Clear assignment";
     case "update-dispatch-status":
       return `${action.payload.currentStatus} -> ${action.payload.nextStatus}`;
     default:

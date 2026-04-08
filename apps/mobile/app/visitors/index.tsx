@@ -1,11 +1,14 @@
+import { useRouter } from "expo-router";
 import { useMemo } from "react";
 import {
+  Pressable,
   StyleSheet,
   Text,
   View,
 } from "react-native";
 
 import { ScreenContainer } from "@/components/layout/ScreenContainer";
+import { Button } from "@/components/ui/Button";
 import { FilterChips } from "@/components/ui/FilterChips";
 import { SearchField } from "@/components/ui/SearchField";
 import { SectionCard } from "@/components/ui/SectionCard";
@@ -29,6 +32,7 @@ const statusFilters = [
 export default function VisitorsScreen() {
   const colors = useThemeColors();
   const styles = createStyles(colors);
+  const router = useRouter();
   const visitorsQuery = useVisitors();
   const rows = visitorsQuery.data ?? [];
   const filtersState = useFilterStore(
@@ -80,6 +84,11 @@ export default function VisitorsScreen() {
             options={statusFilters.map((filter) => filter.label)}
             selected={selectedStatusLabel}
           />
+          <Button
+            label="New Visitor"
+            onPress={() => router.push("/visitors/new")}
+            variant="secondary"
+          />
         </View>
       }
       onRefresh={() => {
@@ -100,7 +109,16 @@ export default function VisitorsScreen() {
         <View style={styles.list}>
           {filtered.length ? (
             filtered.map((item) => (
-              <View key={item.id} style={styles.card}>
+              <Pressable
+                key={item.id}
+                onPress={() =>
+                  router.push({
+                    pathname: "/visitors/[id]",
+                    params: { id: item.id },
+                  })
+                }
+                style={styles.card}
+              >
                 <View style={styles.rowBetween}>
                   <Text style={styles.title}>
                     {item.firstName} {item.lastName}
@@ -118,7 +136,7 @@ export default function VisitorsScreen() {
                       ? `Checked out ${formatRelativeTimestamp(item.checkedOutAt)}`
                       : `${item.expectedDate ?? "Unscheduled"}${item.expectedTime ? ` at ${item.expectedTime}` : ""}`}
                 </Text>
-              </View>
+              </Pressable>
             ))
           ) : (
             <Text style={styles.emptyCopy}>

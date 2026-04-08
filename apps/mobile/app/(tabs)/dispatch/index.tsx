@@ -1,6 +1,8 @@
+import { useRouter } from "expo-router";
 import { useState } from "react";
 import {
   Alert,
+  Pressable,
   StyleSheet,
   Text,
   View,
@@ -19,10 +21,14 @@ import { StatusBadge } from "@/components/ui/StatusBadge";
 import { formatRelativeTimestamp } from "@/lib/format";
 import {
   useDispatches,
+  useAssignDispatchOfficerMutation,
   useOnDutyOfficers,
   useUpdateDispatchStatusMutation,
 } from "@/lib/queries/dispatches";
-import type { OfflineUpdateDispatchStatusAction } from "@/lib/offline/types";
+import type {
+  OfflineAssignDispatchAction,
+  OfflineUpdateDispatchStatusAction,
+} from "@/lib/offline/types";
 import { useOfflineStore } from "@/stores/offline-store";
 import { useThemeColors } from "@/theme";
 
@@ -57,12 +63,15 @@ function getDispatchActions(status: string) {
 export default function DispatchScreen() {
   const colors = useThemeColors();
   const styles = createStyles(colors);
+  const router = useRouter();
   const [query, setQuery] = useState("");
   const [selectedFilter, setSelectedFilter] = useState("All");
+  const [assignmentTargetId, setAssignmentTargetId] = useState<null | string>(null);
   const dispatchesQuery = useDispatches();
   const officersQuery = useOnDutyOfficers();
+  const assignDispatchOfficer = useAssignDispatchOfficerMutation();
   const updateDispatchStatus = useUpdateDispatchStatusMutation();
-  const pendingDispatchActionIds = useOfflineStore((state) =>
+  const pendingDispatchStatusIds = useOfflineStore((state) =>
     new Set(
       state.pendingActions
         .filter(
@@ -75,6 +84,20 @@ export default function DispatchScreen() {
         .map((action) => action.payload.dispatchId)
     )
   );
+  const pendingDispatchAssignmentIds = useOfflineStore((state) =>
+    new Set(
+      state.pendingActions
+        .filter(
+          (action): action is OfflineAssignDispatchAction =>
+            action.kind === "assign-dispatch" && action.syncState === "pending"
+        )
+        .map((action) => action.payload.dispatchId)
+    )
+  );
+  const pendingDispatchActionIds = new Set([
+    ...pendingDispatchStatusIds,
+    ...pendingDispatchAssignmentIds,
+  ]);
 
   const dispatches = (dispatchesQuery.data ?? []).filter((dispatch) => {
     const matchesQuery =
@@ -120,6 +143,31 @@ export default function DispatchScreen() {
     }
   };
 
+  const handleAssignment = async (
+    dispatch: (typeof dispatches)[number],
+    nextOfficerId: null | string,
+    nextOfficerName?: null | string
+  ) => {
+    try {
+      await assignDispatchOfficer.mutateAsync({
+        dispatchId: dispatch.id,
+        nextOfficerId,
+        nextOfficerName: nextOfficerName ?? null,
+        previousOfficerId: dispatch.officerId,
+        previousOfficerName: dispatch.officerName,
+        recordNumber: dispatch.recordNumber,
+      });
+      setAssignmentTargetId(null);
+    } catch (error) {
+      Alert.alert(
+        "Assignment failed",
+        error instanceof Error
+          ? error.message
+          : "The dispatch assignment could not be updated."
+      );
+    }
+  };
+
   return (
     <ScreenContainer
       accessory={
@@ -130,6 +178,11 @@ export default function DispatchScreen() {
             value={query}
           />
           <FilterChips onSelect={setSelectedFilter} options={filters} selected={selectedFilter} />
+          <Button
+            label="New Dispatch"
+            onPress={() => router.push("/dispatch/new")}
+            variant="secondary"
+          />
         </View>
       }
       onRefresh={() => {
@@ -151,7 +204,16 @@ export default function DispatchScreen() {
         <View style={styles.list}>
           {dispatches.length ? (
             dispatches.map((dispatch) => (
-              <View key={dispatch.id} style={styles.card}>
+              <Pressable
+                key={dispatch.id}
+                onPress={() =>
+                  router.push({
+                    pathname: "/dispatch/[id]",
+                    params: { id: dispatch.id },
+                  })
+                }
+                style={styles.card}
+              >
                 <View style={styles.row}>
                   <Text style={styles.title}>{dispatch.recordNumber}</Text>
                   <PriorityBadge priority={dispatch.priority} />
@@ -163,30 +225,98 @@ export default function DispatchScreen() {
                   <Text style={styles.assignee}>{dispatch.officerName ?? "Unassigned"}</Text>
                 </View>
                 {pendingDispatchActionIds.has(dispatch.id) ? (
-                  <Text style={styles.pendingMeta}>Queued for sync</Text>
+                  <Text style={styles.pendingMeta}>
+                    {pendingDispatchAssignmentIds.has(dispatch.id)
+                      ? "Queued assignment pending sync"
+                      : "Queued status change pending sync"}
+                  </Text>
                 ) : null}
-                {getDispatchActions(dispatch.status).length ? (
-                  <View style={styles.actionRow}>
-                    {getDispatchActions(dispatch.status).map((action) => (
-                      <Button
-                        key={`${dispatch.id}:${action.nextStatus}`}
-                        label={action.label}
-                        loading={
-                          updateDispatchStatus.isPending &&
-                          updateDispatchStatus.variables?.dispatchId === dispatch.id &&
-                          updateDispatchStatus.variables?.nextStatus === action.nextStatus
-                        }
-                        onPress={() => {
-                          void handleStatusUpdate(dispatch, action.nextStatus);
+                <View style={styles.actionRow}>
+                  {getDispatchActions(dispatch.status).map((action) => (
+                    <Button
+                      key={`${dispatch.id}:${action.nextStatus}`}
+                      label={action.label}
+                      loading={
+                        updateDispatchStatus.isPending &&
+                        updateDispatchStatus.variables?.dispatchId === dispatch.id &&
+                        updateDispatchStatus.variables?.nextStatus === action.nextStatus
+                      }
+                      onPress={() => {
+                        void handleStatusUpdate(dispatch, action.nextStatus);
+                      }}
+                      style={styles.actionButton}
+                      variant="secondary"
+                    />
+                  ))}
+                  <Button
+                    label={
+                      assignmentTargetId === dispatch.id
+                        ? "Hide Assign"
+                        : dispatch.officerName
+                          ? "Reassign"
+                          : "Assign"
+                    }
+                    loading={
+                      assignDispatchOfficer.isPending &&
+                      assignDispatchOfficer.variables?.dispatchId === dispatch.id
+                    }
+                    onPress={() =>
+                      setAssignmentTargetId((current) =>
+                        current === dispatch.id ? null : dispatch.id
+                      )
+                    }
+                    style={styles.actionButton}
+                    variant="secondary"
+                  />
+                </View>
+                {assignmentTargetId === dispatch.id ? (
+                  <MaterialSurface
+                    intensity={72}
+                    style={styles.assignmentSurface}
+                    variant="panel"
+                  >
+                    <Text style={styles.assignmentTitle}>Assign unit</Text>
+                    {(officersQuery.data ?? []).length ? (
+                      <FilterChips
+                        onSelect={(value) => {
+                          if (
+                            assignDispatchOfficer.isPending &&
+                            assignDispatchOfficer.variables?.dispatchId === dispatch.id
+                          ) {
+                            return;
+                          }
+
+                          if (value === "Unassigned") {
+                            void handleAssignment(dispatch, null, null);
+                            return;
+                          }
+
+                          const officer = (officersQuery.data ?? []).find(
+                            (candidate) => candidate.name === value
+                          );
+
+                          if (officer) {
+                            void handleAssignment(dispatch, officer.id, officer.name);
+                          }
                         }}
-                        style={styles.actionButton}
-                        variant="secondary"
+                        options={[
+                          "Unassigned",
+                          ...(officersQuery.data ?? []).map((officer) => officer.name),
+                        ]}
+                        selected={dispatch.officerName ?? "Unassigned"}
                       />
-                    ))}
-                  </View>
+                    ) : (
+                      <Text style={styles.assignmentCopy}>
+                        No on-duty staff records are available for assignment.
+                      </Text>
+                    )}
+                    <Text style={styles.assignmentCopy}>
+                      Assignment uses the on-duty roster already loaded for the board.
+                    </Text>
+                  </MaterialSurface>
                 ) : null}
                 <Text style={styles.meta}>{formatRelativeTimestamp(dispatch.createdAt)}</Text>
-              </View>
+              </Pressable>
             ))
           ) : (
             <Text style={styles.emptyCopy}>No dispatches match the current view.</Text>
@@ -220,16 +350,29 @@ function createStyles(colors: ReturnType<typeof useThemeColors>) {
       gap: 12,
     },
     actionButton: {
-      flex: 1,
       minHeight: 40,
     },
     actionRow: {
       flexDirection: "row",
       gap: 10,
+      flexWrap: "wrap",
     },
     assignee: {
       color: colors.textTertiary,
       fontSize: 13,
+    },
+    assignmentCopy: {
+      color: colors.textTertiary,
+      fontSize: 13,
+      lineHeight: 18,
+    },
+    assignmentSurface: {
+      gap: 10,
+    },
+    assignmentTitle: {
+      color: colors.textPrimary,
+      fontSize: 14,
+      fontWeight: "700",
     },
     card: {
       backgroundColor: colors.surfaceSecondary,

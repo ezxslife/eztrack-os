@@ -1,11 +1,14 @@
+import { useRouter } from "expo-router";
 import { useMemo } from "react";
 import {
+  Pressable,
   StyleSheet,
   Text,
   View,
 } from "react-native";
 
 import { ScreenContainer } from "@/components/layout/ScreenContainer";
+import { Button } from "@/components/ui/Button";
 import { SearchField } from "@/components/ui/SearchField";
 import { SectionCard } from "@/components/ui/SectionCard";
 import { useContacts } from "@/lib/queries/secondary-modules";
@@ -20,6 +23,7 @@ const moduleKey = "contacts";
 export default function ContactsScreen() {
   const colors = useThemeColors();
   const styles = createStyles(colors);
+  const router = useRouter();
   const contactsQuery = useContacts();
   const rows = contactsQuery.data ?? [];
   const filtersState = useFilterStore(
@@ -51,11 +55,18 @@ export default function ContactsScreen() {
   return (
     <ScreenContainer
       accessory={
-        <SearchField
-          onChangeText={(value) => setFilter(moduleKey, { search: value })}
-          placeholder="Search names, organizations, categories, or contact info"
-          value={query}
-        />
+        <View style={styles.accessory}>
+          <SearchField
+            onChangeText={(value) => setFilter(moduleKey, { search: value })}
+            placeholder="Search names, organizations, categories, or contact info"
+            value={query}
+          />
+          <Button
+            label="New Contact"
+            onPress={() => router.push("/contacts/new")}
+            variant="secondary"
+          />
+        </View>
       }
       onRefresh={() => {
         void contactsQuery.refetch();
@@ -75,7 +86,16 @@ export default function ContactsScreen() {
         <View style={styles.list}>
           {filtered.length ? (
             filtered.map((item) => (
-              <View key={item.id} style={styles.card}>
+              <Pressable
+                key={item.id}
+                onPress={() =>
+                  router.push({
+                    pathname: "/contacts/[id]",
+                    params: { id: item.id },
+                  })
+                }
+                style={styles.card}
+              >
                 <Text style={styles.title}>
                   {[item.firstName, item.lastName].filter(Boolean).join(" ") ||
                     item.organization ||
@@ -90,7 +110,7 @@ export default function ContactsScreen() {
                 <Text style={styles.meta}>
                   {item.category} · {item.contactType}
                 </Text>
-              </View>
+              </Pressable>
             ))
           ) : (
             <Text style={styles.emptyCopy}>
@@ -105,6 +125,9 @@ export default function ContactsScreen() {
 
 function createStyles(colors: ReturnType<typeof useThemeColors>) {
   return StyleSheet.create({
+    accessory: {
+      gap: 12,
+    },
     card: {
       backgroundColor: colors.surfaceSecondary,
       borderRadius: 18,

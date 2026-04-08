@@ -1,0 +1,412 @@
+import { useLocalSearchParams, useRouter } from "expo-router";
+import {
+  Alert,
+  StyleSheet,
+  Text,
+  View,
+} from "react-native";
+
+import { ScreenContainer } from "@/components/layout/ScreenContainer";
+import { Button } from "@/components/ui/Button";
+import { PriorityBadge } from "@/components/ui/PriorityBadge";
+import { SectionCard } from "@/components/ui/SectionCard";
+import { StatusBadge } from "@/components/ui/StatusBadge";
+import {
+  formatCurrency,
+  formatRelativeTimestamp,
+  formatShortDateTime,
+} from "@/lib/format";
+import {
+  useCaseAudit,
+  useCaseCosts,
+  useCaseDetail,
+  useCaseEvidence,
+  useCaseEvidenceTransfers,
+  useCaseNarratives,
+  useCaseRelatedRecords,
+  useCaseResources,
+  useCaseTasks,
+  useDeleteCaseMutation,
+  useUpdateCaseStatusMutation,
+} from "@/lib/queries/cases";
+import { useThemeColors } from "@/theme";
+
+const statuses = ["open", "on_hold", "closed"];
+
+export default function CaseDetailScreen() {
+  const colors = useThemeColors();
+  const styles = createStyles(colors);
+  const router = useRouter();
+  const params = useLocalSearchParams<{ id: string }>();
+  const caseId = params.id ?? "";
+  const detailQuery = useCaseDetail(caseId);
+  const evidenceQuery = useCaseEvidence(caseId);
+  const tasksQuery = useCaseTasks(caseId);
+  const narrativesQuery = useCaseNarratives(caseId);
+  const costsQuery = useCaseCosts(caseId);
+  const relatedQuery = useCaseRelatedRecords(caseId);
+  const transfersQuery = useCaseEvidenceTransfers(caseId);
+  const auditQuery = useCaseAudit(caseId);
+  const resourcesQuery = useCaseResources(caseId);
+  const updateStatusMutation = useUpdateCaseStatusMutation();
+  const deleteMutation = useDeleteCaseMutation();
+  const record = detailQuery.data;
+
+  if (!record) {
+    return (
+      <ScreenContainer subtitle="Loading detail" title="Case">
+        <SectionCard title="Loading">
+          <Text style={styles.copy}>The case detail is still loading.</Text>
+        </SectionCard>
+      </ScreenContainer>
+    );
+  }
+
+  return (
+    <ScreenContainer
+      onRefresh={() => {
+        void Promise.all([
+          detailQuery.refetch(),
+          evidenceQuery.refetch(),
+          tasksQuery.refetch(),
+          narrativesQuery.refetch(),
+          costsQuery.refetch(),
+          relatedQuery.refetch(),
+          transfersQuery.refetch(),
+          auditQuery.refetch(),
+          resourcesQuery.refetch(),
+        ]);
+      }}
+      refreshing={
+        detailQuery.isRefetching ||
+        evidenceQuery.isRefetching ||
+        tasksQuery.isRefetching ||
+        narrativesQuery.isRefetching ||
+        costsQuery.isRefetching ||
+        relatedQuery.isRefetching ||
+        transfersQuery.isRefetching ||
+        auditQuery.isRefetching ||
+        resourcesQuery.isRefetching
+      }
+      subtitle="Case detail backed by the same case, evidence, task, and audit tables as web."
+      title={record.recordNumber}
+    >
+      <SectionCard subtitle={record.caseType} title="Overview">
+        <View style={styles.stack}>
+          <View style={styles.badges}>
+            <StatusBadge status={record.status} />
+            <PriorityBadge priority={record.escalationLevel ?? "none"} />
+          </View>
+          <Text style={styles.copy}>{record.synopsis ?? "No synopsis recorded."}</Text>
+          <Text style={styles.meta}>
+            Lead investigator {record.leadInvestigator?.fullName ?? "Unassigned"}
+          </Text>
+          <Text style={styles.meta}>Stage {record.stage}</Text>
+          <Text style={styles.meta}>Created {formatShortDateTime(record.createdAt)}</Text>
+          <Text style={styles.meta}>Updated {formatRelativeTimestamp(record.updatedAt)}</Text>
+          <View style={styles.actions}>
+            {statuses.map((status) => (
+              <Button
+                key={status}
+                label={status.replace(/_/g, " ")}
+                loading={
+                  updateStatusMutation.isPending &&
+                  updateStatusMutation.variables?.status === status
+                }
+                onPress={() => {
+                  void updateStatusMutation.mutateAsync({
+                    id: record.id,
+                    status,
+                  });
+                }}
+                variant={record.status === status ? "primary" : "secondary"}
+              />
+            ))}
+          </View>
+          <View style={styles.actions}>
+            <Button
+              label="Create Briefing"
+              onPress={() =>
+                router.push({
+                  pathname: "/briefings/new",
+                  params: {
+                    content: record.synopsis ?? "",
+                    sourceModule: "cases",
+                    title: `${record.recordNumber} briefing`,
+                  },
+                })
+              }
+              variant="secondary"
+            />
+            <Button
+              label="Create Work Order"
+              onPress={() =>
+                router.push({
+                  pathname: "/work-orders/new",
+                  params: {
+                    category: "security",
+                    description: record.synopsis ?? "",
+                    title: `Follow-up for ${record.recordNumber}`,
+                  },
+                })
+              }
+              variant="secondary"
+            />
+            <Button
+              label="Delete Case"
+              loading={deleteMutation.isPending}
+              onPress={() => {
+                Alert.alert("Delete case", "Remove this case from active views?", [
+                  { style: "cancel", text: "Cancel" },
+                  {
+                    style: "destructive",
+                    text: "Delete",
+                    onPress: () => {
+                      void deleteMutation.mutateAsync(record.id).then(() => {
+                        router.back();
+                      });
+                    },
+                  },
+                ]);
+              }}
+              variant="plain"
+            />
+          </View>
+        </View>
+      </SectionCard>
+
+      <SectionCard subtitle={`${(resourcesQuery.data ?? []).length} resources`} title="Resources">
+        <View style={styles.stack}>
+          {(resourcesQuery.data ?? []).map((resource) => (
+            <View key={resource.id} style={styles.row}>
+              <Text style={styles.rowTitle}>{resource.name}</Text>
+              <Text style={styles.meta}>
+                {resource.role} · {resource.status} · {resource.hoursLogged}h
+              </Text>
+            </View>
+          ))}
+        </View>
+      </SectionCard>
+
+      <SectionCard subtitle={`${(evidenceQuery.data ?? []).length} items`} title="Evidence">
+        <View style={styles.stack}>
+          {(evidenceQuery.data ?? []).map((item) => (
+            <View key={item.id} style={styles.row}>
+              <Text style={styles.rowTitle}>{item.title}</Text>
+              <Text style={styles.meta}>
+                {item.type} · {item.status} · {item.itemNumber ?? "No item #"}
+              </Text>
+              {item.description ? <Text style={styles.copy}>{item.description}</Text> : null}
+              <Button
+                label="Transfer Custody"
+                onPress={() =>
+                  router.push({
+                    pathname: "/cases/transfer/[id]",
+                    params: {
+                      evidenceId: item.id,
+                      evidenceTitle: item.title,
+                      id: record.id,
+                    },
+                  })
+                }
+                variant="secondary"
+              />
+            </View>
+          ))}
+        </View>
+        <Button
+          label="Add Evidence"
+          onPress={() =>
+            router.push({
+              pathname: "/cases/evidence/[id]",
+              params: { id: record.id },
+            })
+          }
+          variant="secondary"
+        />
+      </SectionCard>
+
+      <SectionCard
+        subtitle={`${(transfersQuery.data ?? []).length} transfer records`}
+        title="Chain of Custody"
+      >
+        <View style={styles.stack}>
+          {(transfersQuery.data ?? []).length ? (
+            (transfersQuery.data ?? []).map((transfer) => (
+              <View key={transfer.id} style={styles.row}>
+                <Text style={styles.rowTitle}>{transfer.evidenceTitle}</Text>
+                <Text style={styles.meta}>
+                  {transfer.transferReason} · {transfer.evidenceItemNumber ?? "No item #"}
+                </Text>
+                <Text style={styles.copy}>
+                  {transfer.transferredFromName ?? "Unknown"} →{" "}
+                  {transfer.transferredToName ?? "Unknown"}
+                </Text>
+                {transfer.notes ? <Text style={styles.copy}>{transfer.notes}</Text> : null}
+                <Text style={styles.meta}>{formatShortDateTime(transfer.transferDate)}</Text>
+              </View>
+            ))
+          ) : (
+            <Text style={styles.copy}>No custody transfers have been recorded yet.</Text>
+          )}
+          <Button
+            label="New Transfer"
+            onPress={() =>
+              router.push({
+                pathname: "/cases/transfer/[id]",
+                params: { id: record.id },
+              })
+            }
+            variant="secondary"
+          />
+        </View>
+      </SectionCard>
+
+      <SectionCard subtitle={`${(tasksQuery.data ?? []).length} tasks`} title="Tasks">
+        <View style={styles.stack}>
+          {(tasksQuery.data ?? []).map((task) => (
+            <View key={task.id} style={styles.row}>
+              <Text style={styles.rowTitle}>{task.title}</Text>
+              <Text style={styles.meta}>
+                {task.priority} · {task.status} · {task.assignedToName ?? "Unassigned"}
+              </Text>
+              {task.description ? <Text style={styles.copy}>{task.description}</Text> : null}
+            </View>
+          ))}
+        </View>
+        <Button
+          label="Add Task"
+          onPress={() =>
+            router.push({
+              pathname: "/cases/task/[id]",
+              params: { id: record.id },
+            })
+          }
+          variant="secondary"
+        />
+      </SectionCard>
+
+      <SectionCard subtitle={`${(narrativesQuery.data ?? []).length} entries`} title="Narratives">
+        <View style={styles.stack}>
+          {(narrativesQuery.data ?? []).map((entry) => (
+            <View key={entry.id} style={styles.row}>
+              <Text style={styles.rowTitle}>{entry.title}</Text>
+              <Text style={styles.copy}>{entry.content}</Text>
+              <Text style={styles.meta}>
+                {entry.authorName ?? "Unknown"} · {formatShortDateTime(entry.createdAt)}
+              </Text>
+            </View>
+          ))}
+        </View>
+        <Button
+          label="Add Narrative"
+          onPress={() =>
+            router.push({
+              pathname: "/cases/narrative/[id]",
+              params: { id: record.id },
+            })
+          }
+          variant="secondary"
+        />
+      </SectionCard>
+
+      <SectionCard subtitle={`${(costsQuery.data ?? []).length} entries`} title="Financials">
+        <View style={styles.stack}>
+          {(costsQuery.data ?? []).map((entry) => (
+            <View key={entry.id} style={styles.row}>
+              <Text style={styles.rowTitle}>{entry.costType}</Text>
+              <Text style={styles.meta}>{formatCurrency(entry.amount)}</Text>
+              <Text style={styles.copy}>{entry.description}</Text>
+            </View>
+          ))}
+        </View>
+        <Button
+          label="Add Cost"
+          onPress={() =>
+            router.push({
+              pathname: "/cases/cost/[id]",
+              params: { id: record.id },
+            })
+          }
+          variant="secondary"
+        />
+      </SectionCard>
+
+      <SectionCard subtitle={`${(relatedQuery.data ?? []).length} links`} title="Related Records">
+        <View style={styles.stack}>
+          {(relatedQuery.data ?? []).map((entry) => (
+            <View key={entry.id} style={styles.row}>
+              <Text style={styles.rowTitle}>{entry.relatedRecordType}</Text>
+              <Text style={styles.meta}>{entry.relatedRecordId}</Text>
+              {entry.relationshipDescription ? (
+                <Text style={styles.copy}>{entry.relationshipDescription}</Text>
+              ) : null}
+            </View>
+          ))}
+        </View>
+        <Button
+          label="Link Record"
+          onPress={() =>
+            router.push({
+              pathname: "/cases/related/[id]",
+              params: { id: record.id },
+            })
+          }
+          variant="secondary"
+        />
+      </SectionCard>
+
+      <SectionCard subtitle={`${(auditQuery.data ?? []).length} events`} title="Audit Trail">
+        <View style={styles.stack}>
+          {(auditQuery.data ?? []).map((entry) => (
+            <View key={entry.id} style={styles.row}>
+              <Text style={styles.rowTitle}>{entry.action.replace(/_/g, " ")}</Text>
+              {entry.details ? <Text style={styles.copy}>{entry.details}</Text> : null}
+              <Text style={styles.meta}>
+                {entry.actorName ?? "System"} · {formatShortDateTime(entry.createdAt)}
+              </Text>
+            </View>
+          ))}
+        </View>
+      </SectionCard>
+    </ScreenContainer>
+  );
+}
+
+function createStyles(colors: ReturnType<typeof useThemeColors>) {
+  return StyleSheet.create({
+    actions: {
+      flexDirection: "row",
+      flexWrap: "wrap",
+      gap: 10,
+    },
+    badges: {
+      flexDirection: "row",
+      flexWrap: "wrap",
+      gap: 8,
+    },
+    copy: {
+      color: colors.textSecondary,
+      fontSize: 15,
+      lineHeight: 22,
+    },
+    meta: {
+      color: colors.textTertiary,
+      fontSize: 13,
+    },
+    row: {
+      backgroundColor: colors.surfaceSecondary,
+      borderRadius: 18,
+      gap: 8,
+      padding: 14,
+    },
+    rowTitle: {
+      color: colors.textPrimary,
+      fontSize: 15,
+      fontWeight: "700",
+    },
+    stack: {
+      gap: 12,
+    },
+  });
+}

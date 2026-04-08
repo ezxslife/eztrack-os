@@ -21,6 +21,7 @@ import {
   useCreateDailyLogMutation,
   useDailyLogs,
 } from "@/lib/queries/daily-logs";
+import type { OfflineUpdateDailyLogAction } from "@/lib/offline/types";
 import { useLocations } from "@/lib/queries/locations";
 import {
   getDraftKey,
@@ -30,6 +31,7 @@ import {
   defaultFilterState,
   useFilterStore,
 } from "@/stores/filter-store";
+import { useOfflineStore } from "@/stores/offline-store";
 import { useThemeColors } from "@/theme";
 
 const filterModuleKey = "daily-log";
@@ -55,6 +57,16 @@ export default function DailyLogScreen() {
   const logsQuery = useDailyLogs();
   const locationsQuery = useLocations();
   const createLogMutation = useCreateDailyLogMutation();
+  const pendingDailyLogUpdateIds = useOfflineStore((state) =>
+    new Set(
+      state.pendingActions
+        .filter(
+          (action): action is OfflineUpdateDailyLogAction =>
+            action.kind === "update-daily-log" && action.syncState === "pending"
+        )
+        .map((action) => action.payload.dailyLogId)
+    )
+  );
   const query = filtersState.search;
 
   const logs = (logsQuery.data ?? []).filter((log) =>
@@ -187,6 +199,33 @@ export default function DailyLogScreen() {
                   {log.recordNumber} · {log.location} ·{" "}
                   {formatRelativeTimestamp(log.createdAt)}
                 </Text>
+                {pendingDailyLogUpdateIds.has(log.id) ? (
+                  <Text style={styles.pendingMeta}>Queued change pending sync</Text>
+                ) : null}
+                <View style={styles.rowActions}>
+                  <Button
+                    label="View"
+                    onPress={() =>
+                      router.push({
+                        pathname: "/daily-log/[id]",
+                        params: { id: log.id },
+                      })
+                    }
+                    variant="secondary"
+                  />
+                  {log.status !== "queued" ? (
+                    <Button
+                      label="Edit"
+                      onPress={() =>
+                        router.push({
+                          pathname: "/daily-log/edit/[id]",
+                          params: { id: log.id },
+                        })
+                      }
+                      variant="secondary"
+                    />
+                  ) : null}
+                </View>
               </View>
             ))
           ) : (
@@ -268,10 +307,22 @@ function createStyles(colors: ReturnType<typeof useThemeColors>) {
       fontSize: 12,
       marginTop: 8,
     },
+    pendingMeta: {
+      color: colors.accentSoft,
+      fontSize: 12,
+      fontWeight: "600",
+      marginTop: 8,
+    },
     priority: {
       color: colors.accentSoft,
       fontSize: 12,
       fontWeight: "700",
+    },
+    rowActions: {
+      flexDirection: "row",
+      flexWrap: "wrap",
+      gap: 10,
+      marginTop: 12,
     },
     row: {
       backgroundColor: colors.surfaceSecondary,

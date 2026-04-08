@@ -1,11 +1,14 @@
+import { useRouter } from "expo-router";
 import { useMemo } from "react";
 import {
+  Pressable,
   StyleSheet,
   Text,
   View,
 } from "react-native";
 
 import { ScreenContainer } from "@/components/layout/ScreenContainer";
+import { Button } from "@/components/ui/Button";
 import { FilterChips } from "@/components/ui/FilterChips";
 import { SearchField } from "@/components/ui/SearchField";
 import { SectionCard } from "@/components/ui/SectionCard";
@@ -32,6 +35,7 @@ const statusFilters = [
 export default function LostFoundScreen() {
   const colors = useThemeColors();
   const styles = createStyles(colors);
+  const router = useRouter();
   const foundItemsQuery = useFoundItems();
   const lostReportsQuery = useLostReports();
   const foundItems = foundItemsQuery.data ?? [];
@@ -103,6 +107,11 @@ export default function LostFoundScreen() {
             options={statusFilters.map((filter) => filter.label)}
             selected={selectedStatusLabel}
           />
+          <Button
+            label="New Found Item"
+            onPress={() => router.push("/lost-found/new")}
+            variant="secondary"
+          />
         </View>
       }
       onRefresh={() => {
@@ -123,7 +132,16 @@ export default function LostFoundScreen() {
         <View style={styles.list}>
           {filteredFoundItems.length ? (
             filteredFoundItems.map((item) => (
-              <View key={item.id} style={styles.card}>
+              <Pressable
+                key={item.id}
+                onPress={() =>
+                  router.push({
+                    pathname: "/lost-found/[id]",
+                    params: { id: item.id },
+                  })
+                }
+                style={styles.card}
+              >
                 <View style={styles.rowBetween}>
                   <Text style={styles.title}>{item.itemNumber}</Text>
                   <StatusBadge status={item.status} />
@@ -137,7 +155,7 @@ export default function LostFoundScreen() {
                   Found {formatRelativeTimestamp(item.foundDate)} by{" "}
                   {item.foundBy ?? "Unknown"}
                 </Text>
-              </View>
+              </Pressable>
             ))
           ) : (
             <Text style={styles.emptyCopy}>

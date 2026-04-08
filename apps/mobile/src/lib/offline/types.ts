@@ -1,6 +1,8 @@
 import type {
+  DailyLogStatus,
   DispatchStatus,
   IncidentSeverity,
+  IncidentStatus,
 } from "@eztrack/shared";
 
 export interface OfflineActionScope {
@@ -28,12 +30,51 @@ export interface QueuedCreateDailyLogInput {
   topic: string;
 }
 
+export interface QueuedUpdateIncidentInput {
+  incidentId: string;
+  incidentType: string;
+  locationId: string;
+  locationName?: string;
+  recordNumber: string;
+  reportedBy?: string;
+  severity: IncidentSeverity;
+  status: IncidentStatus;
+  synopsis: string;
+}
+
+export interface QueuedCreateIncidentNarrativeInput {
+  content: string;
+  incidentId: string;
+  incidentRecordNumber: string;
+  title?: string;
+}
+
+export interface QueuedUpdateDailyLogInput {
+  dailyLogId: string;
+  locationId: string;
+  locationName?: string;
+  priority: "low" | "medium" | "high";
+  recordNumber: string;
+  status: DailyLogStatus;
+  synopsis: string;
+  topic: string;
+}
+
 export interface QueuedUpdateDispatchStatusInput {
   currentStatus: DispatchStatus | string;
   dispatchId: string;
   locationName?: string;
   nextStatus: DispatchStatus;
   officerName?: string | null;
+  recordNumber: string;
+}
+
+export interface QueuedAssignDispatchInput {
+  dispatchId: string;
+  nextOfficerId: null | string;
+  nextOfficerName?: null | string;
+  previousOfficerId?: null | string;
+  previousOfficerName?: null | string;
   recordNumber: string;
 }
 
@@ -60,14 +101,38 @@ export type OfflineCreateDailyLogAction = OfflineActionBase<
   QueuedCreateDailyLogInput
 >;
 
+export type OfflineUpdateIncidentAction = OfflineActionBase<
+  "update-incident",
+  QueuedUpdateIncidentInput
+>;
+
+export type OfflineCreateIncidentNarrativeAction = OfflineActionBase<
+  "create-incident-narrative",
+  QueuedCreateIncidentNarrativeInput
+>;
+
+export type OfflineUpdateDailyLogAction = OfflineActionBase<
+  "update-daily-log",
+  QueuedUpdateDailyLogInput
+>;
+
 export type OfflineUpdateDispatchStatusAction = OfflineActionBase<
   "update-dispatch-status",
   QueuedUpdateDispatchStatusInput
 >;
 
+export type OfflineAssignDispatchAction = OfflineActionBase<
+  "assign-dispatch",
+  QueuedAssignDispatchInput
+>;
+
 export type OfflineAction =
   | OfflineCreateIncidentAction
   | OfflineCreateDailyLogAction
+  | OfflineUpdateIncidentAction
+  | OfflineCreateIncidentNarrativeAction
+  | OfflineUpdateDailyLogAction
+  | OfflineAssignDispatchAction
   | OfflineUpdateDispatchStatusAction;
 
 export type OfflineActionByKind<TKind extends OfflineAction["kind"]> = Extract<

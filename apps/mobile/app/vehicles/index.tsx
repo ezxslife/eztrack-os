@@ -1,11 +1,14 @@
+import { useRouter } from "expo-router";
 import { useMemo } from "react";
 import {
+  Pressable,
   StyleSheet,
   Text,
   View,
 } from "react-native";
 
 import { ScreenContainer } from "@/components/layout/ScreenContainer";
+import { Button } from "@/components/ui/Button";
 import { SearchField } from "@/components/ui/SearchField";
 import { SectionCard } from "@/components/ui/SectionCard";
 import { useVehicles } from "@/lib/queries/secondary-modules";
@@ -20,6 +23,7 @@ const moduleKey = "vehicles";
 export default function VehiclesScreen() {
   const colors = useThemeColors();
   const styles = createStyles(colors);
+  const router = useRouter();
   const vehiclesQuery = useVehicles();
   const rows = vehiclesQuery.data ?? [];
   const filtersState = useFilterStore(
@@ -50,11 +54,18 @@ export default function VehiclesScreen() {
   return (
     <ScreenContainer
       accessory={
-        <SearchField
-          onChangeText={(value) => setFilter(moduleKey, { search: value })}
-          placeholder="Search plate, make, model, type, or owner"
-          value={query}
-        />
+        <View style={styles.accessory}>
+          <SearchField
+            onChangeText={(value) => setFilter(moduleKey, { search: value })}
+            placeholder="Search plate, make, model, type, or owner"
+            value={query}
+          />
+          <Button
+            label="New Vehicle"
+            onPress={() => router.push("/vehicles/new")}
+            variant="secondary"
+          />
+        </View>
       }
       onRefresh={() => {
         void vehiclesQuery.refetch();
@@ -74,7 +85,16 @@ export default function VehiclesScreen() {
         <View style={styles.list}>
           {filtered.length ? (
             filtered.map((item) => (
-              <View key={item.id} style={styles.card}>
+              <Pressable
+                key={item.id}
+                onPress={() =>
+                  router.push({
+                    pathname: "/vehicles/[id]",
+                    params: { id: item.id },
+                  })
+                }
+                style={styles.card}
+              >
                 <View style={styles.rowBetween}>
                   <Text style={styles.title}>
                     {item.plate ?? "No Plate"}
@@ -87,7 +107,7 @@ export default function VehiclesScreen() {
                 <Text style={styles.meta}>
                   {item.color ?? "Unknown color"} · {item.ownerType ?? "Unknown owner"}
                 </Text>
-              </View>
+              </Pressable>
             ))
           ) : (
             <Text style={styles.emptyCopy}>
@@ -102,6 +122,9 @@ export default function VehiclesScreen() {
 
 function createStyles(colors: ReturnType<typeof useThemeColors>) {
   return StyleSheet.create({
+    accessory: {
+      gap: 12,
+    },
     card: {
       backgroundColor: colors.surfaceSecondary,
       borderRadius: 18,

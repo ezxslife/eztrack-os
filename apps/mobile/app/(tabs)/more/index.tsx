@@ -19,6 +19,7 @@ import { signOutCurrentUser } from "@/lib/auth";
 import { clearUserScopedAppData } from "@/lib/user-scoped-data";
 import { getPrimaryTabLabelsForRole } from "@/navigation/tab-specs";
 import { useAuthStore } from "@/stores/auth-store";
+import { useOfflineStore } from "@/stores/offline-store";
 import { useThemeColors } from "@/theme";
 
 const availableModuleHrefs = new Set([
@@ -46,6 +47,10 @@ const extraMobileMenuItems = [
   { href: "/contacts", label: "Contacts" },
 ] as const;
 
+const extraGlobalDestinations = [
+  { href: "/sync-center", label: "Sync Center" },
+] as const;
+
 export default function MoreScreen() {
   const colors = useThemeColors();
   const styles = createStyles(colors);
@@ -54,6 +59,16 @@ export default function MoreScreen() {
   const profile = useAuthStore((state) => state.profile);
   const previewMode = useAuthStore((state) => state.previewMode);
   const setSignedOut = useAuthStore((state) => state.setSignedOut);
+  const pendingQueueCount = useOfflineStore(
+    (state) =>
+      state.pendingActions.filter((action) => action.syncState === "pending")
+        .length
+  );
+  const deadLetterCount = useOfflineStore(
+    (state) =>
+      state.pendingActions.filter((action) => action.syncState === "dead_letter")
+        .length
+  );
   const [submitting, setSubmitting] = useState(false);
   const primaryTabs = getPrimaryTabLabelsForRole(profile?.role);
   const moduleItems = [
@@ -71,6 +86,13 @@ export default function MoreScreen() {
   const globalDestinations = NAV_BOTTOM_ITEMS.filter((item) =>
     availableGlobalHrefs.has(item.href)
   );
+  const visibleGlobalDestinations = [
+    ...extraGlobalDestinations,
+    ...globalDestinations.map((item) => ({
+      href: item.href,
+      label: item.label,
+    })),
+  ];
 
   const handleSignOut = async () => {
     setSubmitting(true);
@@ -124,6 +146,25 @@ export default function MoreScreen() {
       </SectionCard>
 
       <SectionCard
+        subtitle="Recovery and replay controls for the offline queue now live outside Settings."
+        title="Operational sync"
+      >
+        <View style={styles.list}>
+          <View style={styles.row}>
+            <Text style={styles.title}>Queue health</Text>
+            <Text style={styles.meta}>
+              {pendingQueueCount} pending · {deadLetterCount} needs review
+            </Text>
+          </View>
+          <Button
+            label="Open Sync Center"
+            onPress={() => router.push("/sync-center")}
+            variant="secondary"
+          />
+        </View>
+      </SectionCard>
+
+      <SectionCard
         subtitle="These routes are now registered in the mobile shell."
         title="Available destinations"
       >
@@ -147,7 +188,7 @@ export default function MoreScreen() {
 
       <SectionCard title="Global destinations">
         <View style={styles.list}>
-          {globalDestinations.map((item) => (
+          {visibleGlobalDestinations.map((item) => (
             <Pressable
               key={item.label}
               onPress={() => router.push(item.href as never)}

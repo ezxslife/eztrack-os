@@ -1,11 +1,13 @@
 import { useState } from "react";
 import {
   Alert,
+  Pressable,
   StyleSheet,
   Text,
   View,
 } from "react-native";
 
+import { useRouter } from "expo-router";
 import { useQueryClient } from "@tanstack/react-query";
 
 import type { ThemePreference } from "@/theme/colors";
@@ -18,8 +20,8 @@ import { formatRelativeTimestamp } from "@/lib/format";
 import {
   getOfflineActionDescription,
   getOfflineActionTitle,
-  processPendingActions,
 } from "@/lib/offline/queue";
+import { syncOfflineQueueNow } from "@/lib/offline/sync";
 import { useAuthStore } from "@/stores/auth-store";
 import { useDraftStore } from "@/stores/draft-store";
 import { useFilterStore } from "@/stores/filter-store";
@@ -42,9 +44,22 @@ const timeoutOptions = [
   { label: "15 Min", seconds: 900 },
 ];
 
+const adminDestinations = [
+  { href: "/settings/organization", label: "Organization" },
+  { href: "/settings/properties", label: "Properties" },
+  { href: "/settings/locations", label: "Locations" },
+  { href: "/settings/users", label: "Users" },
+  { href: "/settings/dropdowns", label: "Dropdowns" },
+  { href: "/settings/notification-rules", label: "Notification Rules" },
+  { href: "/settings/roles", label: "Roles & Permissions" },
+  { href: "/settings/form-templates", label: "Form Templates" },
+  { href: "/settings/integrations", label: "Integrations" },
+] as const;
+
 export default function SettingsScreen() {
   const colors = useThemeColors();
   const styles = createStyles(colors);
+  const router = useRouter();
   const queryClient = useQueryClient();
   const profile = useAuthStore((state) => state.profile);
   const authStatus = useAuthStore((state) => state.status);
@@ -113,20 +128,11 @@ export default function SettingsScreen() {
     setClearing("sync");
 
     try {
-      const result = await processPendingActions({
+      const result = await syncOfflineQueueNow(queryClient, {
         id: profile.id,
         orgId: profile.org_id,
         propertyId: profile.property_id,
       });
-
-      if (result.processedCount > 0) {
-        await Promise.all([
-          queryClient.invalidateQueries({ queryKey: ["dashboard"] }),
-          queryClient.invalidateQueries({ queryKey: ["dispatches"] }),
-          queryClient.invalidateQueries({ queryKey: ["daily-logs"] }),
-          queryClient.invalidateQueries({ queryKey: ["incidents"] }),
-        ]);
-      }
 
       Alert.alert(
         "Queue processed",
@@ -147,6 +153,21 @@ export default function SettingsScreen() {
       subtitle="Preferences, persistence health, and maintenance actions for the current device."
       title="Settings"
     >
+      <SectionCard subtitle="Web-parity admin surfaces now live under mobile settings." title="Admin hub">
+        <View style={styles.list}>
+          {adminDestinations.map((destination) => (
+            <Pressable
+              key={destination.href}
+              onPress={() => router.push(destination.href as never)}
+              style={styles.row}
+            >
+              <Text style={styles.title}>{destination.label}</Text>
+              <Text style={styles.meta}>{destination.href}</Text>
+            </Pressable>
+          ))}
+        </View>
+      </SectionCard>
+
       <SectionCard subtitle="Persisted in the preferences tier." title="Appearance">
         <View style={styles.list}>
           <View style={styles.block}>
@@ -233,6 +254,11 @@ export default function SettingsScreen() {
       >
         <View style={styles.list}>
           <View style={styles.actions}>
+            <Button
+              label="Open Sync Center"
+              onPress={() => router.push("/sync-center")}
+              variant="secondary"
+            />
             <Button
               label="Sync Now"
               loading={clearing === "sync"}
@@ -439,6 +465,11 @@ function createStyles(colors: ReturnType<typeof useThemeColors>) {
     list: {
       gap: 12,
     },
+    meta: {
+      color: colors.textTertiary,
+      fontSize: 13,
+      marginTop: 4,
+    },
     queueActions: {
       flexDirection: "row",
       gap: 12,
@@ -466,6 +497,17 @@ function createStyles(colors: ReturnType<typeof useThemeColors>) {
       color: colors.textPrimary,
       fontSize: 15,
       fontWeight: "700",
+    },
+    row: {
+      backgroundColor: colors.surfaceSecondary,
+      borderRadius: 14,
+      paddingHorizontal: 14,
+      paddingVertical: 12,
+    },
+    title: {
+      color: colors.textPrimary,
+      fontSize: 15,
+      fontWeight: "600",
     },
   });
 }

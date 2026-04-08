@@ -2,7 +2,7 @@ import { useEffect } from "react";
 
 import { useQueryClient } from "@tanstack/react-query";
 
-import { processPendingActions } from "@/lib/offline/queue";
+import { syncOfflineQueueNow } from "@/lib/offline/sync";
 import { useAuthStore } from "@/stores/auth-store";
 import { useNetworkStore } from "@/stores/network-store";
 import { useOfflineStore } from "@/stores/offline-store";
@@ -34,7 +34,7 @@ export function OfflineQueueBridge() {
 
     let isMounted = true;
 
-    void processPendingActions({
+    void syncOfflineQueueNow(queryClient, {
       id: profile.id,
       orgId: profile.org_id,
       propertyId: profile.property_id,
@@ -42,19 +42,6 @@ export function OfflineQueueBridge() {
       if (!isMounted || result.processedCount === 0) {
         return;
       }
-
-      void queryClient.invalidateQueries({
-        queryKey: ["dashboard"],
-      });
-      void queryClient.invalidateQueries({
-        queryKey: ["dispatches"],
-      });
-      void queryClient.invalidateQueries({
-        queryKey: ["incidents"],
-      });
-      void queryClient.invalidateQueries({
-        queryKey: ["daily-logs"],
-      });
     });
 
     return () => {

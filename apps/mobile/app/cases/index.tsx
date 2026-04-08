@@ -1,11 +1,14 @@
+import { useRouter } from "expo-router";
 import { useMemo } from "react";
 import {
+  Pressable,
   StyleSheet,
   Text,
   View,
 } from "react-native";
 
 import { ScreenContainer } from "@/components/layout/ScreenContainer";
+import { Button } from "@/components/ui/Button";
 import { FilterChips } from "@/components/ui/FilterChips";
 import { PriorityBadge } from "@/components/ui/PriorityBadge";
 import { SearchField } from "@/components/ui/SearchField";
@@ -30,6 +33,7 @@ const statusFilters = [
 export default function CasesScreen() {
   const colors = useThemeColors();
   const styles = createStyles(colors);
+  const router = useRouter();
   const casesQuery = useCases();
   const rows = casesQuery.data ?? [];
   const filtersState = useFilterStore(
@@ -80,6 +84,11 @@ export default function CasesScreen() {
             options={statusFilters.map((filter) => filter.label)}
             selected={selectedStatusLabel}
           />
+          <Button
+            label="New Case"
+            onPress={() => router.push("/cases/new")}
+            variant="secondary"
+          />
         </View>
       }
       onRefresh={() => {
@@ -100,7 +109,16 @@ export default function CasesScreen() {
         <View style={styles.list}>
           {filtered.length ? (
             filtered.map((item) => (
-              <View key={item.id} style={styles.card}>
+              <Pressable
+                key={item.id}
+                onPress={() =>
+                  router.push({
+                    pathname: "/cases/[id]",
+                    params: { id: item.id },
+                  })
+                }
+                style={styles.card}
+              >
                 <View style={styles.rowBetween}>
                   <Text style={styles.title}>{item.caseNumber}</Text>
                   <PriorityBadge priority={item.priority ?? "none"} />
@@ -118,7 +136,7 @@ export default function CasesScreen() {
                 <Text style={styles.meta}>
                   Opened {formatRelativeTimestamp(item.created)}
                 </Text>
-              </View>
+              </Pressable>
             ))
           ) : (
             <Text style={styles.emptyCopy}>

@@ -1,11 +1,14 @@
+import { useRouter } from "expo-router";
 import { useMemo } from "react";
 import {
+  Pressable,
   StyleSheet,
   Text,
   View,
 } from "react-native";
 
 import { ScreenContainer } from "@/components/layout/ScreenContainer";
+import { Button } from "@/components/ui/Button";
 import { FilterChips } from "@/components/ui/FilterChips";
 import { PriorityBadge } from "@/components/ui/PriorityBadge";
 import { SearchField } from "@/components/ui/SearchField";
@@ -31,6 +34,7 @@ const statusFilters = [
 export default function WorkOrdersScreen() {
   const colors = useThemeColors();
   const styles = createStyles(colors);
+  const router = useRouter();
   const workOrdersQuery = useWorkOrders();
   const rows = workOrdersQuery.data ?? [];
   const filtersState = useFilterStore(
@@ -81,6 +85,11 @@ export default function WorkOrdersScreen() {
             options={statusFilters.map((filter) => filter.label)}
             selected={selectedStatusLabel}
           />
+          <Button
+            label="New Work Order"
+            onPress={() => router.push("/work-orders/new")}
+            variant="secondary"
+          />
         </View>
       }
       onRefresh={() => {
@@ -101,7 +110,16 @@ export default function WorkOrdersScreen() {
         <View style={styles.list}>
           {filtered.length ? (
             filtered.map((item) => (
-              <View key={item.id} style={styles.card}>
+              <Pressable
+                key={item.id}
+                onPress={() =>
+                  router.push({
+                    pathname: "/work-orders/[id]",
+                    params: { id: item.id },
+                  })
+                }
+                style={styles.card}
+              >
                 <View style={styles.rowBetween}>
                   <Text style={styles.title}>{item.woNumber}</Text>
                   <PriorityBadge priority={item.priority} />
@@ -115,7 +133,7 @@ export default function WorkOrdersScreen() {
                   {item.assignedTo ?? "Unassigned"} ·{" "}
                   {item.dueDate ? `Due ${formatShortDateTime(item.dueDate)}` : "No due date"}
                 </Text>
-              </View>
+              </Pressable>
             ))
           ) : (
             <Text style={styles.emptyCopy}>

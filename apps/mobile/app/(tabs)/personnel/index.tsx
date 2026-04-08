@@ -1,21 +1,25 @@
 import {
+  Pressable,
   StyleSheet,
   Text,
   View,
 } from "react-native";
+
+import { useRouter } from "expo-router";
 
 import { ScreenContainer } from "@/components/layout/ScreenContainer";
 import { MaterialSurface } from "@/components/ui/MaterialSurface";
 import { SectionCard } from "@/components/ui/SectionCard";
 import { StatusBadge } from "@/components/ui/StatusBadge";
 import { formatRelativeTimestamp } from "@/lib/format";
-import { useOnDutyOfficers } from "@/lib/queries/dispatches";
+import { usePersonnel } from "@/lib/queries/personnel";
 import { useThemeColors } from "@/theme";
 
 export default function PersonnelScreen() {
   const colors = useThemeColors();
   const styles = createStyles(colors);
-  const officersQuery = useOnDutyOfficers();
+  const router = useRouter();
+  const officersQuery = usePersonnel();
   const officers = officersQuery.data ?? [];
   const availableCount = officers.filter((officer) => officer.status === "available").length;
   const committedCount = officers.filter(
@@ -29,7 +33,7 @@ export default function PersonnelScreen() {
         void officersQuery.refetch();
       }}
       refreshing={officersQuery.isRefetching}
-      subtitle="A first personnel board for role-aware navigation. The deeper staffing workflows still need dedicated module work."
+      subtitle="Real personnel board backed by profiles, with drilldown detail per operator."
       title="Personnel"
     >
       <MaterialSurface intensity={78} style={styles.hero} variant="panel">
@@ -65,15 +69,24 @@ export default function PersonnelScreen() {
       >
         <View style={styles.list}>
           {officers.map((officer) => (
-            <View key={officer.id} style={styles.row}>
+            <Pressable
+              key={officer.id}
+              onPress={() =>
+                router.push({
+                  pathname: "/personnel/[id]",
+                  params: { id: officer.id },
+                })
+              }
+              style={styles.row}
+            >
               <View style={styles.rowCopy}>
                 <Text style={styles.name}>{officer.name}</Text>
                 <Text style={styles.meta}>
-                  Updated {formatRelativeTimestamp(officer.updatedAt)}
+                  Updated {formatRelativeTimestamp(officer.lastActive)}
                 </Text>
               </View>
               <StatusBadge status={officer.status} />
-            </View>
+            </Pressable>
           ))}
         </View>
       </SectionCard>

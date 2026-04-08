@@ -1,4 +1,7 @@
-import { useRouter } from "expo-router";
+import {
+  useLocalSearchParams,
+  useRouter,
+} from "expo-router";
 import {
   useEffect,
   useMemo,
@@ -42,6 +45,10 @@ export default function NewIncidentScreen() {
   const colors = useThemeColors();
   const styles = createStyles(colors);
   const router = useRouter();
+  const params = useLocalSearchParams<{
+    reportedBy?: string;
+    synopsis?: string;
+  }>();
   const savedDraft = useDraftStore(
     (state) =>
       state.drafts[getDraftKey(draftModuleKey)]?.data as
@@ -76,6 +83,16 @@ export default function NewIncidentScreen() {
       null,
     [locationOptions, selectedLocationName]
   );
+
+  useEffect(() => {
+    if (!savedDraft?.reportedBy && params.reportedBy) {
+      setReportedBy(params.reportedBy);
+    }
+
+    if (!savedDraft?.synopsis && params.synopsis) {
+      setSynopsis(params.synopsis);
+    }
+  }, [params.reportedBy, params.synopsis, savedDraft?.reportedBy, savedDraft?.synopsis]);
 
   useEffect(() => {
     if (!selectedLocationName && locationOptions[0]) {

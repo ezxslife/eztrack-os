@@ -7,35 +7,48 @@ import {
 import { ScreenContainer } from "@/components/layout/ScreenContainer";
 import { MaterialSurface } from "@/components/ui/MaterialSurface";
 import { SectionCard } from "@/components/ui/SectionCard";
-import { formatRelativeTimestamp } from "@/lib/format";
 import {
-  useDashboardStats,
-  useRecentActivity,
-} from "@/lib/queries/dashboard";
+  useDispatchResponseTimes,
+  useIncidentsByStatus,
+  useIncidentsByType,
+  useIncidentsOverTime,
+  useModuleActivityCounts,
+  usePatronFlagDistribution,
+} from "@/lib/queries/analytics";
 import { useThemeColors } from "@/theme";
 
 export default function AnalyticsScreen() {
   const colors = useThemeColors();
   const styles = createStyles(colors);
-  const statsQuery = useDashboardStats();
-  const activityQuery = useRecentActivity(6);
-  const stats = statsQuery.data;
-  const kpis = stats
-    ? [
-        ["Open Incidents", String(stats.totalIncidents)],
-        ["Active Dispatches", String(stats.activeDispatches)],
-        ["Daily Logs Today", String(stats.dailyLogsToday)],
-        ["Staff On Duty", String(stats.officersOnDuty)],
-      ]
-    : [];
+  const byStatusQuery = useIncidentsByStatus();
+  const byTypeQuery = useIncidentsByType();
+  const overTimeQuery = useIncidentsOverTime();
+  const responseQuery = useDispatchResponseTimes();
+  const flagsQuery = usePatronFlagDistribution();
+  const moduleCountsQuery = useModuleActivityCounts();
+  const response = responseQuery.data;
 
   return (
     <ScreenContainer
       onRefresh={() => {
-        void Promise.all([statsQuery.refetch(), activityQuery.refetch()]);
+        void Promise.all([
+          byStatusQuery.refetch(),
+          byTypeQuery.refetch(),
+          overTimeQuery.refetch(),
+          responseQuery.refetch(),
+          flagsQuery.refetch(),
+          moduleCountsQuery.refetch(),
+        ]);
       }}
-      refreshing={statsQuery.isRefetching || activityQuery.isRefetching}
-      subtitle="An early analytics surface built on the same live operational data as dashboard."
+      refreshing={
+        byStatusQuery.isRefetching ||
+        byTypeQuery.isRefetching ||
+        overTimeQuery.isRefetching ||
+        responseQuery.isRefetching ||
+        flagsQuery.isRefetching ||
+        moduleCountsQuery.isRefetching
+      }
+      subtitle="Real operational analytics from the existing web parity queries."
       title="Analytics"
     >
       <MaterialSurface intensity={80} style={styles.hero} variant="panel">
@@ -49,50 +62,77 @@ export default function AnalyticsScreen() {
 
       <SectionCard
         subtitle={
-          statsQuery.isLoading
-            ? "Loading current KPI set"
-            : `${kpis.length} live metrics`
+          responseQuery.isLoading
+            ? "Loading performance metrics"
+            : "Dispatch timing and incident volume"
         }
         title="Current KPIs"
       >
         <View style={styles.grid}>
-          {kpis.map(([label, value]) => (
-            <View key={label} style={styles.statCard}>
-              <Text style={styles.statLabel}>{label}</Text>
-              <Text style={styles.statValue}>{value}</Text>
-            </View>
-          ))}
+          <View style={styles.statCard}>
+            <Text style={styles.statLabel}>Avg Response</Text>
+            <Text style={styles.statValue}>{response?.avgMinutes ?? 0}m</Text>
+          </View>
+          <View style={styles.statCard}>
+            <Text style={styles.statLabel}>Median Response</Text>
+            <Text style={styles.statValue}>{response?.medianMinutes ?? 0}m</Text>
+          </View>
+          <View style={styles.statCard}>
+            <Text style={styles.statLabel}>Incident Statuses</Text>
+            <Text style={styles.statValue}>{byStatusQuery.data?.length ?? 0}</Text>
+          </View>
+          <View style={styles.statCard}>
+            <Text style={styles.statLabel}>Active Modules</Text>
+            <Text style={styles.statValue}>{moduleCountsQuery.data?.length ?? 0}</Text>
+          </View>
         </View>
       </SectionCard>
 
       <SectionCard
         subtitle={
-          activityQuery.isLoading
-            ? "Loading live activity"
-            : `${(activityQuery.data ?? []).length} recent events`
+          byStatusQuery.isLoading
+            ? "Loading incident status buckets"
+            : `${(byStatusQuery.data ?? []).length} buckets`
         }
-        title="Recent changes"
+        title="Incident Status Distribution"
       >
         <View style={styles.list}>
-          {(activityQuery.data ?? []).map((item) => (
-            <View key={item.id} style={styles.row}>
-              <Text style={styles.rowTitle}>
-                {item.actorName ?? "System"} · {item.action.replace(/_/g, " ")}
-              </Text>
-              <Text style={styles.rowMeta}>
-                {item.entityType} · {formatRelativeTimestamp(item.createdAt)}
-              </Text>
+          {(byStatusQuery.data ?? []).map((item) => (
+            <View key={item.label} style={styles.row}>
+              <Text style={styles.rowTitle}>{item.label}</Text>
+              <Text style={styles.rowMeta}>{item.count} incidents</Text>
             </View>
           ))}
         </View>
       </SectionCard>
 
-      <SectionCard title="Next tranche">
-        <Text style={styles.copy}>
-          KPI drill-downs, charts, and report export still need dedicated
-          module work. This screen closes the route gap and gives mobile roles a
-          role-aware analytics destination today.
-        </Text>
+      <SectionCard title="Breakdowns">
+        <View style={styles.list}>
+          {(byTypeQuery.data ?? []).slice(0, 5).map((item) => (
+            <View key={item.label} style={styles.row}>
+              <Text style={styles.rowTitle}>{item.label}</Text>
+              <Text style={styles.rowMeta}>{item.count} incidents</Text>
+            </View>
+          ))}
+          {(flagsQuery.data ?? []).slice(0, 5).map((item) => (
+            <View key={`flag-${item.label}`} style={styles.row}>
+              <Text style={styles.rowTitle}>Patron: {item.label}</Text>
+              <Text style={styles.rowMeta}>{item.count} patrons</Text>
+            </View>
+          ))}
+          {(moduleCountsQuery.data ?? []).map((item) => (
+            <View key={`module-${item.label}`} style={styles.row}>
+              <Text style={styles.rowTitle}>{item.label}</Text>
+              <Text style={styles.rowMeta}>{item.count} records in last 30 days</Text>
+            </View>
+          ))}
+          {(overTimeQuery.data ?? []).slice(-7).map((item) => (
+            <View key={`day-${item.date}`} style={styles.row}>
+              <Text style={styles.rowTitle}>{item.date}</Text>
+              <Text style={styles.rowMeta}>{item.count} incidents</Text>
+            </View>
+          ))}
+        </View>
       </SectionCard>
     </ScreenContainer>
   );

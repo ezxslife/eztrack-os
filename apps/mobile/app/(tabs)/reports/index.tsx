@@ -1,69 +1,63 @@
 import {
+  Pressable,
   StyleSheet,
   Text,
   View,
 } from "react-native";
 
+import { useRouter } from "expo-router";
+
 import { ScreenContainer } from "@/components/layout/ScreenContainer";
 import { MaterialSurface } from "@/components/ui/MaterialSurface";
 import { SectionCard } from "@/components/ui/SectionCard";
-import { useOfflineStore } from "@/stores/offline-store";
-import { useStorageHealthStore } from "@/stores/storage-health-store";
 import { useThemeColors } from "@/theme";
 
 const reportCatalog = [
-  "Daily log digest",
-  "Incident register",
-  "Dispatch activity summary",
+  { label: "Incident Summary", type: "incident-summary" },
+  { label: "Dispatch Log", type: "dispatch-log" },
+  { label: "Daily Activity", type: "daily-activity" },
+  { label: "Patron Flags", type: "patron-flags" },
+  { label: "Case Status", type: "case-status" },
+  { label: "Lost & Found Inventory", type: "lost-found-inventory" },
+  { label: "Financial Summary", type: "financial-summary" },
+  { label: "Visitor Log", type: "visitor-log" },
 ];
 
 export default function ReportsScreen() {
   const colors = useThemeColors();
   const styles = createStyles(colors);
-  const pendingActions = useOfflineStore((state) => state.pendingActions.length);
-  const sqliteAvailable = useStorageHealthStore((state) => state.sqliteAvailable);
-  const storageTier = useStorageHealthStore((state) => state.tier);
+  const router = useRouter();
 
   return (
     <ScreenContainer
-      subtitle="This route closes the viewer/reporting navigation gap while PDF export and file delivery are still being built."
+      subtitle="Real report catalog with drilldown routes and export entry points."
       title="Reports"
     >
       <MaterialSurface intensity={78} style={styles.hero} variant="panel">
         <Text style={styles.eyebrow}>Report Pipeline</Text>
         <Text style={styles.title}>Export surfaces are scaffolded</Text>
         <Text style={styles.copy}>
-          The mobile shell now has a dedicated reports destination. The actual
-          export layer still needs PDF generation, background delivery, and
-          share workflows.
+          Choose a report type to load live rows and share the current result set as CSV from mobile.
         </Text>
       </MaterialSurface>
 
       <SectionCard title="Report catalog">
         <View style={styles.list}>
           {reportCatalog.map((item) => (
-            <View key={item} style={styles.row}>
-              <Text style={styles.rowTitle}>{item}</Text>
-              <Text style={styles.rowMeta}>Queued for export implementation</Text>
-            </View>
+            <Pressable
+              key={item.type}
+              onPress={() =>
+                router.push({
+                  pathname: "/reports/[type]",
+                  params: { type: item.type },
+                })
+              }
+              style={styles.row}
+            >
+              <Text style={styles.rowTitle}>{item.label}</Text>
+              <Text style={styles.rowMeta}>{item.type}</Text>
+            </Pressable>
           ))}
-        </View>
-      </SectionCard>
-
-      <SectionCard title="Operational context">
-        <View style={styles.list}>
-          <View style={styles.row}>
-            <Text style={styles.rowTitle}>Storage tier</Text>
-            <Text style={styles.rowMeta}>{storageTier}</Text>
-          </View>
-          <View style={styles.row}>
-            <Text style={styles.rowTitle}>SQLite cache</Text>
-            <Text style={styles.rowMeta}>{sqliteAvailable ? "available" : "fallback"}</Text>
-          </View>
-          <View style={styles.row}>
-            <Text style={styles.rowTitle}>Queued offline actions</Text>
-            <Text style={styles.rowMeta}>{pendingActions}</Text>
-          </View>
         </View>
       </SectionCard>
     </ScreenContainer>

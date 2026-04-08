@@ -1,59 +1,98 @@
 import {
+  Alert,
   StyleSheet,
   Text,
   View,
 } from "react-native";
 
 import { ScreenContainer } from "@/components/layout/ScreenContainer";
+import { Button } from "@/components/ui/Button";
 import { SectionCard } from "@/components/ui/SectionCard";
 import { formatRelativeTimestamp } from "@/lib/format";
-import { useRecentActivity } from "@/lib/queries/dashboard";
+import {
+  useAcknowledgeAlertMutation,
+  useAlerts,
+  useResolveAlertMutation,
+} from "@/lib/queries/alerts";
 import { useThemeColors } from "@/theme";
 
 export default function AlertsScreen() {
   const colors = useThemeColors();
   const styles = createStyles(colors);
-  const activityQuery = useRecentActivity(8);
-  const items = activityQuery.data ?? [];
+  const alertsQuery = useAlerts();
+  const acknowledgeMutation = useAcknowledgeAlertMutation();
+  const resolveMutation = useResolveAlertMutation();
+  const items = alertsQuery.data ?? [];
 
   return (
     <ScreenContainer
       onRefresh={() => {
-        void activityQuery.refetch();
+        void alertsQuery.refetch();
       }}
-      refreshing={activityQuery.isRefetching}
-      subtitle="A temporary alert surface until dedicated alert rules and acknowledgements are implemented."
+      refreshing={alertsQuery.isRefetching}
+      subtitle="Real alert acknowledgements and resolution from the alerts table."
       title="Alerts"
     >
       <SectionCard
         subtitle={
-          activityQuery.isLoading
-            ? "Loading recent operational changes"
-            : `${items.length} recent events`
+          alertsQuery.isLoading ? "Loading alerts" : `${items.length} active alerts`
         }
-        title="Interim alert feed"
+        title="Alert queue"
       >
         <View style={styles.list}>
           {items.map((item) => (
             <View key={item.id} style={styles.row}>
-              <Text style={styles.rowTitle}>
-                {item.entityType} · {item.action.replace(/_/g, " ")}
+              <Text style={styles.rowTitle}>{item.title}</Text>
+              <Text style={styles.copy}>{item.message ?? "No message"}</Text>
+              <Text style={styles.rowMeta}>
+                {item.severity ?? "general"} · {formatRelativeTimestamp(item.createdAt)}
               </Text>
               <Text style={styles.rowMeta}>
-                {item.actorName ?? "System"} ·{" "}
-                {formatRelativeTimestamp(item.createdAt)}
+                {item.acknowledgedAt
+                  ? `Acknowledged ${formatRelativeTimestamp(item.acknowledgedAt)}`
+                  : "Unacknowledged"}
               </Text>
+              <View style={styles.actions}>
+                {!item.acknowledgedAt ? (
+                  <Button
+                    label="Acknowledge"
+                    loading={
+                      acknowledgeMutation.isPending &&
+                      acknowledgeMutation.variables === item.id
+                    }
+                    onPress={() => {
+                      void acknowledgeMutation.mutateAsync(item.id);
+                    }}
+                    variant="secondary"
+                  />
+                ) : null}
+                <Button
+                  label="Resolve"
+                  loading={
+                    resolveMutation.isPending && resolveMutation.variables === item.id
+                  }
+                  onPress={() => {
+                    Alert.alert(
+                      "Resolve alert",
+                      "Remove this alert from the active queue?",
+                      [
+                        { style: "cancel", text: "Cancel" },
+                        {
+                          style: "destructive",
+                          text: "Resolve",
+                          onPress: () => {
+                            void resolveMutation.mutateAsync(item.id);
+                          },
+                        },
+                      ]
+                    );
+                  }}
+                  variant="secondary"
+                />
+              </View>
             </View>
           ))}
         </View>
-      </SectionCard>
-
-      <SectionCard title="Next alert tranche">
-        <Text style={styles.copy}>
-          Dedicated severity rules, acknowledgment flows, and push delivery
-          still need their own implementation. This route gives the shell a
-          stable alert destination now.
-        </Text>
       </SectionCard>
     </ScreenContainer>
   );
@@ -61,6 +100,12 @@ export default function AlertsScreen() {
 
 function createStyles(colors: ReturnType<typeof useThemeColors>) {
   return StyleSheet.create({
+    actions: {
+      flexDirection: "row",
+      flexWrap: "wrap",
+      gap: 10,
+      marginTop: 8,
+    },
     copy: {
       color: colors.textSecondary,
       fontSize: 15,
