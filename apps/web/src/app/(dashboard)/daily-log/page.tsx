@@ -16,7 +16,15 @@ import {
   DeleteDailyLogModal,
 } from "@/components/modals/daily-log";
 import { useToast } from "@/components/ui/Toast";
-import { fetchDailyLogs, createDailyLog, updateDailyLog, updateDailyLogStatus, type DailyLogRow } from "@/lib/queries/daily-logs";
+import {
+  fetchDailyLogs,
+  fetchDailyLogById,
+  createDailyLog,
+  updateDailyLog,
+  updateDailyLogStatus,
+  type DailyLogRow,
+} from "@/lib/queries/daily-logs";
+import { createIncident } from "@/lib/queries/incidents";
 import { getSupabaseBrowser } from "@/lib/supabase-browser";
 import { formatRelativeTime } from "@/lib/utils/time";
 
@@ -65,7 +73,7 @@ export default function DailyLogPage() {
   const [editModal, setEditModal] = useState<{ open: boolean; data?: any }>({ open: false });
   const [escalateModal, setEscalateModal] = useState<{ open: boolean; entryId?: string }>({ open: false });
   const [deleteModal, setDeleteModal] = useState<{ open: boolean; entryId?: string; entryTitle?: string }>({ open: false });
-  const [userProfile, setUserProfile] = useState<{ orgId: string; propertyId: string | null } | null>(null);
+  const [userProfile, setUserProfile] = useState<{ orgId: string; propertyId: string | null; fullName: string | null } | null>(null);
 
   const loadLogs = useCallback(async () => {
     try {
@@ -80,10 +88,16 @@ export default function DailyLogPage() {
       if (user) {
         const { data: profile } = await supabase
           .from("profiles")
-          .select("org_id, property_id")
+          .select("org_id, property_id, full_name")
           .eq("id", user.id)
           .single();
-        if (profile) setUserProfile({ orgId: profile.org_id, propertyId: profile.property_id });
+        if (profile) {
+          setUserProfile({
+            orgId: profile.org_id,
+            propertyId: profile.property_id,
+            fullName: profile.full_name ?? null,
+          });
+        }
       }
     } catch (err: any) {
       setError(err.message || "Failed to load daily logs");
@@ -296,8 +310,39 @@ export default function DailyLogPage() {
         open={escalateModal.open}
         onClose={() => setEscalateModal({ open: false })}
         onConfirm={async (data) => {
-          toast("Incident created from daily log", { variant: "info" });
-          setEscalateModal({ open: false });
+          try {
+            if (!escalateModal.entryId) throw new Error("No daily log selected");
+
+            const log = await fetchDailyLogById(escalateModal.entryId);
+            const incidentType = log.topic.trim().toLowerCase().replace(/[^a-z0-9]+/g, "_").replace(/^_+|_+$/g, "") || "general";
+            const summary = data.autoFill
+              ? log.synopsis?.trim() || log.topic
+              : log.topic;
+            const notes = [
+              `Escalated from daily log ${log.recordNumber}.`,
+              data.reason.trim() ? `Escalation reason: ${data.reason.trim()}` : null,
+              log.synopsis?.trim() ? `Original log synopsis: ${log.synopsis.trim()}` : null,
+            ]
+              .filter(Boolean)
+              .join("\n\n");
+
+            const result = await createIncident({
+              orgId: log.orgId,
+              propertyId: log.propertyId,
+              incidentType,
+              severity: log.priority,
+              locationId: log.location?.id ?? null,
+              synopsis: summary,
+              description: notes || undefined,
+              reportedBy: userProfile?.fullName ?? undefined,
+            });
+
+            toast(`Incident ${result.record_number} created from daily log`, { variant: "success" });
+            setEscalateModal({ open: false });
+            router.push(`/incidents/${result.id}`);
+          } catch (err: any) {
+            toast(err.message || "Failed to escalate daily log", { variant: "error" });
+          }
         }}
       />
 

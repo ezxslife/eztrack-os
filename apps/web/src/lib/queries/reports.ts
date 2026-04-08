@@ -1,9 +1,195 @@
 import { getSupabaseBrowser } from "@/lib/supabase-browser";
+import type { Database } from "@/types/database";
 
 export interface ReportResult {
   stats: { label: string; value: string; sub?: string }[];
   columns: { key: string; label: string; sortable?: boolean }[];
   rows: Record<string, unknown>[];
+}
+
+export interface ReportDefinition {
+  slug: string;
+  name: string;
+  description: string;
+  category: string;
+  formats: string[];
+  quick?: boolean;
+}
+
+export interface ReportCatalogItem extends ReportDefinition {
+  recordCount: number;
+  latestActivity: string | null;
+}
+
+export const REPORT_DEFINITIONS: ReportDefinition[] = [
+  {
+    slug: "daily-activity",
+    name: "Daily Activity Summary",
+    description: "All daily log entries for a selected date range",
+    category: "Operations Reports",
+    formats: ["PDF", "CSV", "Excel"],
+    quick: true,
+  },
+  {
+    slug: "incident-summary",
+    name: "Incident Summary Report",
+    description: "All incidents with classification, status, and response times",
+    category: "Operations Reports",
+    formats: ["PDF", "CSV", "Excel"],
+    quick: true,
+  },
+  {
+    slug: "dispatch-performance",
+    name: "Dispatch Performance",
+    description: "Response times, resolution rates, officer workload",
+    category: "Operations Reports",
+    formats: ["PDF", "CSV", "Excel"],
+  },
+  {
+    slug: "case-status",
+    name: "Case Status Report",
+    description: "Active investigations, stage breakdown, aging",
+    category: "Investigation Reports",
+    formats: ["PDF", "CSV", "Excel"],
+  },
+  {
+    slug: "savings-losses",
+    name: "Savings & Losses Summary",
+    description: "Financial impact across incidents and cases",
+    category: "Financial Reports",
+    formats: ["PDF", "CSV", "Excel"],
+  },
+  {
+    slug: "visitor-log",
+    name: "Visitor Log",
+    description: "All visits with sign-in/out times",
+    category: "Visitor & Patron Reports",
+    formats: ["PDF", "CSV", "Excel"],
+    quick: true,
+  },
+  {
+    slug: "patron-flags",
+    name: "Patron Flags & Bans",
+    description: "Active flags, ban history, and watch list",
+    category: "Visitor & Patron Reports",
+    formats: ["PDF", "CSV"],
+  },
+  {
+    slug: "lost-found-inventory",
+    name: "Lost & Found Inventory",
+    description: "Current found-item inventory and claim status",
+    category: "Inventory Reports",
+    formats: ["PDF", "CSV", "Excel"],
+  },
+];
+
+export function getReportDefinition(slug: string) {
+  return REPORT_DEFINITIONS.find((report) => report.slug === slug);
+}
+
+async function fetchScopedTableSummary(
+  table: keyof Database["public"]["Tables"],
+  orgId: string,
+  options?: {
+    createdColumn?: string;
+    deletedColumn?: string | null;
+    extra?: (query: any) => any;
+  },
+) {
+  const supabase = getSupabaseBrowser();
+  const createdColumn = options?.createdColumn ?? "created_at";
+  let query = (supabase
+    .from(table as any)
+    .select(`id, ${createdColumn}`, { count: "exact" })
+    .eq("org_id", orgId)
+    .order(createdColumn, { ascending: false })
+    .limit(1)) as any;
+
+  if (options?.deletedColumn !== null) {
+    query = query.is(options?.deletedColumn ?? "deleted_at", null);
+  }
+
+  if (options?.extra) {
+    query = options.extra(query);
+  }
+
+  const { data, count, error } = await query;
+  if (error) throw error;
+
+  return {
+    count: count ?? 0,
+    latestActivity: data?.[0]?.[createdColumn] ?? null,
+  };
+}
+
+export async function fetchReportCatalog(orgId: string): Promise<ReportCatalogItem[]> {
+  const supabase = getSupabaseBrowser();
+  const [
+    dailyLogs,
+    incidents,
+    dispatches,
+    cases,
+    visitors,
+    patrons,
+    foundItems,
+    incidentFinancials,
+    caseCosts,
+  ] = await Promise.all([
+    fetchScopedTableSummary("daily_logs", orgId),
+    fetchScopedTableSummary("incidents", orgId),
+    fetchScopedTableSummary("dispatches", orgId),
+    fetchScopedTableSummary("cases", orgId),
+    fetchScopedTableSummary("visitors", orgId),
+    fetchScopedTableSummary("patrons", orgId, {
+      extra: (query) => query.not("flag", "is", null),
+    }),
+    fetchScopedTableSummary("found_items", orgId),
+    supabase
+      .from("incident_financials")
+      .select("id, created_at, incident:incidents!incident_id(org_id)")
+      .order("created_at", { ascending: false }),
+    supabase
+      .from("case_costs")
+      .select("id, created_at, related_case:cases!case_id(org_id)")
+      .order("created_at", { ascending: false }),
+  ]);
+
+  if (incidentFinancials.error) throw incidentFinancials.error;
+  if (caseCosts.error) throw caseCosts.error;
+
+  const financialRows = [
+    ...((incidentFinancials.data ?? []).filter((row: any) => row.incident?.org_id === orgId)),
+    ...((caseCosts.data ?? []).filter((row: any) => row.related_case?.org_id === orgId)),
+  ];
+  const financialLatest = financialRows
+    .map((row: any) => row.created_at as string | null)
+    .filter(Boolean)
+    .sort()
+    .at(-1) ?? null;
+  const financialCount = financialRows.length;
+
+  return REPORT_DEFINITIONS.map((definition) => {
+    switch (definition.slug) {
+      case "daily-activity":
+        return { ...definition, recordCount: dailyLogs.count, latestActivity: dailyLogs.latestActivity };
+      case "incident-summary":
+        return { ...definition, recordCount: incidents.count, latestActivity: incidents.latestActivity };
+      case "dispatch-performance":
+        return { ...definition, recordCount: dispatches.count, latestActivity: dispatches.latestActivity };
+      case "case-status":
+        return { ...definition, recordCount: cases.count, latestActivity: cases.latestActivity };
+      case "visitor-log":
+        return { ...definition, recordCount: visitors.count, latestActivity: visitors.latestActivity };
+      case "patron-flags":
+        return { ...definition, recordCount: patrons.count, latestActivity: patrons.latestActivity };
+      case "lost-found-inventory":
+        return { ...definition, recordCount: foundItems.count, latestActivity: foundItems.latestActivity };
+      case "savings-losses":
+        return { ...definition, recordCount: financialCount, latestActivity: financialLatest };
+      default:
+        return { ...definition, recordCount: 0, latestActivity: null };
+    }
+  });
 }
 
 /* ── CSV export helper ── */
@@ -23,6 +209,27 @@ export function exportCSV(data: Record<string, unknown>[], filename: string) {
   a.download = filename;
   a.click();
   URL.revokeObjectURL(url);
+}
+
+export function getDefaultReportDateRange(days = 7) {
+  const end = new Date();
+  const start = new Date(end);
+  start.setDate(end.getDate() - Math.max(days - 1, 0));
+
+  const toDateInput = (date: Date) => date.toISOString().slice(0, 10);
+
+  return {
+    dateFrom: toDateInput(start),
+    dateTo: toDateInput(end),
+  };
+}
+
+export function buildReportRoute(
+  reportType: string,
+  range: { dateFrom: string; dateTo: string } = getDefaultReportDateRange(),
+) {
+  const params = new URLSearchParams(range);
+  return `/reports/${reportType}?${params.toString()}`;
 }
 
 /* ── Generic report fetcher ── */
@@ -50,8 +257,10 @@ export async function fetchReportData(
       return fetchFinancialSummary(orgId, params);
     case "visitor-log":
       return fetchVisitorLog(orgId, params);
+    case "lost-found-inventory":
+      return fetchLostFoundInventory(orgId, params);
     default:
-      return fetchIncidentSummary(orgId, params);
+      throw new Error("Unsupported report type");
   }
 }
 
@@ -66,7 +275,7 @@ async function fetchIncidentSummary(
   const supabase = getSupabaseBrowser();
   let query = supabase
     .from("incidents")
-    .select("id, record_number, type, severity, status, synopsis, created_at, location:locations(name)")
+    .select("id, record_number, incident_type, severity, status, synopsis, created_at, location:locations(name)")
     .eq("org_id", orgId)
     .is("deleted_at", null)
     .order("created_at", { ascending: false });
@@ -79,7 +288,7 @@ async function fetchIncidentSummary(
   const rows = (data ?? []).map((r: any) => ({
     id: r.id,
     number: r.record_number ?? "-",
-    type: r.type ?? "-",
+    type: r.incident_type ?? "-",
     severity: r.severity ?? "-",
     location: r.location?.name ?? "-",
     status: r.status ?? "-",
@@ -117,7 +326,7 @@ async function fetchDispatchLog(
   const supabase = getSupabaseBrowser();
   let query = supabase
     .from("dispatches")
-    .select("id, record_number, description, status, priority, dispatched_at, arrived_at, created_at")
+    .select("id, record_number, description, status, priority, created_at, updated_at")
     .eq("org_id", orgId)
     .is("deleted_at", null)
     .order("created_at", { ascending: false });
@@ -129,8 +338,8 @@ async function fetchDispatchLog(
   if (error) throw error;
   const rows = (data ?? []).map((r: any) => {
     let responseTime = "-";
-    if (r.dispatched_at && r.arrived_at) {
-      const mins = (new Date(r.arrived_at).getTime() - new Date(r.dispatched_at).getTime()) / 60_000;
+    if (["cleared", "completed"].includes(r.status) && r.updated_at && r.created_at) {
+      const mins = (new Date(r.updated_at).getTime() - new Date(r.created_at).getTime()) / 60_000;
       responseTime = `${Math.round(mins * 10) / 10} min`;
     }
     return {
@@ -223,7 +432,7 @@ async function fetchPatronFlags(
   const supabase = getSupabaseBrowser();
   let query = supabase
     .from("patrons")
-    .select("id, first_name, last_name, flag, flag_reason, flag_expiry, created_at")
+    .select("id, first_name, last_name, flag, flag_reason, created_at")
     .eq("org_id", orgId)
     .is("deleted_at", null)
     .not("flag", "is", null)
@@ -240,8 +449,8 @@ async function fetchPatronFlags(
     flagType: r.flag ?? "-",
     reason: r.flag_reason ?? "-",
     issuedDate: r.created_at ? new Date(r.created_at).toLocaleDateString() : "-",
-    expiryDate: r.flag_expiry ? new Date(r.flag_expiry).toLocaleDateString() : "-",
-    status: r.flag_expiry && new Date(r.flag_expiry) < new Date() ? "Expired" : "Active",
+    expiryDate: "-",
+    status: "Active",
   }));
 
   const bans = rows.filter((r) => r.flagType === "Ban" || r.flagType === "ban").length;
@@ -369,34 +578,66 @@ async function fetchFinancialSummary(
   params: { dateFrom?: string; dateTo?: string }
 ): Promise<ReportResult> {
   const supabase = getSupabaseBrowser();
-  let query = supabase
-    .from("incidents")
-    .select("id, record_number, type, created_at, estimated_loss, recovered_amount")
-    .eq("org_id", orgId)
-    .is("deleted_at", null)
+  let incidentQuery = supabase
+    .from("incident_financials")
+    .select("id, incident_id, entry_type, amount, description, created_at, incident:incidents!incident_id(record_number, incident_type)")
+    .order("created_at", { ascending: false });
+  let caseQuery = supabase
+    .from("case_costs")
+    .select("id, case_id, cost_type, amount, description, created_at, related_case:cases!case_id(record_number, case_type)")
     .order("created_at", { ascending: false });
 
-  if (params.dateFrom) query = query.gte("created_at", params.dateFrom);
-  if (params.dateTo) query = query.lte("created_at", params.dateTo + "T23:59:59");
+  if (params.dateFrom) {
+    incidentQuery = incidentQuery.gte("created_at", params.dateFrom);
+    caseQuery = caseQuery.gte("created_at", params.dateFrom);
+  }
+  if (params.dateTo) {
+    incidentQuery = incidentQuery.lte("created_at", params.dateTo + "T23:59:59");
+    caseQuery = caseQuery.lte("created_at", params.dateTo + "T23:59:59");
+  }
 
-  const { data, error } = await query;
-  if (error) throw error;
-  const rows = (data ?? []).map((r: any) => {
-    const loss = Number(r.estimated_loss) || 0;
-    const recovered = Number(r.recovered_amount) || 0;
-    return {
-      id: r.id,
-      incidentRef: r.record_number ?? "-",
-      type: r.type ?? "-",
-      lossAmount: `$${loss.toLocaleString()}`,
-      recovered: `$${recovered.toLocaleString()}`,
-      netLoss: `$${(loss - recovered).toLocaleString()}`,
-      date: r.created_at ? new Date(r.created_at).toLocaleDateString() : "-",
-    };
-  });
+  const [{ data: incidentData, error: incidentError }, { data: caseData, error: caseError }] =
+    await Promise.all([incidentQuery, caseQuery]);
+  if (incidentError) throw incidentError;
+  if (caseError) throw caseError;
 
-  const totalLoss = (data ?? []).reduce((s, r: any) => s + (Number(r.estimated_loss) || 0), 0);
-  const totalRecovered = (data ?? []).reduce((s, r: any) => s + (Number(r.recovered_amount) || 0), 0);
+  const incidentRows = (incidentData ?? []).map((r: any) => ({
+    id: r.id,
+    incidentRef: r.incident?.record_number ?? "-",
+    type: r.incident?.incident_type ?? "incident",
+    lossAmount:
+      r.entry_type === "loss" ? `$${Number(r.amount || 0).toLocaleString()}` : "$0",
+    recovered:
+      r.entry_type === "saving" ? `$${Number(r.amount || 0).toLocaleString()}` : "$0",
+    netLoss:
+      r.entry_type === "loss"
+        ? `$${Number(r.amount || 0).toLocaleString()}`
+        : `$${-Number(r.amount || 0).toLocaleString()}`,
+    date: r.created_at ? new Date(r.created_at).toLocaleDateString() : "-",
+  }));
+
+  const caseRows = (caseData ?? []).map((r: any) => ({
+    id: r.id,
+    incidentRef: r.related_case?.record_number ?? "-",
+    type: r.related_case?.case_type ?? (r.cost_type || "case"),
+    lossAmount: `$${Number(r.amount || 0).toLocaleString()}`,
+    recovered: "$0",
+    netLoss: `$${Number(r.amount || 0).toLocaleString()}`,
+    date: r.created_at ? new Date(r.created_at).toLocaleDateString() : "-",
+  }));
+
+  const rows = [...incidentRows, ...caseRows];
+
+  const totalLoss =
+    (incidentData ?? []).reduce(
+      (sum, row: any) => sum + (row.entry_type === "loss" ? Number(row.amount || 0) : 0),
+      0,
+    ) +
+    (caseData ?? []).reduce((sum, row: any) => sum + Number(row.amount || 0), 0);
+  const totalRecovered = (incidentData ?? []).reduce(
+    (sum, row: any) => sum + (row.entry_type === "saving" ? Number(row.amount || 0) : 0),
+    0,
+  );
 
   return {
     stats: [
@@ -424,7 +665,7 @@ async function fetchVisitorLog(
   const supabase = getSupabaseBrowser();
   let query = supabase
     .from("visitors")
-    .select("id, first_name, last_name, company, host_name, sign_in_time, sign_out_time, badge_number, created_at")
+    .select("id, first_name, last_name, company, host_name, checked_in_at, checked_out_at, purpose, created_at")
     .eq("org_id", orgId)
     .is("deleted_at", null)
     .order("created_at", { ascending: false });
@@ -436,12 +677,12 @@ async function fetchVisitorLog(
   if (error) throw error;
   const rows = (data ?? []).map((r: any) => {
     let duration = "-";
-    if (r.sign_in_time && r.sign_out_time) {
-      const mins = (new Date(r.sign_out_time).getTime() - new Date(r.sign_in_time).getTime()) / 60_000;
+    if (r.checked_in_at && r.checked_out_at) {
+      const mins = (new Date(r.checked_out_at).getTime() - new Date(r.checked_in_at).getTime()) / 60_000;
       const h = Math.floor(mins / 60);
       const m = Math.round(mins % 60);
       duration = `${h}h ${m}m`;
-    } else if (r.sign_in_time) {
+    } else if (r.checked_in_at) {
       duration = "On-site";
     }
     return {
@@ -449,10 +690,10 @@ async function fetchVisitorLog(
       visitorName: `${r.first_name ?? ""} ${r.last_name ?? ""}`.trim() || "-",
       company: r.company ?? "-",
       host: r.host_name ?? "-",
-      signIn: r.sign_in_time ? new Date(r.sign_in_time).toLocaleString() : "-",
-      signOut: r.sign_out_time ? new Date(r.sign_out_time).toLocaleString() : "-",
+      signIn: r.checked_in_at ? new Date(r.checked_in_at).toLocaleString() : "-",
+      signOut: r.checked_out_at ? new Date(r.checked_out_at).toLocaleString() : "-",
       duration,
-      badge: r.badge_number ?? "-",
+      badge: r.purpose ?? "-",
     };
   });
 

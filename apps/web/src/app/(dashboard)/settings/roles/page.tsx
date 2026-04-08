@@ -1,72 +1,108 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect, useCallback } from "react";
 import Link from "next/link";
-import { ArrowLeft, Shield } from "lucide-react";
-import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/Card";
-import { Badge } from "@/components/ui/Badge";
+import { ArrowLeft, Shield, Loader2, AlertCircle } from "lucide-react";
+import { Card, CardContent } from "@/components/ui/Card";
+import { Button } from "@/components/ui/Button";
+import { useToast } from "@/components/ui/Toast";
+import { fetchRoles, updateRolePermissions } from "@/lib/queries/settings";
+import {
+  formatRoleLabel,
+  ROLE_ORDER,
+  SETTINGS_MODULES,
+  type PermissionLevel,
+  type RolePermissionsRow,
+} from "@/lib/settings-shared";
 
-const roles = ["Super Admin", "Admin", "Manager", "Supervisor", "Officer", "Staff"] as const;
-
-const modules = [
-  "Incidents",
-  "Dispatches",
-  "Cases",
-  "Daily Log",
-  "Lost & Found",
-  "BOLO",
-  "Field Contacts",
-  "Arrests",
-  "Use of Force",
-  "Reports",
-  "Analytics",
-  "Settings",
-] as const;
-
-type Permission = "full" | "edit" | "view" | "none";
-
-const initialPermissions: Record<string, Record<string, Permission>> = {
-  "Super Admin": Object.fromEntries(modules.map((m) => [m, "full"])),
-  Admin: Object.fromEntries(
-    modules.map((m) => [m, m === "Settings" ? "edit" : "full"])
-  ),
-  Manager: Object.fromEntries(
-    modules.map((m) => [m, ["Settings", "Analytics"].includes(m) ? "view" : "full"])
-  ),
-  Supervisor: Object.fromEntries(
-    modules.map((m) => [m, ["Settings", "Analytics", "Reports"].includes(m) ? "view" : "edit"])
-  ),
-  Officer: Object.fromEntries(
-    modules.map((m) => [m, ["Settings", "Analytics"].includes(m) ? "none" : ["Reports", "Cases"].includes(m) ? "view" : "edit"])
-  ),
-  Staff: Object.fromEntries(
-    modules.map((m) => [m, ["Incidents", "Daily Log", "Lost & Found"].includes(m) ? "view" : "none"])
-  ),
-};
-
-const permColors: Record<Permission, string> = {
+const permColors: Record<PermissionLevel, string> = {
   full: "bg-emerald-500/20 text-emerald-400 border-emerald-500/30",
   edit: "bg-blue-500/20 text-blue-400 border-blue-500/30",
   view: "bg-amber-500/20 text-amber-400 border-amber-500/30",
   none: "bg-transparent text-[var(--text-tertiary)] border-[var(--border-default)]",
 };
 
-const permCycle: Permission[] = ["none", "view", "edit", "full"];
+const permCycle: PermissionLevel[] = ["none", "view", "edit", "full"];
+
+function sortRoles(rows: RolePermissionsRow[]) {
+  const order = new Map(ROLE_ORDER.map((name, index) => [name.toLowerCase(), index]));
+  return [...rows].sort((a, b) => {
+    const left = order.get(formatRoleLabel(a.name).toLowerCase());
+    const right = order.get(formatRoleLabel(b.name).toLowerCase());
+    if (left !== undefined && right !== undefined) return left - right;
+    if (left !== undefined) return -1;
+    if (right !== undefined) return 1;
+    return formatRoleLabel(a.name).localeCompare(formatRoleLabel(b.name));
+  });
+}
 
 export default function RolesSettingsPage() {
-  const [permissions, setPermissions] = useState(initialPermissions);
+  const { toast } = useToast();
+  const [roles, setRoles] = useState<RolePermissionsRow[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  const load = useCallback(async () => {
+    try {
+      setLoading(true);
+      setError(null);
+      const data = await fetchRoles();
+      setRoles(sortRoles(data));
+    } catch (err: any) {
+      setError(err.message || "Failed to load roles");
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    load();
+  }, [load]);
 
   const cyclePermission = (role: string, mod: string) => {
-    setPermissions((prev) => {
-      const current = prev[role][mod];
+    setRoles((prev) => {
+      const currentRow = prev.find((row) => row.id === role);
+      if (!currentRow) return prev;
+      const current = currentRow.permissions[mod] ?? "none";
       const idx = permCycle.indexOf(current);
       const next = permCycle[(idx + 1) % permCycle.length];
-      return {
-        ...prev,
-        [role]: { ...prev[role], [mod]: next },
-      };
+      const nextRows = prev.map((row) =>
+        row.id === role
+          ? { ...row, permissions: { ...row.permissions, [mod]: next } }
+          : row,
+      );
+
+      void updateRolePermissions(role, {
+        ...currentRow.permissions,
+        [mod]: next,
+      }).catch((err: any) => {
+        toast(err.message || "Failed to update role permissions", { variant: "error" });
+        load();
+      });
+
+      return nextRows;
     });
   };
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center py-20">
+        <Loader2 className="h-6 w-6 animate-spin text-[var(--text-tertiary)]" />
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="flex flex-col items-center justify-center py-20 gap-3">
+        <AlertCircle className="h-6 w-6 text-red-400" />
+        <p className="text-[13px] text-[var(--text-secondary)]">{error}</p>
+        <Button variant="outline" size="sm" onClick={load}>
+          Retry
+        </Button>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
@@ -108,24 +144,24 @@ export default function RolesSettingsPage() {
                     </div>
                   </th>
                   {roles.map((role) => (
-                    <th key={role} className="text-center font-medium text-[var(--text-secondary)] px-3 py-3 min-w-[100px]">
-                      {role}
+                    <th key={role.id} className="text-center font-medium text-[var(--text-secondary)] px-3 py-3 min-w-[100px]">
+                      {formatRoleLabel(role.name)}
                     </th>
                   ))}
                 </tr>
               </thead>
               <tbody>
-                {modules.map((mod) => (
+                {SETTINGS_MODULES.map((mod) => (
                   <tr key={mod} className="border-b border-[var(--border-default)] last:border-0">
                     <td className="px-4 py-2.5 font-medium text-[var(--text-primary)] sticky left-0 bg-[var(--surface-primary)]">
                       {mod}
                     </td>
                     {roles.map((role) => {
-                      const perm = permissions[role][mod];
+                      const perm = role.permissions[mod] ?? "none";
                       return (
-                        <td key={role} className="px-3 py-2.5 text-center">
+                        <td key={role.id} className="px-3 py-2.5 text-center">
                           <button
-                            onClick={() => cyclePermission(role, mod)}
+                            onClick={() => cyclePermission(role.id, mod)}
                             className={`inline-flex items-center justify-center rounded-md border px-2 py-0.5 text-[11px] font-medium capitalize transition-colors hover:opacity-80 cursor-pointer ${permColors[perm]}`}
                           >
                             {perm}
@@ -140,6 +176,12 @@ export default function RolesSettingsPage() {
           </div>
         </CardContent>
       </Card>
+
+      {roles.length === 0 && (
+        <div className="text-center text-[13px] text-[var(--text-tertiary)]">
+          No roles found for this organization.
+        </div>
+      )}
     </div>
   );
 }

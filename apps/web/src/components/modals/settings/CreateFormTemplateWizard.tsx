@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { WizardModal } from "@/components/modals/WizardModal";
 import { Input } from "@/components/ui/Input";
 import { Select } from "@/components/ui/Select";
@@ -27,6 +27,9 @@ interface CreateFormTemplateWizardProps {
   onClose: () => void;
   onSubmit: (data: FormTemplateData) => void | Promise<void>;
   incidentTypes?: { value: string; label: string }[];
+  initialData?: Partial<FormTemplateData> | null;
+  title?: string;
+  submitLabel?: string;
 }
 
 const WIZARD_STEPS = [
@@ -50,6 +53,9 @@ export function CreateFormTemplateWizard({
   onClose,
   onSubmit,
   incidentTypes = [],
+  initialData = null,
+  title = "Create Form Template",
+  submitLabel = "Create Template",
 }: CreateFormTemplateWizardProps) {
   const [currentIndex, setCurrentIndex] = useState(0);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -63,6 +69,18 @@ export function CreateFormTemplateWizard({
   const [fieldLabel, setFieldLabel] = useState("");
   const [fieldType, setFieldType] = useState("");
   const [fieldRequired, setFieldRequired] = useState(false);
+
+  useEffect(() => {
+    if (!open) return;
+    setCurrentIndex(0);
+    setName(initialData?.name ?? "");
+    setDescription(initialData?.description ?? "");
+    setAutoAttachTypes(initialData?.autoAttachTypes ?? "");
+    setFields(initialData?.fields ?? []);
+    setFieldLabel("");
+    setFieldType("");
+    setFieldRequired(false);
+  }, [open, initialData]);
 
   const isStepValid = (): boolean => {
     switch (currentIndex) {
@@ -142,14 +160,14 @@ export function CreateFormTemplateWizard({
     <WizardModal
       open={open}
       onClose={handleClose}
-      title="Create Form Template"
+      title={title}
       steps={WIZARD_STEPS}
       currentIndex={currentIndex}
       onBack={handleBack}
       onNext={handleNext}
       isSubmitting={isSubmitting}
       isStepValid={isStepValid()}
-      submitLabel="Create Template"
+      submitLabel={submitLabel}
     >
       <div className="mt-6">
         {/* Step 1: Basics */}

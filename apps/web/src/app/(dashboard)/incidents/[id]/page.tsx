@@ -400,17 +400,24 @@ export default function IncidentDetailPage() {
         onClose={() => setMediaModal(false)}
         onSubmit={async (data) => {
           try {
-            // TODO: wire file upload once the modal provides an actual File object
-            // For now, create a metadata-only record
+            const filePath = await uploadIncidentMediaFile(incident.id, data.file);
+            const mediaType = data.file.type.startsWith("image/")
+              ? "image"
+              : data.file.type.startsWith("video/")
+                ? "video"
+                : data.file.type === "application/pdf"
+                  ? "document"
+                  : "file";
             await createIncidentMedia(incident.id, incident.orgId, {
               title: data.title || undefined,
               description: data.description || undefined,
-              mediaType: "document",
-              fileName: data.title || "untitled",
-              filePath: `${incident.id}/${data.title || "untitled"}`,
-              mimeType: undefined,
+              mediaType,
+              fileName: data.file.name,
+              filePath,
+              fileSize: data.file.size,
+              mimeType: data.file.type,
             });
-            toast("Media entry created", { variant: "success" });
+            toast("Media uploaded", { variant: "success" });
             setMediaModal(false);
             await loadIncident();
           } catch (err: any) {

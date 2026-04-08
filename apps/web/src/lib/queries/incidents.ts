@@ -745,8 +745,8 @@ export async function uploadIncidentMediaFile(
   file: File
 ): Promise<string> {
   const supabase = getSupabaseBrowser();
-
-  const filePath = `${incidentId}/${file.name}`;
+  const safeName = file.name.replace(/\s+/g, "-");
+  const filePath = `${incidentId}/${Date.now()}-${safeName}`;
 
   const { error } = await supabase.storage
     .from("incident-media")

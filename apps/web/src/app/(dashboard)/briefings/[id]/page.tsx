@@ -1,6 +1,6 @@
 "use client";
 
-import { use, useState, useEffect } from "react";
+import { use, useState, useEffect, useCallback } from "react";
 import { useToast } from "@/components/ui/Toast";
 import Link from "next/link";
 import { ArrowLeft, CheckCircle2, Send } from "lucide-react";
@@ -12,7 +12,15 @@ import { Avatar } from "@/components/ui/Avatar";
 import { Card, CardContent } from "@/components/ui/Card";
 import { ProgressBar } from "@/components/ui/ProgressBar";
 import { useRouter } from "next/navigation";
-import { fetchBriefingById, updateBriefing, deleteBriefing, type BriefingDetail } from "@/lib/queries/briefings";
+import {
+  fetchBriefingById,
+  acknowledgeBriefing,
+  addBriefingReply,
+  updateBriefing,
+  deleteBriefing,
+  type BriefingDetail,
+} from "@/lib/queries/briefings";
+import { getSupabaseBrowser } from "@/lib/supabase-browser";
 import { formatRelativeTime } from "@/lib/utils/time";
 
 const priorityTone: Record<string, "critical" | "warning" | "info"> = {
@@ -34,13 +42,27 @@ export default function BriefingDetailPage({
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [replyText, setReplyText] = useState("");
-  const [acknowledged, setAcknowledged] = useState(false);
+  const [currentUser, setCurrentUser] = useState<{ id: string; fullName: string | null } | null>(null);
   const [editOpen, setEditOpen] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
 
-  async function loadData() {
+  const loadData = useCallback(async () => {
     try {
       setLoading(true);
+      setError(null);
+      const supabase = getSupabaseBrowser();
+      const { data: { user } } = await supabase.auth.getUser();
+      if (user) {
+        const { data: profile } = await supabase
+          .from("profiles")
+          .select("full_name")
+          .eq("id", user.id)
+          .single();
+        setCurrentUser({ id: user.id, fullName: profile?.full_name ?? null });
+      } else {
+        setCurrentUser(null);
+      }
+
       const data = await fetchBriefingById(id);
       setBriefing(data);
     } catch (err) {
@@ -48,11 +70,11 @@ export default function BriefingDetailPage({
     } finally {
       setLoading(false);
     }
-  }
+  }, [id]);
 
   useEffect(() => {
     loadData();
-  }, [id]);
+  }, [loadData]);
 
   if (loading) {
     return (
@@ -86,12 +108,14 @@ export default function BriefingDetailPage({
   });
 
   // Recipients — the briefing.recipients field may be a JSON array or string
-  const recipientsList = Array.isArray(briefing.recipients)
-    ? (briefing.recipients as string[])
-    : [];
+  const recipientsList = briefing.recipients.targets;
   const totalStaff = recipientsList.length || 1;
-  const ackCount = acknowledged ? 1 : 0;
+  const ackCount = briefing.recipients.acknowledgments.length;
   const ackPercent = (ackCount / totalStaff) * 100;
+  const yourAcknowledgement = currentUser
+    ? briefing.recipients.acknowledgments.find((entry) => entry.userId === currentUser.id)
+    : null;
+  const acknowledged = Boolean(yourAcknowledgement);
 
   return (
     <div className="space-y-5 max-w-3xl">
@@ -181,19 +205,36 @@ export default function BriefingDetailPage({
 
             {acknowledged && (
               <div className="flex items-center gap-3 py-2">
-                <Avatar name="You" size="sm" />
+                <Avatar name={yourAcknowledgement?.userName ?? "You"} size="sm" />
                 <div className="flex-1 min-w-0">
                   <span className="text-[13px] font-medium text-[var(--text-primary)]">
-                    You
+                    {yourAcknowledgement?.userName ?? "You"}
                   </span>
                 </div>
-                <span className="text-[11px] text-[var(--text-tertiary)]">Just now</span>
+                <span className="text-[11px] text-[var(--text-tertiary)]">
+                  {yourAcknowledgement
+                    ? formatRelativeTime(yourAcknowledgement.acknowledgedAt)
+                    : "Just now"}
+                </span>
                 <CheckCircle2 className="h-3.5 w-3.5 text-[var(--status-success,#059669)]" />
               </div>
             )}
 
             {!acknowledged && (
-              <Button size="md" onClick={() => setAcknowledged(true)}>
+              <Button
+                size="md"
+                onClick={async () => {
+                  try {
+                    if (!briefing) throw new Error("Briefing not loaded");
+                    if (!currentUser) throw new Error("User profile not loaded");
+                    await acknowledgeBriefing(briefing.id, currentUser.id, currentUser.fullName ?? "You");
+                    await loadData();
+                    toast("Briefing acknowledged", { variant: "success" });
+                  } catch (err: any) {
+                    toast(err.message || "Failed to acknowledge briefing", { variant: "error" });
+                  }
+                }}
+              >
                 <CheckCircle2 className="h-3.5 w-3.5" />
                 Acknowledge
               </Button>
@@ -208,7 +249,30 @@ export default function BriefingDetailPage({
           <h3 className="text-[13px] font-semibold text-[var(--text-primary)] mb-4">
             Replies
           </h3>
-          <p className="text-[13px] text-[var(--text-tertiary)] italic mb-4">No replies yet</p>
+          {briefing.recipients.replies.length === 0 ? (
+            <p className="text-[13px] text-[var(--text-tertiary)] italic mb-4">No replies yet</p>
+          ) : (
+            <div className="space-y-3 mb-4">
+              {briefing.recipients.replies.map((reply) => (
+                <div key={reply.id} className="rounded-lg border border-[var(--border-default)] bg-[var(--surface-secondary)] p-3">
+                  <div className="flex items-center justify-between gap-3">
+                    <div className="flex items-center gap-2 min-w-0">
+                      <Avatar name={reply.userName} size="xs" />
+                      <span className="text-[13px] font-medium text-[var(--text-primary)] truncate">
+                        {reply.userName}
+                      </span>
+                    </div>
+                    <span className="text-[11px] text-[var(--text-tertiary)] whitespace-nowrap">
+                      {formatRelativeTime(reply.createdAt)}
+                    </span>
+                  </div>
+                  <p className="mt-2 text-[13px] text-[var(--text-secondary)] leading-relaxed">
+                    {reply.content}
+                  </p>
+                </div>
+              ))}
+            </div>
+          )}
           <div className="flex items-center gap-2 pt-4 border-t border-[var(--border-default)]">
             <Avatar name="You" size="sm" />
             <div className="flex-1 relative">
@@ -222,9 +286,21 @@ export default function BriefingDetailPage({
               <button
                 className="absolute right-2 top-1/2 -translate-y-1/2 p-1 rounded hover:bg-[var(--surface-hover)] text-[var(--action-primary)] disabled:opacity-40"
                 disabled={!replyText.trim()}
-                onClick={() => {
-                  toast("Reply sent", { variant: "success" });
-                  setReplyText("");
+                onClick={async () => {
+                  try {
+                    if (!briefing) throw new Error("Briefing not loaded");
+                    if (!currentUser) throw new Error("User profile not loaded");
+                    await addBriefingReply(briefing.id, {
+                      userId: currentUser.id,
+                      userName: currentUser.fullName ?? "You",
+                      content: replyText,
+                    });
+                    setReplyText("");
+                    await loadData();
+                    toast("Reply saved", { variant: "success" });
+                  } catch (err: any) {
+                    toast(err.message || "Failed to save reply", { variant: "error" });
+                  }
                 }}
               >
                 <Send className="h-3.5 w-3.5" />
@@ -244,6 +320,7 @@ export default function BriefingDetailPage({
               title: data.title,
               content: data.content,
               priority: data.priority,
+              recipients: data.recipients,
               linkUrl: data.linkUrl,
               sourceModule: data.sourceModule,
             });
@@ -258,7 +335,7 @@ export default function BriefingDetailPage({
           title: briefing.title,
           content: briefing.content,
           priority: briefing.priority,
-          recipients: "all_staff",
+          recipients: briefing.recipients.targetValue || "all_staff",
           sourceModule: briefing.sourceModule ?? "manual",
           linkUrl: briefing.linkUrl ?? "",
         }}

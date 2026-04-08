@@ -1,4 +1,12 @@
 import { getSupabaseBrowser } from "@/lib/supabase-browser";
+import type {
+  FormTemplateRecord,
+  IntegrationRecord,
+  PermissionLevel,
+  RolePermissionsRow,
+  InviteUserPayload,
+} from "@/lib/settings-shared";
+import { mapUiRoleToStaffRole } from "@/lib/settings-shared";
 
 /* ─── Organization ────────────────────────────────── */
 
@@ -255,9 +263,72 @@ export async function updateUserRole(userId: string, role: string) {
   const supabase = getSupabaseBrowser();
   const { error } = await supabase
     .from("profiles")
-    .update({ role: role as import("@/types").Enums<"staff_role"> })
+    .update({ role: mapUiRoleToStaffRole(role) as import("@/types").Enums<"staff_role"> })
     .eq("id", userId);
   if (error) throw error;
+}
+
+const SETTINGS_API_BASE = "/api/settings";
+
+async function requestSettings<T>(path: string, init?: RequestInit): Promise<T> {
+  const response = await fetch(`${SETTINGS_API_BASE}${path}`, {
+    credentials: "include",
+    ...init,
+    headers: {
+      "Content-Type": "application/json",
+      ...(init?.headers ?? {}),
+    },
+  });
+
+  const body = await response.json().catch(() => ({} as { error?: string }));
+  if (!response.ok) {
+    throw new Error(body?.error || "Request failed");
+  }
+
+  return body as T;
+}
+
+export async function fetchRoles(): Promise<RolePermissionsRow[]> {
+  const data = await requestSettings<{ roles: RolePermissionsRow[] }>("/roles");
+  return data.roles;
+}
+
+export async function updateRolePermissions(roleId: string, permissions: Record<string, PermissionLevel>) {
+  await requestSettings("/roles", {
+    method: "PATCH",
+    body: JSON.stringify({ roleId, permissions }),
+  });
+}
+
+export async function fetchFormTemplates(): Promise<FormTemplateRecord[]> {
+  const data = await requestSettings<{ templates: FormTemplateRecord[] }>("/form-templates");
+  return data.templates;
+}
+
+export async function saveFormTemplates(templates: FormTemplateRecord[]) {
+  await requestSettings("/form-templates", {
+    method: "PATCH",
+    body: JSON.stringify({ templates }),
+  });
+}
+
+export async function fetchIntegrations(): Promise<IntegrationRecord[]> {
+  const data = await requestSettings<{ integrations: IntegrationRecord[] }>("/integrations");
+  return data.integrations;
+}
+
+export async function saveIntegrations(integrations: IntegrationRecord[]) {
+  await requestSettings("/integrations", {
+    method: "PATCH",
+    body: JSON.stringify({ integrations }),
+  });
+}
+
+export async function inviteOrgUser(payload: InviteUserPayload) {
+  await requestSettings("/invite", {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
 }
 
 export async function deactivateUser(userId: string) {
@@ -360,15 +431,15 @@ export async function fetchNotificationRules(
     .from("notification_rules")
     .select("*")
     .eq("org_id", orgId)
-    .order("event");
+    .order("event_type");
   if (error) throw error;
   return (data || []).map((row: any) => ({
     id: row.id,
-    event: row.event ?? "",
+    event: row.event_type ?? "",
     description: row.description ?? null,
-    push: row.push ?? false,
-    email: row.email ?? false,
-    sms: row.sms ?? false,
+    push: row.push_enabled ?? false,
+    email: row.email_enabled ?? false,
+    sms: row.sms_enabled ?? false,
     orgId: row.org_id,
   }));
 }
