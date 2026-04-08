@@ -57,6 +57,7 @@ function RootNavigator() {
         <Stack.Screen name="visitors" />
         <Stack.Screen name="vehicles" />
         <Stack.Screen name="contacts" />
+        <Stack.Screen name="anonymous-reports" />
         <Stack.Screen name="settings" />
         <Stack.Screen name="sync-center" />
         <Stack.Screen name="notifications" />

@@ -78,6 +78,17 @@ export const DISPATCH_CODES = [
   { code: "EVAC", label: "Evacuation", priority: "critical" },
 ] as const;
 
+// ── Case Stages ────────────────────────────────────────────────
+export const CASE_STAGES = [
+  { key: "assessment", label: "Assessment", number: 1 },
+  { key: "evidence_collection", label: "Evidence Collection", number: 2 },
+  { key: "detailed_investigation", label: "Detailed Investigation", number: 3 },
+  { key: "outcome", label: "Outcome", number: 4 },
+  { key: "cost_analysis", label: "Cost Analysis", number: 5 },
+  { key: "disposition", label: "Disposition", number: 6 },
+  { key: "resulting_actions", label: "Resulting Actions", number: 7 },
+] as const;
+
 // ── Role Display Names ────────────────────────────────────────
 export const ROLE_DISPLAY: Record<string, string> = {
   super_admin: "Super Admin",

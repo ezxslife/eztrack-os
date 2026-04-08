@@ -23,6 +23,7 @@ import { useOfflineStore } from "@/stores/offline-store";
 import { useThemeColors } from "@/theme";
 
 const availableModuleHrefs = new Set([
+  "/anonymous-reports",
   "/analytics",
   "/briefings",
   "/cases",
@@ -43,6 +44,7 @@ const availableGlobalHrefs = new Set([
 ]);
 
 const extraMobileMenuItems = [
+  { href: "/anonymous-reports", label: "Anonymous Reports" },
   { href: "/vehicles", label: "Vehicles" },
   { href: "/contacts", label: "Contacts" },
 ] as const;

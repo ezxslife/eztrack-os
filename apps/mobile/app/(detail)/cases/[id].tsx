@@ -1,3 +1,4 @@
+import { CASE_STAGES } from "@eztrack/shared";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import {
   Alert,
@@ -6,8 +7,10 @@ import {
   View,
 } from "react-native";
 
+import { RequireLiveSession } from "@/components/auth/RequireLiveSession";
 import { ScreenContainer } from "@/components/layout/ScreenContainer";
 import { Button } from "@/components/ui/Button";
+import { FilterChips } from "@/components/ui/FilterChips";
 import { PriorityBadge } from "@/components/ui/PriorityBadge";
 import { SectionCard } from "@/components/ui/SectionCard";
 import { StatusBadge } from "@/components/ui/StatusBadge";
@@ -27,18 +30,18 @@ import {
   useCaseResources,
   useCaseTasks,
   useDeleteCaseMutation,
+  useUpdateCaseMutation,
   useUpdateCaseStatusMutation,
 } from "@/lib/queries/cases";
 import { useThemeColors } from "@/theme";
 
+const escalationOptions = ["none", "low", "medium", "high", "critical"];
 const statuses = ["open", "on_hold", "closed"];
 
-export default function CaseDetailScreen() {
+function CaseDetailContent({ caseId }: { caseId: string }) {
   const colors = useThemeColors();
   const styles = createStyles(colors);
   const router = useRouter();
-  const params = useLocalSearchParams<{ id: string }>();
-  const caseId = params.id ?? "";
   const detailQuery = useCaseDetail(caseId);
   const evidenceQuery = useCaseEvidence(caseId);
   const tasksQuery = useCaseTasks(caseId);
@@ -48,6 +51,7 @@ export default function CaseDetailScreen() {
   const transfersQuery = useCaseEvidenceTransfers(caseId);
   const auditQuery = useCaseAudit(caseId);
   const resourcesQuery = useCaseResources(caseId);
+  const updateCaseMutation = useUpdateCaseMutation();
   const updateStatusMutation = useUpdateCaseStatusMutation();
   const deleteMutation = useDeleteCaseMutation();
   const record = detailQuery.data;
@@ -61,6 +65,14 @@ export default function CaseDetailScreen() {
       </ScreenContainer>
     );
   }
+
+  const currentStageIndex = Math.max(
+    CASE_STAGES.findIndex((stage) => stage.key === record.stage),
+    0
+  );
+  const currentStage = CASE_STAGES[currentStageIndex] ?? CASE_STAGES[0];
+  const nextStage = CASE_STAGES[currentStageIndex + 1] ?? null;
+  const selectedEscalation = record.escalationLevel ?? "none";
 
   return (
     <ScreenContainer
@@ -101,7 +113,9 @@ export default function CaseDetailScreen() {
           <Text style={styles.meta}>
             Lead investigator {record.leadInvestigator?.fullName ?? "Unassigned"}
           </Text>
-          <Text style={styles.meta}>Stage {record.stage}</Text>
+          <Text style={styles.meta}>
+            Stage {currentStage.number}: {currentStage.label}
+          </Text>
           <Text style={styles.meta}>Created {formatShortDateTime(record.createdAt)}</Text>
           <Text style={styles.meta}>Updated {formatRelativeTimestamp(record.updatedAt)}</Text>
           <View style={styles.actions}>
@@ -175,16 +189,76 @@ export default function CaseDetailScreen() {
         </View>
       </SectionCard>
 
+      <SectionCard
+        subtitle={`Stage ${currentStage.number} of ${CASE_STAGES.length}`}
+        title="Workflow"
+      >
+        <View style={styles.stack}>
+          <Text style={styles.copy}>
+            Current stage: {currentStage.label}
+            {nextStage ? ` · Next: ${nextStage.label}` : " · Final stage reached"}
+          </Text>
+          <Button
+            disabled={!nextStage}
+            label={nextStage ? `Advance to ${nextStage.label}` : "Final Stage Reached"}
+            loading={
+              updateCaseMutation.isPending &&
+              updateCaseMutation.variables?.fields.stage === nextStage?.key
+            }
+            onPress={() => {
+              if (!nextStage) {
+                return;
+              }
+
+              void updateCaseMutation.mutateAsync({
+                fields: { stage: nextStage.key },
+                id: record.id,
+              });
+            }}
+            variant="secondary"
+          />
+          <View style={styles.field}>
+            <Text style={styles.label}>Escalation level</Text>
+            <FilterChips
+              onSelect={(value) => {
+                void updateCaseMutation.mutateAsync({
+                  fields: {
+                    escalation_level: value === "none" ? null : value,
+                  },
+                  id: record.id,
+                });
+              }}
+              options={escalationOptions}
+              selected={selectedEscalation}
+            />
+          </View>
+        </View>
+      </SectionCard>
+
       <SectionCard subtitle={`${(resourcesQuery.data ?? []).length} resources`} title="Resources">
         <View style={styles.stack}>
-          {(resourcesQuery.data ?? []).map((resource) => (
-            <View key={resource.id} style={styles.row}>
-              <Text style={styles.rowTitle}>{resource.name}</Text>
-              <Text style={styles.meta}>
-                {resource.role} · {resource.status} · {resource.hoursLogged}h
-              </Text>
-            </View>
-          ))}
+          {(resourcesQuery.data ?? []).length ? (
+            (resourcesQuery.data ?? []).map((resource) => (
+              <View key={resource.id} style={styles.row}>
+                <Text style={styles.rowTitle}>{resource.name}</Text>
+                <Text style={styles.meta}>
+                  {resource.role} · {resource.status} · {resource.hoursLogged}h
+                </Text>
+              </View>
+            ))
+          ) : (
+            <Text style={styles.copy}>No case resources have been added yet.</Text>
+          )}
+          <Button
+            label="Add Resource"
+            onPress={() =>
+              router.push({
+                pathname: "/cases/resource/[id]",
+                params: { id: record.id },
+              })
+            }
+            variant="secondary"
+          />
         </View>
       </SectionCard>
 
@@ -373,6 +447,20 @@ export default function CaseDetailScreen() {
   );
 }
 
+export default function CaseDetailScreen() {
+  const params = useLocalSearchParams<{ id: string }>();
+  const caseId = params.id ?? "";
+
+  return (
+    <RequireLiveSession
+      detail="Case detail writes and subresources remain live-only until preview-safe hooks exist."
+      title="Case"
+    >
+      <CaseDetailContent caseId={caseId} />
+    </RequireLiveSession>
+  );
+}
+
 function createStyles(colors: ReturnType<typeof useThemeColors>) {
   return StyleSheet.create({
     actions: {
@@ -389,6 +477,14 @@ function createStyles(colors: ReturnType<typeof useThemeColors>) {
       color: colors.textSecondary,
       fontSize: 15,
       lineHeight: 22,
+    },
+    field: {
+      gap: 8,
+    },
+    label: {
+      color: colors.textPrimary,
+      fontSize: 12,
+      fontWeight: "600",
     },
     meta: {
       color: colors.textTertiary,
