@@ -46,6 +46,7 @@ import {
 import { Button } from "@/components/ui/Button";
 import { StatusBadge } from "@/components/ui/Badge";
 import { PriorityBadge } from "@/components/ui/PriorityBadge";
+import { EmptyState } from "@/components/ui/EmptyState";
 import { Tabs } from "@/components/ui/Tabs";
 import { useToast } from "@/components/ui/Toast";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/Card";
@@ -250,7 +251,7 @@ export default function IncidentDetailPage() {
           Back to Incidents
         </Link>
 
-        <div className="flex items-start justify-between gap-4">
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
           <div className="space-y-1.5">
             <div className="flex items-center gap-3 flex-wrap">
               <h1 className="text-xl font-semibold text-[var(--text-primary)]">
@@ -269,7 +270,7 @@ export default function IncidentDetailPage() {
               <span>Updated {formatDateTime(incident.updatedAt)}</span>
             </div>
           </div>
-          <div className="flex items-center gap-2 shrink-0">
+          <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row sm:items-center shrink-0">
             <Button variant="outline" size="sm">
               <Edit className="h-3.5 w-3.5" />
               Edit
@@ -619,7 +620,7 @@ function ReportDetailsTab({
             <CardTitle>Incident Information</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="grid grid-cols-2 gap-x-6 gap-y-4">
+            <div className="grid grid-cols-1 gap-x-6 gap-y-4 sm:grid-cols-2">
               <FieldRow
                 label="Incident Number"
                 value={
@@ -649,7 +650,7 @@ function ReportDetailsTab({
             <CardTitle>Classification & Status</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="grid grid-cols-2 gap-x-6 gap-y-4">
+            <div className="grid grid-cols-1 gap-x-6 gap-y-4 sm:grid-cols-2">
               <FieldRow label="Status" value={<StatusBadge status={incident.status} dot />} />
               <FieldRow label="Severity" value={<PriorityBadge priority={incident.severity as any} />} />
               <FieldRow label="Owner" value={incident.creator?.fullName || "Unknown"} />
@@ -664,7 +665,7 @@ function ReportDetailsTab({
             <CardTitle>Incident Details</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="grid grid-cols-2 gap-x-6 gap-y-4">
+            <div className="grid grid-cols-1 gap-x-6 gap-y-4 sm:grid-cols-2">
               <FieldRow label="Reported" value={formatDateTime(incident.createdAt)} />
               <FieldRow label="Location" value={incident.location?.name || "Unknown"} />
               <div className="col-span-2">
@@ -679,7 +680,7 @@ function ReportDetailsTab({
 
         {/* Checklist */}
         <Card>
-          <CardHeader className="flex-row items-center justify-between">
+          <CardHeader className="flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <div>
               <CardTitle>Investigation Checklist</CardTitle>
               <p className="text-[12px] text-[var(--text-tertiary)] mt-0.5">
@@ -734,20 +735,20 @@ function ReportDetailsTab({
             <CardTitle>Financial Summary</CardTitle>
           </CardHeader>
           <CardContent className="space-y-3">
-            <div className="flex items-center justify-between">
+            <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
               <span className="text-[12px] text-[var(--text-tertiary)]">Total Losses</span>
               <span className="text-[13px] font-semibold text-red-500">
                 ${totalLosses.toLocaleString("en-US", { minimumFractionDigits: 2 })}
               </span>
             </div>
-            <div className="flex items-center justify-between">
+            <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
               <span className="text-[12px] text-[var(--text-tertiary)]">Total Savings</span>
               <span className="text-[13px] font-semibold text-green-500">
                 ${totalSavings.toLocaleString("en-US", { minimumFractionDigits: 2 })}
               </span>
             </div>
             <div className="h-px bg-[var(--border-default)]" />
-            <div className="flex items-center justify-between">
+            <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
               <span className="text-[12px] font-medium text-[var(--text-secondary)]">Net Impact</span>
               <span className={`text-[13px] font-bold ${totalLosses - totalSavings > 0 ? "text-red-500" : "text-green-500"}`}>
                 {totalLosses - totalSavings > 0 ? "-" : "+"}${Math.abs(totalLosses - totalSavings).toLocaleString("en-US", { minimumFractionDigits: 2 })}
@@ -773,13 +774,13 @@ function ReportDetailsTab({
                 <div className="text-[11px] text-[var(--text-tertiary)]">Document Owner</div>
               </div>
             </div>
-            <div className="flex items-center justify-between">
+            <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
               <span className="text-[12px] text-[var(--text-secondary)]">Exclusive</span>
               <span className="text-[12px] text-[var(--text-tertiary)]">
                 OFF
               </span>
             </div>
-            <div className="flex items-center justify-between">
+            <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
               <span className="text-[12px] text-[var(--text-secondary)]">Global</span>
               <span className="text-[12px] text-[var(--text-tertiary)]">
                 OFF
@@ -820,24 +821,26 @@ function NarrativeTab({
 }) {
   return (
     <div className="max-w-4xl space-y-4">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <h3 className="text-sm font-semibold text-[var(--text-primary)]">
           Narrative Entries ({narratives.length})
         </h3>
-        <Button variant="outline" size="sm" onClick={onAddNarrative}>
+        <Button variant="outline" size="sm" onClick={onAddNarrative} className="w-full sm:w-auto">
           <Plus className="h-3.5 w-3.5" />
           Add Narrative
         </Button>
       </div>
 
       {narratives.length === 0 && (
-        <Card>
-          <CardContent>
-            <p className="text-[13px] text-[var(--text-tertiary)] text-center py-6">
-              No narrative entries yet. Add the first report.
-            </p>
-          </CardContent>
-        </Card>
+        <EmptyState
+          icon={<FileText className="h-5 w-5" />}
+          title="No narrative entries yet"
+          description="Add the first narrative report for this incident."
+          action={{
+            label: "Add Narrative",
+            onClick: onAddNarrative,
+          }}
+        />
       )}
 
       {narratives.map((n) => {
@@ -913,11 +916,11 @@ function ParticipantsTab({ participants, onAddParticipant }: { participants: Inc
 
   return (
     <div className="max-w-5xl space-y-4">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <h3 className="text-sm font-semibold text-[var(--text-primary)]">
           Participants ({participants.length})
         </h3>
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           <Button variant="outline" size="sm">
             <Download className="h-3.5 w-3.5" />
             Export
@@ -932,7 +935,7 @@ function ParticipantsTab({ participants, onAddParticipant }: { participants: Inc
       <Card>
         <CardContent className="p-0">
           <div className="overflow-x-auto">
-            <table className="w-full">
+            <table className="w-full min-w-[760px]">
               <thead>
                 <tr className="bg-[var(--surface-secondary)] border-b border-[var(--border-default)]">
                   <th className="w-8 px-3 h-9" />
@@ -1020,7 +1023,7 @@ function ParticipantRow({
       {isExpanded && (
         <tr className="bg-[var(--surface-secondary)]/50">
           <td colSpan={6} className="px-8 py-4">
-            <div className="grid grid-cols-2 gap-4 text-[13px]">
+            <div className="grid grid-cols-1 gap-4 text-[13px] sm:grid-cols-2">
               <div>
                 <span className="text-[11px] font-medium text-[var(--text-tertiary)] uppercase tracking-wider block mb-1">
                   Description
@@ -1077,11 +1080,11 @@ function MediaTab({ media, onUploadMedia }: { media: IncidentMediaItem[]; onUplo
 
   return (
     <div className="max-w-5xl space-y-4">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <h3 className="text-sm font-semibold text-[var(--text-primary)]">
           Media ({media.length})
         </h3>
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           <Button variant="outline" size="sm" onClick={onUploadMedia}>
             <ImageIcon className="h-3.5 w-3.5" />
             Add Photo
@@ -1098,20 +1101,20 @@ function MediaTab({ media, onUploadMedia }: { media: IncidentMediaItem[]; onUplo
       </div>
 
       {media.length === 0 ? (
-        <Card>
-          <CardContent className="py-12 text-center">
-            <ImageIcon className="h-8 w-8 mx-auto text-[var(--text-tertiary)] opacity-40 mb-3" />
-            <p className="text-[13px] text-[var(--text-secondary)]">No media files yet</p>
-            <p className="text-[12px] text-[var(--text-tertiary)] mt-1">
-              Upload photos, videos, or documents related to this incident
-            </p>
-          </CardContent>
-        </Card>
+        <EmptyState
+          icon={<ImageIcon className="h-5 w-5" />}
+          title="No media files yet"
+          description="Upload photos, videos, or documents related to this incident."
+          action={{
+            label: "Upload Media",
+            onClick: onUploadMedia,
+          }}
+        />
       ) : (
         <Card>
           <CardContent className="p-0">
             <div className="overflow-x-auto">
-              <table className="w-full text-[13px]">
+              <table className="w-full min-w-[820px] text-[13px]">
                 <thead>
                   <tr>
                     <th className="text-left text-[11px] font-semibold text-[var(--text-tertiary)] uppercase tracking-wider px-3 py-2 border-b border-[var(--border-default)]">Type</th>
@@ -1157,11 +1160,11 @@ function MediaTab({ media, onUploadMedia }: { media: IncidentMediaItem[]; onUplo
 function RelatedIncidentsTab({ relatedIncidents, onLinkIncident }: { relatedIncidents: RelatedIncident[]; onLinkIncident: () => void }) {
   return (
     <div className="max-w-4xl space-y-4">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <h3 className="text-sm font-semibold text-[var(--text-primary)]">
           Related Incidents ({relatedIncidents.length})
         </h3>
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           <Button variant="outline" size="sm" onClick={onLinkIncident}>
             <Link2 className="h-3.5 w-3.5" />
             Link Incident
@@ -1279,11 +1282,11 @@ function AttachedRecordsTab() {
 function FormsTab({ forms }: { forms: IncidentForm[] }) {
   return (
     <div className="max-w-4xl space-y-4">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <h3 className="text-sm font-semibold text-[var(--text-primary)]">
           Supplemental Forms ({forms.length})
         </h3>
-        <Button variant="outline" size="sm">
+        <Button variant="outline" size="sm" disabled>
           <Plus className="h-3.5 w-3.5" />
           Add Form
         </Button>
@@ -1317,12 +1320,11 @@ function FormsTab({ forms }: { forms: IncidentForm[] }) {
           </Card>
         ))
       ) : (
-        <Card>
-          <CardContent className="py-12 text-center">
-            <ClipboardList className="h-8 w-8 mx-auto text-[var(--text-tertiary)] opacity-40 mb-3" />
-            <p className="text-[13px] text-[var(--text-secondary)]">No forms attached yet</p>
-          </CardContent>
-        </Card>
+        <EmptyState
+          icon={<ClipboardList className="h-5 w-5" />}
+          title="No forms attached yet"
+          description="Attach supplemental forms when additional documentation is needed."
+        />
       )}
 
       <div className="p-4 rounded-lg border border-dashed border-[var(--border-default)] text-center">
@@ -1343,11 +1345,11 @@ function SavingsLossesTab({ financials, totalLosses, totalSavings, onAddEntry }:
 
   return (
     <div className="max-w-4xl space-y-5">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <h3 className="text-sm font-semibold text-[var(--text-primary)]">
           Savings & Losses
         </h3>
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           <Button variant="outline" size="sm">
             <Download className="h-3.5 w-3.5" />
             Download for Insurance
@@ -1397,7 +1399,7 @@ function SavingsLossesTab({ financials, totalLosses, totalSavings, onAddEntry }:
       <Card>
         <CardContent className="p-0">
           <div className="overflow-x-auto">
-            <table className="w-full">
+            <table className="w-full min-w-[760px]">
               <thead>
                 <tr className="bg-[var(--surface-secondary)] border-b border-[var(--border-default)]">
                   <th className="px-4 h-9 text-left text-[11px] font-medium text-[var(--text-tertiary)] uppercase tracking-wider">
@@ -1489,7 +1491,7 @@ function SharingTab({ shares, onShare }: { shares: IncidentShare[]; onShare: () 
 
   return (
     <div className="max-w-4xl space-y-5">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <h3 className="text-sm font-semibold text-[var(--text-primary)]">
           Sharing & Permissions
         </h3>
@@ -1507,7 +1509,7 @@ function SharingTab({ shares, onShare }: { shares: IncidentShare[]; onShare: () 
         {active.map((share) => (
           <Card key={share.id}>
             <CardContent className="p-4">
-              <div className="flex items-start justify-between gap-4">
+              <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
                 <div className="flex items-start gap-3 flex-1 min-w-0">
                   <div className="h-8 w-8 rounded-full bg-[var(--surface-secondary)] flex items-center justify-center shrink-0">
                     {share.sharedWithRole ? (
@@ -1566,7 +1568,7 @@ function SharingTab({ shares, onShare }: { shares: IncidentShare[]; onShare: () 
           {expired.map((share) => (
             <Card key={share.id} className="opacity-60">
               <CardContent className="p-4">
-                <div className="flex items-center justify-between gap-4">
+                <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
                   <div className="flex items-center gap-3">
                     <div className="h-8 w-8 rounded-full bg-[var(--surface-secondary)] flex items-center justify-center">
                       <span className="text-[11px] font-medium text-[var(--text-tertiary)]">
@@ -1621,11 +1623,11 @@ function DocumentControlTab({
 }) {
   return (
     <div className="max-w-3xl space-y-5">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <h3 className="text-sm font-semibold text-[var(--text-primary)]">
           Document Control
         </h3>
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           <Button variant="outline" size="sm" onClick={onRiskAssessment}>
             <Shield className="h-3.5 w-3.5" />
             Risk Assessment
@@ -1647,7 +1649,7 @@ function DocumentControlTab({
           <CardTitle>Ownership</CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
-          <div className="flex items-center justify-between">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <div className="flex items-center gap-3">
               <div className="h-10 w-10 rounded-full bg-[var(--surface-secondary)] flex items-center justify-center text-[13px] font-semibold text-[var(--text-secondary)]">
                 SC
@@ -1677,7 +1679,7 @@ function DocumentControlTab({
           <CardTitle>Exclusive Access</CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
-          <div className="flex items-center justify-between">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <div>
               <p className="text-[13px] text-[var(--text-primary)]">Exclusive Mode</p>
               <p className="text-[11px] text-[var(--text-tertiary)]">
@@ -1712,7 +1714,7 @@ function DocumentControlTab({
           <CardTitle>Global Access</CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
-          <div className="flex items-center justify-between">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <div>
               <div className="flex items-center gap-2">
                 <p className="text-[13px] text-[var(--text-primary)]">Global Visibility</p>
@@ -1746,7 +1748,7 @@ function DocumentControlTab({
           <CardTitle>Archive</CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <FieldRow label="Current Status" value={<StatusBadge status={incident.status} dot />} />
             <FieldRow label="Is Archived" value="No" />
           </div>
@@ -1755,7 +1757,7 @@ function DocumentControlTab({
               Archiving is <strong>irreversible</strong>. The incident becomes permanently read-only for all users including the owner. Available only for CLOSED incidents.
             </p>
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             <Button variant="outline" size="sm" disabled>
               <Archive className="h-3.5 w-3.5" />
               Archive Now
@@ -1781,7 +1783,7 @@ function DocumentControlTab({
 function DocumentLogTab({ docLog }: { docLog: IncidentDocLogEntry[] }) {
   return (
     <div className="max-w-4xl space-y-4">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <h3 className="text-sm font-semibold text-[var(--text-primary)]">
           Document Log ({docLog.length} entries)
         </h3>
@@ -1830,10 +1832,11 @@ function DocumentLogTab({ docLog }: { docLog: IncidentDocLogEntry[] }) {
               </div>
             </div>
           ) : (
-            <div className="py-12 text-center">
-              <Clock className="h-8 w-8 mx-auto text-[var(--text-tertiary)] opacity-40 mb-3" />
-              <p className="text-[13px] text-[var(--text-secondary)]">No activity logged yet</p>
-            </div>
+            <EmptyState
+              icon={<Clock className="h-5 w-5" />}
+              title="No activity logged yet"
+              description="Document activity will appear here automatically as the incident changes."
+            />
           )}
         </CardContent>
       </Card>

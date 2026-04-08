@@ -10,6 +10,7 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { Badge } from "@/components/ui/Badge";
+import { EmptyState } from "@/components/ui/EmptyState";
 import { CreateVehicleModal } from "@/components/modals/vehicles";
 import { fetchVehicles, createVehicle, type VehicleRow } from "@/lib/queries/vehicles";
 import { getSupabaseBrowser } from "@/lib/supabase-browser";
@@ -156,7 +157,7 @@ export default function VehiclesPage() {
   return (
     <div className="space-y-5 animate-fade-in">
       {/* Page header */}
-      <div className="flex items-start justify-between">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <div>
           <h1 className="text-xl font-bold tracking-tight text-[var(--text-primary)]">
             Vehicles
@@ -165,7 +166,7 @@ export default function VehiclesPage() {
             Vehicle registry and tracking
           </p>
         </div>
-        <Button variant="default" size="md" onClick={() => setCreateOpen(true)}>
+        <Button variant="default" size="md" onClick={() => setCreateOpen(true)} className="w-full sm:w-auto">
           <Plus size={14} />
           Add Vehicle
         </Button>
@@ -300,10 +301,13 @@ export default function VehiclesPage() {
       </div>
 
       {filtered.length === 0 && (
-        <div className="surface-card p-8 text-center">
-          <p className="text-[13px] text-[var(--text-tertiary)]">
-            No vehicles match your search or filter.
-          </p>
+        <div className="surface-card">
+          <EmptyState
+            icon={<Car size={20} />}
+            title="No vehicles match your search"
+            description="Try a broader search or clear the current vehicle type filter."
+            action={{ label: "Add Vehicle", onClick: () => setCreateOpen(true), variant: "outline" }}
+          />
         </div>
       )}
 

@@ -55,7 +55,7 @@ export function FormModal({
       </ModalHeader>
 
       {subtitle && (
-        <div className="px-5 -mt-1 pb-0">
+        <div className="px-4 -mt-1 pb-0 sm:px-5">
           <p className="text-[12px] text-[var(--text-tertiary)]">{subtitle}</p>
         </div>
       )}
@@ -73,7 +73,7 @@ export function FormModal({
               size="sm"
               onClick={secondaryAction.onClick}
               disabled={isSubmitting}
-              className="mr-auto"
+              className="w-full sm:mr-auto sm:w-auto"
             >
               {secondaryAction.label}
             </Button>
@@ -84,6 +84,7 @@ export function FormModal({
             size="sm"
             onClick={onClose}
             disabled={isSubmitting}
+            className="w-full sm:w-auto"
           >
             {cancelLabel}
           </Button>
@@ -92,6 +93,7 @@ export function FormModal({
             size="sm"
             isLoading={isSubmitting}
             disabled={isSubmitting || !isValid}
+            className="w-full sm:w-auto"
           >
             {submitLabel}
           </Button>

@@ -23,6 +23,7 @@ import {
 import { Button } from "@/components/ui/Button";
 import { Badge, StatusBadge } from "@/components/ui/Badge";
 import { PriorityBadge } from "@/components/ui/PriorityBadge";
+import { EmptyState } from "@/components/ui/EmptyState";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/Card";
 import { ProgressBar } from "@/components/ui/ProgressBar";
 import dynamic from "next/dynamic";
@@ -209,57 +210,59 @@ export default function WorkOrderDetailPage({
           <CardTitle>Status Timeline</CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="flex items-center gap-0 mb-3">
-            {STATUS_STEPS.map((step, i) => {
-              const isCompleted = i <= currentStepIndex;
-              const isCurrent = i === currentStepIndex;
-              return (
-                <div key={step.key} className="flex items-center flex-1 last:flex-none">
-                  <div className="flex flex-col items-center gap-1.5">
-                    <div
-                      className="flex items-center justify-center h-7 w-7 rounded-full border-2 transition-colors"
-                      style={{
-                        borderColor: isCompleted
-                          ? "var(--action-primary)"
-                          : "var(--border-default)",
-                        backgroundColor: isCompleted
-                          ? "var(--action-primary)"
-                          : "transparent",
-                      }}
-                    >
-                      {isCompleted ? (
-                        <CheckCircle2 className="h-4 w-4 text-white" />
-                      ) : (
-                        <Circle className="h-3 w-3 text-[var(--text-tertiary)]" />
-                      )}
-                    </div>
-                    <span
-                      className="text-[11px] font-medium whitespace-nowrap"
-                      style={{
-                        color: isCurrent
-                          ? "var(--action-primary)"
-                          : isCompleted
-                            ? "var(--text-primary)"
-                            : "var(--text-tertiary)",
-                      }}
-                    >
-                      {step.label}
-                    </span>
-                  </div>
-                  {i < STATUS_STEPS.length - 1 && (
-                    <div
-                      className="flex-1 h-0.5 mx-2 rounded-full"
-                      style={{
-                        backgroundColor:
-                          i < currentStepIndex
+          <div className="overflow-x-auto pb-1">
+            <div className="flex min-w-[520px] items-center gap-0 mb-3">
+              {STATUS_STEPS.map((step, i) => {
+                const isCompleted = i <= currentStepIndex;
+                const isCurrent = i === currentStepIndex;
+                return (
+                  <div key={step.key} className="flex items-center flex-1 last:flex-none">
+                    <div className="flex flex-col items-center gap-1.5">
+                      <div
+                        className="flex items-center justify-center h-7 w-7 rounded-full border-2 transition-colors"
+                        style={{
+                          borderColor: isCompleted
                             ? "var(--action-primary)"
                             : "var(--border-default)",
-                      }}
-                    />
-                  )}
-                </div>
-              );
-            })}
+                          backgroundColor: isCompleted
+                            ? "var(--action-primary)"
+                            : "transparent",
+                        }}
+                      >
+                        {isCompleted ? (
+                          <CheckCircle2 className="h-4 w-4 text-white" />
+                        ) : (
+                          <Circle className="h-3 w-3 text-[var(--text-tertiary)]" />
+                        )}
+                      </div>
+                      <span
+                        className="text-[11px] font-medium whitespace-nowrap"
+                        style={{
+                          color: isCurrent
+                            ? "var(--action-primary)"
+                            : isCompleted
+                              ? "var(--text-primary)"
+                              : "var(--text-tertiary)",
+                        }}
+                      >
+                        {step.label}
+                      </span>
+                    </div>
+                    {i < STATUS_STEPS.length - 1 && (
+                      <div
+                        className="flex-1 h-0.5 mx-2 rounded-full"
+                        style={{
+                          backgroundColor:
+                            i < currentStepIndex
+                              ? "var(--action-primary)"
+                              : "var(--border-default)",
+                        }}
+                      />
+                    )}
+                  </div>
+                );
+              })}
+            </div>
           </div>
           <ProgressBar value={progressPercent} label="Overall Progress" size="sm" />
         </CardContent>
@@ -279,7 +282,7 @@ export default function WorkOrderDetailPage({
           <p className="text-[13px] text-[var(--text-secondary)] leading-relaxed mb-4">
             {wo.description}
           </p>
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <DetailRow label="Location">
               <Link
                 href="/settings/locations"
@@ -315,7 +318,7 @@ export default function WorkOrderDetailPage({
           </CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="flex items-start gap-3">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-start">
             {/* Avatar */}
             <div
               className="flex items-center justify-center h-9 w-9 rounded-full shrink-0 text-[12px] font-semibold"
@@ -334,7 +337,7 @@ export default function WorkOrderDetailPage({
                 {wo.assignedTo.role}
               </p>
             </div>
-            <Button variant="outline" size="sm" onClick={() => setShowAssignModal(true)}>
+            <Button variant="outline" size="sm" onClick={() => setShowAssignModal(true)} className="w-full sm:w-auto">
               <RefreshCw className="h-3 w-3" />
               Reassign
             </Button>
@@ -478,7 +481,7 @@ export default function WorkOrderDetailPage({
       <Card>
         <CardHeader>
           <CardTitle>
-            <div className="flex items-center justify-between w-full">
+            <div className="flex w-full flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
               <div className="flex items-center gap-1.5">
                 <MessageSquare className="h-3.5 w-3.5 text-[var(--text-tertiary)]" />
                 Notes
@@ -492,42 +495,51 @@ export default function WorkOrderDetailPage({
           </CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="space-y-0">
-            {NOTES.map((note, i) => (
-              <div
-                key={note.id}
-                className="flex items-start gap-3 py-3 border-b border-[var(--border-default)] last:border-0 first:pt-0"
-              >
+          {NOTES.length === 0 ? (
+            <EmptyState
+              icon={<MessageSquare className="h-5 w-5" />}
+              title="No notes yet"
+              description="Add context, updates, or handoff notes for this work order."
+              action={{ label: "Add Note", onClick: () => setShowNoteModal(true), variant: "outline" }}
+            />
+          ) : (
+            <div className="space-y-0">
+              {NOTES.map((note) => (
                 <div
-                  className="flex items-center justify-center h-7 w-7 rounded-full shrink-0 text-[10px] font-semibold mt-0.5"
-                  style={{
-                    backgroundColor: "var(--surface-secondary)",
-                    color: "var(--text-secondary)",
-                  }}
+                  key={note.id}
+                  className="flex items-start gap-3 py-3 border-b border-[var(--border-default)] last:border-0 first:pt-0"
                 >
-                  {note.author
-                    .split(" ")
-                    .map((w) => w[0])
-                    .join("")
-                    .slice(0, 2)
-                    .toUpperCase()}
-                </div>
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2 mb-1">
-                    <span className="text-[13px] font-medium text-[var(--text-primary)]">
-                      {note.author}
-                    </span>
-                    <span className="text-[11px] text-[var(--text-tertiary)]">
-                      {note.timestamp}
-                    </span>
+                  <div
+                    className="flex items-center justify-center h-7 w-7 rounded-full shrink-0 text-[10px] font-semibold mt-0.5"
+                    style={{
+                      backgroundColor: "var(--surface-secondary)",
+                      color: "var(--text-secondary)",
+                    }}
+                  >
+                    {note.author
+                      .split(" ")
+                      .map((w) => w[0])
+                      .join("")
+                      .slice(0, 2)
+                      .toUpperCase()}
                   </div>
-                  <p className="text-[13px] text-[var(--text-secondary)] leading-relaxed">
-                    {note.content}
-                  </p>
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 mb-1">
+                      <span className="text-[13px] font-medium text-[var(--text-primary)]">
+                        {note.author}
+                      </span>
+                      <span className="text-[11px] text-[var(--text-tertiary)]">
+                        {note.timestamp}
+                      </span>
+                    </div>
+                    <p className="text-[13px] text-[var(--text-secondary)] leading-relaxed">
+                      {note.content}
+                    </p>
+                  </div>
                 </div>
-              </div>
-            ))}
-          </div>
+              ))}
+            </div>
+          )}
         </CardContent>
       </Card>
 
@@ -539,17 +551,18 @@ export default function WorkOrderDetailPage({
           borderColor: "var(--border-default)",
         }}
       >
-        <div className="max-w-3xl mx-auto flex items-center justify-between">
+        <div className="mx-auto flex max-w-3xl flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div className="flex items-center gap-2">
             <CircleDot className="h-3.5 w-3.5 text-[var(--text-tertiary)]" />
             <span className="text-[13px] text-[var(--text-secondary)]">
               Status: <StatusBadge status={wo.status} dot />
             </span>
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row sm:items-center">
             <Button
               variant="outline"
               size="md"
+              className="w-full sm:w-auto"
               onClick={async () => {
                 try {
                   await updateWorkOrderStatus(workOrderData.id, "on_hold" as any);
@@ -566,6 +579,7 @@ export default function WorkOrderDetailPage({
             <Button
               variant="secondary"
               size="md"
+              className="w-full sm:w-auto"
               onClick={async () => {
                 try {
                   await updateWorkOrderStatus(workOrderData.id, "follow_up" as any);
@@ -579,7 +593,7 @@ export default function WorkOrderDetailPage({
               <PlayCircle className="h-3.5 w-3.5" />
               Mark Follow-up
             </Button>
-            <Button variant="default" size="md" onClick={() => setShowCompleteModal(true)}>
+            <Button variant="default" size="md" className="w-full sm:w-auto" onClick={() => setShowCompleteModal(true)}>
               <CheckCircle2 className="h-3.5 w-3.5" />
               Complete Work
             </Button>

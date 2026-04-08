@@ -7,6 +7,7 @@ import { ArrowLeft, Phone, Mail, Shield, Clock } from "lucide-react";
 import { Badge } from "@/components/ui/Badge";
 import { Avatar } from "@/components/ui/Avatar";
 import { Card, CardContent } from "@/components/ui/Card";
+import { EmptyState } from "@/components/ui/EmptyState";
 import { Tabs } from "@/components/ui/Tabs";
 import { Skeleton } from "@/components/ui/Skeleton";
 import { EditPersonnelModal, DeletePersonnelModal } from "@/components/modals/personnel";
@@ -198,11 +199,11 @@ export default function PersonnelDetailPage({
       </div>
 
       {/* ── Action Buttons ── */}
-      <div className="flex items-center gap-2">
-        <Button variant="outline" size="md" onClick={() => setEditOpen(true)}>
+      <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+        <Button variant="outline" size="md" onClick={() => setEditOpen(true)} className="w-full sm:w-auto">
           Edit
         </Button>
-        <Button variant="destructive" size="md" onClick={() => setDeleteOpen(true)}>
+        <Button variant="destructive" size="md" onClick={() => setDeleteOpen(true)} className="w-full sm:w-auto">
           Deactivate
         </Button>
       </div>
@@ -288,10 +289,11 @@ export default function PersonnelDetailPage({
                 ))}
               </div>
             ) : (
-              <div className="text-center py-8">
-                <Clock size={24} className="mx-auto mb-2 text-[var(--text-tertiary)]" />
-                <p className="text-[13px] text-[var(--text-tertiary)]">No activity recorded yet</p>
-              </div>
+              <EmptyState
+                icon={<Clock size={20} />}
+                title="No activity recorded yet"
+                description="Recent personnel actions and status changes will appear here."
+              />
             )}
           </CardContent>
         </Card>

@@ -1,5 +1,5 @@
-import { LoadingState } from "@/components/ui/LoadingState";
+import { PageLoadingShell } from "@/components/ui/PageLoadingShell";
 
-export default function SettingsLoading() {
-  return <LoadingState message="Loading settings..." />;
+export default function Loading() {
+  return <PageLoadingShell />;
 }

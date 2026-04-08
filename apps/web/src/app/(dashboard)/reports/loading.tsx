@@ -1,5 +1,5 @@
-import { LoadingState } from "@/components/ui/LoadingState";
+import { PageLoadingShell } from "@/components/ui/PageLoadingShell";
 
-export default function ReportsLoading() {
-  return <LoadingState message="Loading reports..." />;
+export default function Loading() {
+  return <PageLoadingShell />;
 }

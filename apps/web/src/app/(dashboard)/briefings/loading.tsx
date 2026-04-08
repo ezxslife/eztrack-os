@@ -1,5 +1,5 @@
-import { LoadingState } from "@/components/ui/LoadingState";
+import { PageLoadingShell } from "@/components/ui/PageLoadingShell";
 
-export default function BriefingsLoading() {
-  return <LoadingState message="Loading briefings..." />;
+export default function Loading() {
+  return <PageLoadingShell />;
 }

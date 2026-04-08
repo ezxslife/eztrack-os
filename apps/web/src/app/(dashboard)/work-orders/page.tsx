@@ -47,29 +47,48 @@ export default function WorkOrdersPage() {
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [userProfile, setUserProfile] = useState<{ orgId: string; propertyId: string | null } | null>(null);
 
+  const resolveUserProfile = useCallback(async () => {
+    const supabase = getSupabaseBrowser();
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+
+    if (!user) {
+      throw new Error("Not authenticated");
+    }
+
+    const { data: profile, error } = await supabase
+      .from("profiles")
+      .select("org_id, property_id")
+      .eq("id", user.id)
+      .single();
+
+    if (error || !profile?.org_id) {
+      throw new Error("Unable to determine organization");
+    }
+
+    const resolved = {
+      orgId: profile.org_id,
+      propertyId: profile.property_id,
+    };
+
+    setUserProfile(resolved);
+    return resolved;
+  }, []);
+
   const loadWorkOrders = useCallback(async () => {
     try {
       setLoading(true);
       setError(null);
       const data = await fetchWorkOrders();
       setWorkOrders(data);
-
-      const supabase = getSupabaseBrowser();
-      const { data: { user } } = await supabase.auth.getUser();
-      if (user) {
-        const { data: profile } = await supabase
-          .from("profiles")
-          .select("org_id, property_id")
-          .eq("id", user.id)
-          .single();
-        if (profile) setUserProfile({ orgId: profile.org_id, propertyId: profile.property_id });
-      }
+      await resolveUserProfile();
     } catch (err: any) {
       setError(err.message || "Failed to load work orders");
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [resolveUserProfile]);
 
   useEffect(() => {
     loadWorkOrders();
@@ -94,7 +113,7 @@ export default function WorkOrdersPage() {
       return sortDir === "asc" ? cmp : -cmp;
     });
     return items;
-  }, [search, categoryFilter, sortKey, sortDir]);
+  }, [workOrders, search, categoryFilter, sortKey, sortDir]);
 
   const columns = [
     {
@@ -229,10 +248,10 @@ export default function WorkOrdersPage() {
         onClose={() => setShowCreateModal(false)}
         onSubmit={async (data) => {
           try {
-            if (!userProfile) throw new Error("User profile not loaded");
+            const profile = userProfile ?? (await resolveUserProfile());
             await createWorkOrder({
-              orgId: userProfile.orgId,
-              propertyId: userProfile.propertyId,
+              orgId: profile.orgId,
+              propertyId: profile.propertyId,
               title: data.title,
               description: data.description || undefined,
               category: data.category,
@@ -245,7 +264,7 @@ export default function WorkOrdersPage() {
             });
             toast("Work order created", { variant: "success" });
             setShowCreateModal(false);
-            loadWorkOrders();
+            await loadWorkOrders();
           } catch (err: any) {
             toast(err.message || "Failed to create work order", { variant: "error" });
           }

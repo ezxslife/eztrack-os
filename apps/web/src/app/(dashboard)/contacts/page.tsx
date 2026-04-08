@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useMemo, useEffect, useCallback } from "react";
-import Link from "next/link";
+import { useRouter } from "next/navigation";
 import {
   Search,
   Plus,
@@ -13,6 +13,7 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { Badge } from "@/components/ui/Badge";
+import { EmptyState } from "@/components/ui/EmptyState";
 import { CreateContactModal } from "@/components/modals/contacts";
 import { fetchContacts, createContact, type ContactRow } from "@/lib/queries/contacts";
 import { getSupabaseBrowser } from "@/lib/supabase-browser";
@@ -56,6 +57,7 @@ interface Contact {
 
 export default function ContactsPage() {
   const { toast } = useToast();
+  const router = useRouter();
   const [contacts, setContacts] = useState<ContactRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -112,7 +114,7 @@ export default function ContactsPage() {
       const matchesCategory = categoryFilter === "all" || c.category === categoryFilter;
       return matchesSearch && matchesCategory;
     });
-  }, [search, categoryFilter]);
+  }, [contacts, search, categoryFilter]);
 
   if (loading) {
     return (
@@ -135,7 +137,7 @@ export default function ContactsPage() {
   return (
     <div className="space-y-5 animate-fade-in">
       {/* Page header */}
-      <div className="flex items-start justify-between">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <div>
           <h1 className="text-xl font-bold tracking-tight text-[var(--text-primary)]">
             Contacts
@@ -144,7 +146,7 @@ export default function ContactsPage() {
             Contact directory and management
           </p>
         </div>
-        <Button variant="default" size="md" onClick={() => setCreateOpen(true)}>
+        <Button variant="default" size="md" onClick={() => setCreateOpen(true)} className="w-full sm:w-auto">
           <Plus size={14} />
           Add Contact
         </Button>
@@ -219,60 +221,58 @@ export default function ContactsPage() {
             {filtered.map((contact) => {
               const cfg = CATEGORY_CONFIG[contact.category];
               return (
-                <Link
+                <tr
                   key={contact.id}
-                  href={`/contacts/${contact.id}`}
-                  className="contents"
+                  className="border-b border-[var(--border-default)] last:border-0 hover:bg-[var(--surface-hover)] transition-colors cursor-pointer"
+                  onClick={() => router.push(`/contacts/${contact.id}`)}
                 >
-                  <tr className="border-b border-[var(--border-default)] last:border-0 hover:bg-[var(--surface-hover)] transition-colors cursor-pointer">
-                    <td className="px-4 py-2.5">
-                      <div className="flex items-center gap-2.5">
-                        <div className="w-8 h-8 rounded-full bg-[var(--surface-secondary)] flex items-center justify-center shrink-0">
-                          <User size={14} className="text-[var(--text-tertiary)]" />
-                        </div>
-                        <div className="min-w-0">
-                          <p className="font-medium text-[var(--text-primary)] truncate">
-                            {contact.firstName} {contact.lastName}
-                          </p>
-                          <p className="text-[11px] text-[var(--text-tertiary)] truncate sm:hidden">
-                            {contact.organization}
-                          </p>
-                        </div>
+                  <td className="px-4 py-2.5">
+                    <div className="flex items-center gap-2.5">
+                      <div className="w-8 h-8 rounded-full bg-[var(--surface-secondary)] flex items-center justify-center shrink-0">
+                        <User size={14} className="text-[var(--text-tertiary)]" />
                       </div>
-                    </td>
-                    <td className="px-4 py-2.5 text-[var(--text-secondary)] hidden sm:table-cell">
-                      <span className="inline-flex items-center gap-1">
-                        <Building2 size={10} className="text-[var(--text-tertiary)]" />
-                        {contact.organization}
-                      </span>
-                    </td>
-                    <td className="px-4 py-2.5">
-                      <Badge tone={cfg.tone} dot>
-                        {cfg.label}
-                      </Badge>
-                    </td>
-                    <td className="px-4 py-2.5 text-[var(--text-secondary)] hidden md:table-cell">
-                      <span className="inline-flex items-center gap-1">
-                        <Phone size={10} className="text-[var(--text-tertiary)]" />
-                        {contact.phone}
-                      </span>
-                    </td>
-                    <td className="px-4 py-2.5 text-[var(--text-secondary)] hidden lg:table-cell">
-                      <span className="inline-flex items-center gap-1">
-                        <Mail size={10} className="text-[var(--text-tertiary)]" />
-                        {contact.email}
-                      </span>
-                    </td>
-                    <td className="px-4 py-2.5 text-right">
-                      <button
-                        onClick={(e) => e.preventDefault()}
-                        className="p-1 rounded hover:bg-[var(--surface-hover)] text-[var(--text-tertiary)] hover:text-[var(--text-secondary)] transition-colors cursor-pointer"
-                      >
-                        <MoreHorizontal size={14} />
-                      </button>
-                    </td>
-                  </tr>
-                </Link>
+                      <div className="min-w-0">
+                        <p className="font-medium text-[var(--text-primary)] truncate">
+                          {contact.firstName} {contact.lastName}
+                        </p>
+                        <p className="text-[11px] text-[var(--text-tertiary)] truncate sm:hidden">
+                          {contact.organization}
+                        </p>
+                      </div>
+                    </div>
+                  </td>
+                  <td className="px-4 py-2.5 text-[var(--text-secondary)] hidden sm:table-cell">
+                    <span className="inline-flex items-center gap-1">
+                      <Building2 size={10} className="text-[var(--text-tertiary)]" />
+                      {contact.organization}
+                    </span>
+                  </td>
+                  <td className="px-4 py-2.5">
+                    <Badge tone={cfg.tone} dot>
+                      {cfg.label}
+                    </Badge>
+                  </td>
+                  <td className="px-4 py-2.5 text-[var(--text-secondary)] hidden md:table-cell">
+                    <span className="inline-flex items-center gap-1">
+                      <Phone size={10} className="text-[var(--text-tertiary)]" />
+                      {contact.phone}
+                    </span>
+                  </td>
+                  <td className="px-4 py-2.5 text-[var(--text-secondary)] hidden lg:table-cell">
+                    <span className="inline-flex items-center gap-1">
+                      <Mail size={10} className="text-[var(--text-tertiary)]" />
+                      {contact.email}
+                    </span>
+                  </td>
+                  <td className="px-4 py-2.5 text-right">
+                    <button
+                      onClick={(e) => e.stopPropagation()}
+                      className="p-1 rounded hover:bg-[var(--surface-hover)] text-[var(--text-tertiary)] hover:text-[var(--text-secondary)] transition-colors cursor-pointer"
+                    >
+                      <MoreHorizontal size={14} />
+                    </button>
+                  </td>
+                </tr>
               );
             })}
           </tbody>
@@ -280,10 +280,13 @@ export default function ContactsPage() {
       </div>
 
       {filtered.length === 0 && (
-        <div className="surface-card p-8 text-center">
-          <p className="text-[13px] text-[var(--text-tertiary)]">
-            No contacts match your search or filter.
-          </p>
+        <div className="surface-card">
+          <EmptyState
+            icon={<User size={20} />}
+            title="No contacts match your search"
+            description="Try a broader search or clear the current category filter."
+            action={{ label: "Add Contact", onClick: () => setCreateOpen(true), variant: "outline" }}
+          />
         </div>
       )}
 

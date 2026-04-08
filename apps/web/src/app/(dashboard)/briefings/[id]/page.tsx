@@ -6,6 +6,7 @@ import Link from "next/link";
 import { ArrowLeft, CheckCircle2, Send } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { Badge } from "@/components/ui/Badge";
+import { EmptyState } from "@/components/ui/EmptyState";
 import { Skeleton } from "@/components/ui/Skeleton";
 import { EditBriefingModal, DeleteBriefingModal } from "@/components/modals/briefings";
 import { Avatar } from "@/components/ui/Avatar";
@@ -151,11 +152,11 @@ export default function BriefingDetailPage({
       </div>
 
       {/* ── Action Buttons ── */}
-      <div className="flex items-center gap-2">
-        <Button variant="outline" size="md" onClick={() => setEditOpen(true)}>
+      <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+        <Button variant="outline" size="md" onClick={() => setEditOpen(true)} className="w-full sm:w-auto">
           Edit
         </Button>
-        <Button variant="destructive" size="md" onClick={() => setDeleteOpen(true)}>
+        <Button variant="destructive" size="md" onClick={() => setDeleteOpen(true)} className="w-full sm:w-auto">
           Delete
         </Button>
       </div>
@@ -250,7 +251,13 @@ export default function BriefingDetailPage({
             Replies
           </h3>
           {briefing.recipients.replies.length === 0 ? (
-            <p className="text-[13px] text-[var(--text-tertiary)] italic mb-4">No replies yet</p>
+            <div className="mb-4">
+              <EmptyState
+                icon={<Send className="h-5 w-5" />}
+                title="No replies yet"
+                description="Replies from recipients will appear here once the discussion starts."
+              />
+            </div>
           ) : (
             <div className="space-y-3 mb-4">
               {briefing.recipients.replies.map((reply) => (
@@ -273,7 +280,7 @@ export default function BriefingDetailPage({
               ))}
             </div>
           )}
-          <div className="flex items-center gap-2 pt-4 border-t border-[var(--border-default)]">
+          <div className="flex flex-col gap-3 pt-4 border-t border-[var(--border-default)] sm:flex-row sm:items-center">
             <Avatar name="You" size="sm" />
             <div className="flex-1 relative">
               <input

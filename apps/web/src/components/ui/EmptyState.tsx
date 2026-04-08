@@ -5,7 +5,7 @@ import { Button } from "./Button";
 interface EmptyStateAction {
   label: string;
   onClick: () => void;
-  variant?: "default" | "secondary" | "ghost";
+  variant?: "default" | "secondary" | "ghost" | "outline";
 }
 
 interface EmptyStateProps {

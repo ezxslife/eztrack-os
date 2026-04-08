@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useLayoutEffect } from "react";
 import { FormModal } from "@/components/modals/FormModal";
 import { Input } from "@/components/ui/Input";
 import { Select } from "@/components/ui/Select";
@@ -42,52 +42,72 @@ export function EditContactModal({
   onSubmit,
   contact,
 }: EditContactModalProps) {
+  const emptyValues: CreateContactValues = {
+    contactType: "individual",
+    firstName: "",
+    lastName: "",
+    organizationName: "",
+    category: "",
+    email: "",
+    phone: "",
+    secondaryPhone: "",
+    address: "",
+    title: "",
+    idType: "",
+    idNumber: "",
+    notes: "",
+  };
   const form = useFormState({
-    initialValues: {
-      contactType: "individual",
-      firstName: "",
-      lastName: "",
-      organizationName: "",
-      category: "",
-      email: "",
-      phone: "",
-      secondaryPhone: "",
-      address: "",
-      title: "",
-      idType: "",
-      idNumber: "",
-      notes: "",
-    },
+    initialValues: emptyValues,
     schema: createContactSchema,
   });
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isReady, setIsReady] = useState(false);
 
-  useEffect(() => {
-    if (contact && open) {
-      form.setValues({
-        contactType: contact.contactType ?? "individual",
-        firstName: contact.firstName ?? "",
-        lastName: contact.lastName ?? "",
-        organizationName: contact.organizationName ?? "",
-        category: contact.category ?? "",
-        email: contact.email ?? "",
-        phone: contact.phone ?? "",
-        secondaryPhone: contact.secondaryPhone ?? "",
-        address: contact.address ?? "",
-        title: contact.title ?? "",
-        idType: contact.idType ?? "",
-        idNumber: contact.idNumber ?? "",
-        notes: contact.notes ?? "",
-      });
+  useLayoutEffect(() => {
+    if (!open) {
+      setIsReady(false);
+      form.reset();
+      return;
     }
+
+    setIsReady(false);
+    form.setValues(
+      contact
+        ? {
+            contactType: contact.contactType ?? "individual",
+            firstName: contact.firstName ?? "",
+            lastName: contact.lastName ?? "",
+            organizationName: contact.organizationName ?? "",
+            category: contact.category ?? "",
+            email: contact.email ?? "",
+            phone: contact.phone ?? "",
+            secondaryPhone: contact.secondaryPhone ?? "",
+            address: contact.address ?? "",
+            title: contact.title ?? "",
+            idType: contact.idType ?? "",
+            idNumber: contact.idNumber ?? "",
+            notes: contact.notes ?? "",
+          }
+        : emptyValues
+    );
+
+    const timer = window.setTimeout(() => setIsReady(true), 0);
+    return () => window.clearTimeout(timer);
   }, [contact, open]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  const handleClose = () => {
+    setIsReady(false);
+    form.reset();
+    onClose();
+  };
+
   const handleSubmit = async () => {
-    if (!form.validate()) return;
+    if (!isReady || !form.validate()) return;
     setIsSubmitting(true);
     try {
       await onSubmit(form.values as CreateContactValues);
-      onClose();
+      handleClose();
     } finally {
       setIsSubmitting(false);
     }
@@ -96,13 +116,13 @@ export function EditContactModal({
   return (
     <FormModal
       open={open}
-      onClose={onClose}
+      onClose={handleClose}
       onSubmit={handleSubmit}
       title="Edit Contact"
       size="md"
       submitLabel="Save Changes"
       isSubmitting={isSubmitting}
-      isValid={form.isValid}
+      isValid={isReady && form.isValid}
     >
       <div className="flex gap-3">
         {CONTACT_TYPE_OPTIONS.map((opt) => (
@@ -113,6 +133,7 @@ export function EditContactModal({
               value={opt.value}
               checked={form.values.contactType === opt.value}
               onChange={(e) => form.setValue("contactType", e.target.value)}
+              disabled={!isReady || isSubmitting}
               className="accent-[var(--eztrack-primary-500,#6366f1)]"
             />
             <span className="text-[13px] text-[var(--text-primary)]">{opt.label}</span>
@@ -128,12 +149,14 @@ export function EditContactModal({
             value={form.values.firstName}
             onChange={(e) => form.setValue("firstName", e.target.value)}
             error={form.touched.firstName ? form.errors.firstName : undefined}
+            disabled={!isReady || isSubmitting}
           />
           <Input
             label="Last Name"
             placeholder="Last name"
             value={form.values.lastName}
             onChange={(e) => form.setValue("lastName", e.target.value)}
+            disabled={!isReady || isSubmitting}
           />
         </div>
       ) : null}
@@ -144,6 +167,7 @@ export function EditContactModal({
         value={form.values.organizationName}
         onChange={(e) => form.setValue("organizationName", e.target.value)}
         error={form.touched.organizationName ? form.errors.organizationName : undefined}
+        disabled={!isReady || isSubmitting}
       />
 
       <Select
@@ -153,6 +177,7 @@ export function EditContactModal({
         onChange={(e) => form.setValue("category", e.target.value)}
         placeholder="Select category"
         error={form.touched.category ? form.errors.category : undefined}
+        disabled={!isReady || isSubmitting}
       />
 
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -163,6 +188,7 @@ export function EditContactModal({
           value={form.values.email}
           onChange={(e) => form.setValue("email", e.target.value)}
           error={form.touched.email ? form.errors.email : undefined}
+          disabled={!isReady || isSubmitting}
         />
         <Input
           label="Phone (required)"
@@ -171,6 +197,7 @@ export function EditContactModal({
           value={form.values.phone}
           onChange={(e) => form.setValue("phone", e.target.value)}
           error={form.touched.phone ? form.errors.phone : undefined}
+          disabled={!isReady || isSubmitting}
         />
       </div>
 
@@ -180,6 +207,7 @@ export function EditContactModal({
         placeholder="(555) 987-6543"
         value={form.values.secondaryPhone}
         onChange={(e) => form.setValue("secondaryPhone", e.target.value)}
+        disabled={!isReady || isSubmitting}
       />
 
       <Textarea
@@ -188,6 +216,7 @@ export function EditContactModal({
         value={form.values.address}
         onChange={(e) => form.setValue("address", e.target.value)}
         rows={2}
+        disabled={!isReady || isSubmitting}
       />
 
       <Input
@@ -195,6 +224,7 @@ export function EditContactModal({
         placeholder="Job title or role"
         value={form.values.title}
         onChange={(e) => form.setValue("title", e.target.value)}
+        disabled={!isReady || isSubmitting}
       />
 
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -204,12 +234,14 @@ export function EditContactModal({
           value={form.values.idType}
           onChange={(e) => form.setValue("idType", e.target.value)}
           placeholder="Select ID type"
+          disabled={!isReady || isSubmitting}
         />
         <Input
           label="ID Number"
           placeholder="ID number"
           value={form.values.idNumber}
           onChange={(e) => form.setValue("idNumber", e.target.value)}
+          disabled={!isReady || isSubmitting}
         />
       </div>
 
@@ -219,6 +251,7 @@ export function EditContactModal({
         value={form.values.notes}
         onChange={(e) => form.setValue("notes", e.target.value)}
         rows={2}
+        disabled={!isReady || isSubmitting}
       />
     </FormModal>
   );

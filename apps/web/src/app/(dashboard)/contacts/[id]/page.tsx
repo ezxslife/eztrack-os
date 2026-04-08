@@ -256,10 +256,10 @@ export default function ContactDetailPage({
               notes: data.notes,
             });
             toast("Contact updated successfully", { variant: "success" });
-            setEditOpen(false);
-            loadData();
+            await loadData();
           } catch (err: any) {
             toast(err.message || "Failed to update contact", { variant: "error" });
+            throw err;
           }
         }}
         contact={{

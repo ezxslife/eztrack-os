@@ -5,6 +5,7 @@ import Link from "next/link";
 import { ArrowLeft, Plus, Building, MapPin, MoreHorizontal, Loader2, AlertCircle } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { Badge } from "@/components/ui/Badge";
+import { EmptyState } from "@/components/ui/EmptyState";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/Card";
 import { AddPropertyModal } from "@/components/modals/settings";
 import { useToast } from "@/components/ui/Toast";
@@ -128,8 +129,13 @@ export default function PropertiesSettingsPage() {
           </Card>
         ))}
         {properties.length === 0 && (
-          <div className="col-span-2 text-center py-12 text-[var(--text-tertiary)] text-[13px]">
-            No properties yet. Add your first property to get started.
+          <div className="col-span-2 rounded-xl border border-[var(--border-default)] bg-[var(--surface-primary)]">
+            <EmptyState
+              icon={<Building className="h-5 w-5" />}
+              title="No properties yet"
+              description="Add your first property to start organizing locations and operations."
+              action={{ label: "Add Property", onClick: () => setAddPropertyOpen(true), variant: "outline" }}
+            />
           </div>
         )}
       </div>

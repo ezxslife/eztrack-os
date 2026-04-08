@@ -40,6 +40,7 @@ import {
 import { Button } from "@/components/ui/Button";
 import { Badge, StatusBadge } from "@/components/ui/Badge";
 import { PriorityBadge } from "@/components/ui/PriorityBadge";
+import { EmptyState } from "@/components/ui/EmptyState";
 import { useToast } from "@/components/ui/Toast";
 import { Tabs } from "@/components/ui/Tabs";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/Card";
@@ -258,7 +259,7 @@ export default function CaseDetailPage({
   return (
     <div className="space-y-5 animate-fade-in">
       {/* ── Header ── */}
-      <div className="flex items-start justify-between">
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
         <div className="flex items-center gap-3">
           <Link href="/cases">
             <Button variant="ghost" size="sm">
@@ -281,7 +282,7 @@ export default function CaseDetailPage({
           </div>
         </div>
 
-        <div className="flex items-center gap-2 shrink-0">
+        <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row sm:items-center shrink-0">
           <Button variant="outline" size="md">
             <Printer size={14} />
             Print
@@ -725,7 +726,7 @@ function MetricCard({ icon: Icon, label, value, sub }: { icon: typeof Clock; lab
 function TableWrapper({ children }: { children: React.ReactNode }) {
   return (
     <div className="overflow-x-auto">
-      <table className="w-full text-[13px]">
+      <table className="w-full min-w-[720px] text-[13px]">
         {children}
       </table>
     </div>
@@ -763,46 +764,47 @@ function OverviewTab({ c, stageIndex, relatedRecords, auditLog, costs, tasks }: 
           <CardTitle>Investigation Progress</CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="flex items-center gap-1">
-            {STAGES.map((stage, i) => {
-              const isComplete = i < stageIndex;
-              const isCurrent = i === stageIndex;
-              const isFuture = i > stageIndex;
+          <div className="overflow-x-auto pb-1">
+            <div className="flex min-w-[760px] items-center gap-1">
+              {STAGES.map((stage, i) => {
+                const isComplete = i < stageIndex;
+                const isCurrent = i === stageIndex;
 
-              return (
-                <div key={stage.key} className="flex items-center flex-1 min-w-0">
-                  <div className="flex flex-col items-center gap-1.5 flex-1 min-w-0">
-                    <div
-                      className={`w-7 h-7 rounded-full flex items-center justify-center text-[11px] font-bold shrink-0 border-2 transition-colors ${
-                        isComplete
-                          ? "bg-[var(--status-success,#059669)] border-[var(--status-success,#059669)] text-white"
-                          : isCurrent
-                          ? "bg-[var(--action-primary)] border-[var(--action-primary)] text-white"
-                          : "bg-[var(--surface-secondary)] border-[var(--border-default)] text-[var(--text-tertiary)]"
-                      }`}
-                    >
-                      {isComplete ? <CheckCircle2 size={14} /> : stage.number}
+                return (
+                  <div key={stage.key} className="flex items-center flex-1 min-w-0">
+                    <div className="flex flex-col items-center gap-1.5 flex-1 min-w-0">
+                      <div
+                        className={`w-7 h-7 rounded-full flex items-center justify-center text-[11px] font-bold shrink-0 border-2 transition-colors ${
+                          isComplete
+                            ? "bg-[var(--status-success,#059669)] border-[var(--status-success,#059669)] text-white"
+                            : isCurrent
+                            ? "bg-[var(--action-primary)] border-[var(--action-primary)] text-white"
+                            : "bg-[var(--surface-secondary)] border-[var(--border-default)] text-[var(--text-tertiary)]"
+                        }`}
+                      >
+                        {isComplete ? <CheckCircle2 size={14} /> : stage.number}
+                      </div>
+                      <span
+                        className={`text-[10px] text-center leading-tight truncate w-full ${
+                          isCurrent ? "font-semibold text-[var(--text-primary)]" : "text-[var(--text-tertiary)]"
+                        }`}
+                      >
+                        {stage.label}
+                      </span>
                     </div>
-                    <span
-                      className={`text-[10px] text-center leading-tight truncate w-full ${
-                        isCurrent ? "font-semibold text-[var(--text-primary)]" : "text-[var(--text-tertiary)]"
-                      }`}
-                    >
-                      {stage.label}
-                    </span>
+                    {i < STAGES.length - 1 && (
+                      <div
+                        className={`h-0.5 flex-1 min-w-3 mx-1 rounded-full mt-[-18px] ${
+                          i < stageIndex
+                            ? "bg-[var(--status-success,#059669)]"
+                            : "bg-[var(--border-default)]"
+                        }`}
+                      />
+                    )}
                   </div>
-                  {i < STAGES.length - 1 && (
-                    <div
-                      className={`h-0.5 flex-1 min-w-3 mx-1 rounded-full mt-[-18px] ${
-                        i < stageIndex
-                          ? "bg-[var(--status-success,#059669)]"
-                          : "bg-[var(--border-default)]"
-                      }`}
-                    />
-                  )}
-                </div>
-              );
-            })}
+                );
+              })}
+            </div>
           </div>
           <div className="mt-3">
             <ProgressBar
@@ -872,7 +874,7 @@ function OverviewTab({ c, stageIndex, relatedRecords, auditLog, costs, tasks }: 
         </div>
 
         {/* Right sidebar */}
-        <div className="w-full lg:w-auto space-y-4 lg:shrink-0" style={{ flex: "3 1 0%", minWidth: 240 }}>
+        <div className="w-full space-y-4 lg:min-w-[240px] lg:w-auto lg:shrink-0" style={{ flex: "3 1 0%" }}>
           <div className="surface-card p-4">
             <h3 className="text-[12px] font-semibold text-[var(--text-tertiary)] uppercase tracking-wider mb-3">
               Quick Stats
@@ -941,7 +943,7 @@ function OverviewTab({ c, stageIndex, relatedRecords, auditLog, costs, tasks }: 
 function ResourcesTab({ resources, onAddResource }: { resources: CaseResource[]; onAddResource: () => void }) {
   return (
     <Card>
-      <CardHeader className="flex-row items-center justify-between">
+      <CardHeader className="flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <CardTitle>Assigned Resources ({resources.length})</CardTitle>
         <Button variant="outline" size="sm" onClick={onAddResource}>
           <Plus size={13} />
@@ -950,13 +952,12 @@ function ResourcesTab({ resources, onAddResource }: { resources: CaseResource[];
       </CardHeader>
       <CardContent className="p-0">
         {resources.length === 0 ? (
-          <div className="flex flex-col items-center justify-center py-12 text-center">
-            <Users size={32} className="text-[var(--text-tertiary)] mb-3" />
-            <p className="text-[13px] font-medium text-[var(--text-secondary)]">No resources assigned yet</p>
-            <p className="text-[12px] text-[var(--text-tertiary)] mt-1">
-              Assign team members and investigators to this case
-            </p>
-          </div>
+          <EmptyState
+            icon={<Users size={20} />}
+            title="No resources assigned yet"
+            description="Assign team members and investigators to this case."
+            action={{ label: "Add Resource", onClick: onAddResource, variant: "outline" }}
+          />
         ) : (
           <TableWrapper>
             <thead>
@@ -1018,7 +1019,7 @@ function RelatedRecordsTab({ relatedRecords, onLinkRecord }: { relatedRecords: C
 
   return (
     <Card>
-      <CardHeader className="flex-row items-center justify-between">
+      <CardHeader className="flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <CardTitle>Linked Records</CardTitle>
         <Button variant="outline" size="sm" onClick={onLinkRecord}>
           <Link2 size={13} />
@@ -1027,11 +1028,12 @@ function RelatedRecordsTab({ relatedRecords, onLinkRecord }: { relatedRecords: C
       </CardHeader>
       <CardContent className="p-0">
         {relatedRecords.length === 0 ? (
-          <div className="flex flex-col items-center justify-center py-12 text-center">
-            <Link2 size={32} className="text-[var(--text-tertiary)] mb-3" />
-            <p className="text-[13px] font-medium text-[var(--text-secondary)]">No linked records</p>
-            <p className="text-[12px] text-[var(--text-tertiary)] mt-1">Link incidents, dispatches, or other records to this case</p>
-          </div>
+          <EmptyState
+            icon={<Link2 size={20} />}
+            title="No linked records"
+            description="Link incidents, dispatches, or other records to this case."
+            action={{ label: "Link Record", onClick: onLinkRecord, variant: "outline" }}
+          />
         ) : (
           <>
             <TableWrapper>
@@ -1097,9 +1099,9 @@ function EvidenceTab({ evidence, onAddEvidence, onTransferCustody }: { evidence:
 
   return (
     <Card>
-      <CardHeader className="flex-row items-center justify-between">
+      <CardHeader className="flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <CardTitle>Evidence Items</CardTitle>
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           <Button variant="outline" size="sm">
             <Download size={13} />
             Export
@@ -1112,11 +1114,12 @@ function EvidenceTab({ evidence, onAddEvidence, onTransferCustody }: { evidence:
       </CardHeader>
       <CardContent className="p-0">
         {evidence.length === 0 ? (
-          <div className="flex flex-col items-center justify-center py-12 text-center">
-            <Package size={32} className="text-[var(--text-tertiary)] mb-3" />
-            <p className="text-[13px] font-medium text-[var(--text-secondary)]">No evidence logged</p>
-            <p className="text-[12px] text-[var(--text-tertiary)] mt-1">Log physical or digital evidence items for this case</p>
-          </div>
+          <EmptyState
+            icon={<Package size={20} />}
+            title="No evidence logged"
+            description="Log physical or digital evidence items for this case."
+            action={{ label: "Log Evidence", onClick: onAddEvidence, variant: "outline" }}
+          />
         ) : (
           <>
             <TableWrapper>
@@ -1192,7 +1195,7 @@ function TasksTab({ tasks, onAddTask }: { tasks: CaseTask[]; onAddTask: () => vo
       </div>
 
       <Card>
-        <CardHeader className="flex-row items-center justify-between">
+        <CardHeader className="flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <CardTitle>Task List</CardTitle>
           <Button variant="outline" size="sm" onClick={onAddTask}>
             <Plus size={13} />
@@ -1201,11 +1204,12 @@ function TasksTab({ tasks, onAddTask }: { tasks: CaseTask[]; onAddTask: () => vo
         </CardHeader>
         <CardContent className="p-0">
           {tasks.length === 0 ? (
-            <div className="flex flex-col items-center justify-center py-12 text-center">
-              <ListChecks size={32} className="text-[var(--text-tertiary)] mb-3" />
-              <p className="text-[13px] font-medium text-[var(--text-secondary)]">No tasks created</p>
-              <p className="text-[12px] text-[var(--text-tertiary)] mt-1">Create tasks to track investigation activities</p>
-            </div>
+            <EmptyState
+              icon={<ListChecks size={20} />}
+              title="No tasks created"
+              description="Create tasks to track investigation activities."
+              action={{ label: "Add Task", onClick: onAddTask, variant: "outline" }}
+            />
           ) : (
             <div className="divide-y divide-[var(--border-default)]">
               {tasks.map((task) => (
@@ -1265,7 +1269,7 @@ function TasksTab({ tasks, onAddTask }: { tasks: CaseTask[]; onAddTask: () => vo
 function NarrativesTab({ narratives, onAddNarrative }: { narratives: CaseNarrativeItem[]; onAddNarrative: () => void }) {
   return (
     <Card>
-      <CardHeader className="flex-row items-center justify-between">
+      <CardHeader className="flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <CardTitle>Investigation Narratives</CardTitle>
         <Button variant="outline" size="sm" onClick={onAddNarrative}>
           <Plus size={13} />
@@ -1274,11 +1278,12 @@ function NarrativesTab({ narratives, onAddNarrative }: { narratives: CaseNarrati
       </CardHeader>
       <CardContent className="p-0">
         {narratives.length === 0 ? (
-          <div className="flex flex-col items-center justify-center py-12 text-center">
-            <StickyNote size={32} className="text-[var(--text-tertiary)] mb-3" />
-            <p className="text-[13px] font-medium text-[var(--text-secondary)]">No narratives written</p>
-            <p className="text-[12px] text-[var(--text-tertiary)] mt-1">Document investigation findings and observations</p>
-          </div>
+          <EmptyState
+            icon={<StickyNote size={20} />}
+            title="No narratives written"
+            description="Document investigation findings and observations."
+            action={{ label: "Add Narrative", onClick: onAddNarrative, variant: "outline" }}
+          />
         ) : (
           <>
             <div className="divide-y divide-[var(--border-default)]">
@@ -1328,7 +1333,7 @@ function FinancialTab({ costs, onAddEntry }: { costs: CaseCostEntry[]; onAddEntr
   return (
     <div className="space-y-4">
       {/* Summary Cards */}
-      <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
         <MetricCard icon={DollarSign} label="Total Costs" value={`$${totalAmount.toLocaleString()}`} sub={`${costs.length} entries`} />
         <MetricCard icon={BarChart3} label="Entries" value={costs.length} />
         <MetricCard icon={TrendingUp} label="Avg per Entry" value={costs.length > 0 ? `$${Math.round(totalAmount / costs.length).toLocaleString()}` : "$0"} />
@@ -1336,9 +1341,9 @@ function FinancialTab({ costs, onAddEntry }: { costs: CaseCostEntry[]; onAddEntr
 
       {/* Entries table */}
       <Card>
-        <CardHeader className="flex-row items-center justify-between">
+        <CardHeader className="flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <CardTitle>Financial Entries</CardTitle>
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             <Button variant="outline" size="sm">
               <Download size={13} />
               Export
@@ -1351,11 +1356,12 @@ function FinancialTab({ costs, onAddEntry }: { costs: CaseCostEntry[]; onAddEntr
         </CardHeader>
         <CardContent className="p-0">
           {costs.length === 0 ? (
-            <div className="flex flex-col items-center justify-center py-12 text-center">
-              <DollarSign size={32} className="text-[var(--text-tertiary)] mb-3" />
-              <p className="text-[13px] font-medium text-[var(--text-secondary)]">No financial entries</p>
-              <p className="text-[12px] text-[var(--text-tertiary)] mt-1">Track costs, recoveries, and other financial data</p>
-            </div>
+            <EmptyState
+              icon={<DollarSign size={20} />}
+              title="No financial entries"
+              description="Track costs, recoveries, and other financial data."
+              action={{ label: "Add Entry", onClick: onAddEntry, variant: "outline" }}
+            />
           ) : (
             <>
               <TableWrapper>
@@ -1468,7 +1474,7 @@ function OutcomeTab({ onDocumentOutcome }: { onDocumentOutcome: () => void }) {
 function AuditLogTab({ auditLog }: { auditLog: CaseAuditEntry[] }) {
   return (
     <Card>
-      <CardHeader className="flex-row items-center justify-between">
+      <CardHeader className="flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <CardTitle>Audit Trail</CardTitle>
         <Button variant="outline" size="sm">
           <Download size={13} />
@@ -1477,11 +1483,11 @@ function AuditLogTab({ auditLog }: { auditLog: CaseAuditEntry[] }) {
       </CardHeader>
       <CardContent className="p-0">
         {auditLog.length === 0 ? (
-          <div className="flex flex-col items-center justify-center py-12 text-center">
-            <History size={32} className="text-[var(--text-tertiary)] mb-3" />
-            <p className="text-[13px] font-medium text-[var(--text-secondary)]">No audit entries</p>
-            <p className="text-[12px] text-[var(--text-tertiary)] mt-1">Activity will be logged here automatically</p>
-          </div>
+          <EmptyState
+            icon={<History size={20} />}
+            title="No audit entries"
+            description="Activity will be logged here automatically as the case changes."
+          />
         ) : (
           <>
             <div className="relative">

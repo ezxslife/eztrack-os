@@ -160,8 +160,8 @@ interface DrawerHeaderProps {
 
 export function DrawerHeader({ children, onClose }: DrawerHeaderProps) {
   return (
-    <div className="flex items-center justify-between px-5 py-3.5 border-b border-[var(--border-default)] shrink-0">
-      <h2 className="text-[15px] font-semibold text-[var(--text-primary)]">
+    <div className="flex items-start justify-between gap-3 border-b border-[var(--border-default)] px-4 py-3.5 shrink-0 sm:px-5">
+      <h2 className="min-w-0 flex-1 text-[15px] font-semibold text-[var(--text-primary)]">
         {children}
       </h2>
       {onClose && (
@@ -184,7 +184,7 @@ interface DrawerContentProps {
 
 export function DrawerContent({ children, className }: DrawerContentProps) {
   return (
-    <div className={clsx("px-5 py-4 overflow-y-auto flex-1", className)}>
+    <div className={clsx("px-4 py-4 overflow-y-auto flex-1 sm:px-5", className)}>
       {children}
     </div>
   );
@@ -199,7 +199,7 @@ export function DrawerFooter({ children, className }: DrawerFooterProps) {
   return (
     <div
       className={clsx(
-        "flex items-center justify-end gap-2 px-5 py-3 border-t border-[var(--border-default)] shrink-0",
+        "flex flex-col-reverse items-stretch gap-2 border-t border-[var(--border-default)] px-4 py-3 shrink-0 sm:flex-row sm:items-center sm:justify-end sm:px-5",
         className
       )}
     >

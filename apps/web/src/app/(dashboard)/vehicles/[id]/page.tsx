@@ -16,6 +16,7 @@ import {
 import { Button } from "@/components/ui/Button";
 import { Badge } from "@/components/ui/Badge";
 import { StatusBadge } from "@/components/ui/Badge";
+import { EmptyState } from "@/components/ui/EmptyState";
 import { Skeleton } from "@/components/ui/Skeleton";
 import { EditVehicleModal, DeleteVehicleModal } from "@/components/modals/vehicles";
 import { useRouter } from "next/navigation";
@@ -176,7 +177,7 @@ export default function VehicleDetailPage({
   return (
     <div className="space-y-5 animate-fade-in">
       {/* Header */}
-      <div className="flex items-start justify-between">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <div className="flex items-center gap-3">
           <Link href="/vehicles">
             <Button variant="ghost" size="sm">
@@ -212,11 +213,11 @@ export default function VehicleDetailPage({
       </div>
 
       {/* Action Buttons */}
-      <div className="flex items-center gap-2">
-        <Button variant="outline" size="md" onClick={() => setEditOpen(true)}>
+      <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+        <Button variant="outline" size="md" onClick={() => setEditOpen(true)} className="w-full sm:w-auto">
           Edit
         </Button>
-        <Button variant="destructive" size="md" onClick={() => setDeleteOpen(true)}>
+        <Button variant="destructive" size="md" onClick={() => setDeleteOpen(true)} className="w-full sm:w-auto">
           Delete
         </Button>
       </div>
@@ -315,9 +316,12 @@ export default function VehicleDetailPage({
             ))}
           </div>
         ) : (
-          <div className="surface-card p-8 text-center">
-            <FileText size={24} className="mx-auto mb-2 text-[var(--text-tertiary)]" />
-            <p className="text-[13px] text-[var(--text-tertiary)]">No linked incidents</p>
+          <div className="surface-card">
+            <EmptyState
+              icon={<FileText size={20} />}
+              title="No linked incidents"
+              description="Incident links involving this vehicle will appear here."
+            />
           </div>
         )}
       </div>

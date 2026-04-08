@@ -33,30 +33,47 @@ export default function NewDailyLogPage() {
   const [locationOptions, setLocationOptions] = useState<{ value: string; label: string }[]>([]);
   const [orgId, setOrgId] = useState<string | null>(null);
   const [propertyId, setPropertyId] = useState<string | null>(null);
+  const [profileLoading, setProfileLoading] = useState(true);
+
+  async function resolveUserContext() {
+    const supabase = getSupabaseBrowser();
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+
+    if (!user) {
+      throw new Error("Not authenticated");
+    }
+
+    const { data: profile, error } = await supabase
+      .from("profiles")
+      .select("org_id, property_id")
+      .eq("id", user.id)
+      .single();
+
+    if (error || !profile?.org_id) {
+      throw new Error("Unable to determine organization");
+    }
+
+    setOrgId(profile.org_id);
+    setPropertyId(profile.property_id);
+
+    return {
+      orgId: profile.org_id,
+      propertyId: profile.property_id,
+    };
+  }
 
   useEffect(() => {
     async function loadFormData() {
       try {
-        const [locations, supabase] = await Promise.all([
-          fetchLocations(),
-          Promise.resolve(getSupabaseBrowser()),
-        ]);
+        const locations = await fetchLocations();
         setLocationOptions(locations.map((l) => ({ value: l.id, label: l.name })));
-
-        const { data: { user } } = await supabase.auth.getUser();
-        if (user) {
-          const { data: profile } = await supabase
-            .from("profiles")
-            .select("org_id, property_id")
-            .eq("id", user.id)
-            .single();
-          if (profile) {
-            setOrgId(profile.org_id);
-            setPropertyId(profile.property_id);
-          }
-        }
+        await resolveUserContext();
       } catch {
         // Locations will fall back to empty
+      } finally {
+        setProfileLoading(false);
       }
     }
     loadFormData();
@@ -64,15 +81,16 @@ export default function NewDailyLogPage() {
 
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();
-    if (!orgId) {
-      toast("Unable to determine organization", { variant: "error" });
-      return;
-    }
     try {
       setSubmitting(true);
+      const context =
+        orgId
+          ? { orgId, propertyId }
+          : await resolveUserContext();
+
       const result = await createDailyLog({
-        orgId,
-        propertyId,
+        orgId: context.orgId,
+        propertyId: context.propertyId,
         topic,
         synopsis: synopsis || undefined,
         priority,
@@ -168,9 +186,14 @@ export default function NewDailyLogPage() {
                 Cancel
               </Button>
             </Link>
-            <Button variant="default" size="md" type="submit" disabled={submitting}>
+            <Button
+              variant="default"
+              size="md"
+              type="submit"
+              disabled={submitting || profileLoading || locationOptions.length === 0}
+            >
               {submitting && <Loader2 size={14} className="animate-spin" />}
-              {submitting ? "Creating..." : "Submit Entry"}
+              {submitting ? "Creating..." : profileLoading ? "Loading..." : "Submit Entry"}
             </Button>
           </div>
         </form>
