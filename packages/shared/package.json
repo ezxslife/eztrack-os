@@ -4,11 +4,11 @@
   "private": true,
   "exports": {
     ".": "./src/index.ts",
-    "./constants": "./src/constants.ts",
-    "./contrast": "./src/contrast.ts",
-    "./notifications": "./src/notifications.ts",
-    "./reporting": "./src/reporting.ts",
-    "./roles": "./src/roles.ts"
+    "./constants": "./constants.ts",
+    "./contrast": "./contrast.ts",
+    "./notifications": "./notifications.ts",
+    "./reporting": "./reporting.ts",
+    "./roles": "./roles.ts"
   },
   "main": "./src/index.ts",
   "types": "./src/index.ts",
