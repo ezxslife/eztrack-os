@@ -1,6 +1,6 @@
 "use client";
 
-import { resolveNotificationRoute } from "@eztrack/shared/notifications";
+import { resolveNotificationRoute } from "@eztrack/shared";
 import { useState, useEffect, useMemo, useCallback } from "react";
 import Link from "next/link";
 import {

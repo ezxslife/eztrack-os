@@ -1,6 +1,6 @@
 import { useEffect, useRef } from "react";
 
-import { resolveNotificationRoute } from "@eztrack/shared/notifications";
+import { resolveNotificationRoute } from "@eztrack/shared";
 import * as Linking from "expo-linking";
 import * as Notifications from "expo-notifications";
 import { useQueryClient } from "@tanstack/react-query";

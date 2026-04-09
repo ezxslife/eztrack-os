@@ -1,4 +1,4 @@
-import { resolveNotificationRoute } from "@eztrack/shared/notifications";
+import { resolveNotificationRoute } from "@eztrack/shared";
 import {
   useMutation,
   useQuery,
