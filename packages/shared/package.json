@@ -2,6 +2,14 @@
   "name": "@eztrack/shared",
   "version": "0.0.1",
   "private": true,
+  "exports": {
+    ".": "./src/index.ts",
+    "./constants": "./src/constants.ts",
+    "./contrast": "./src/contrast.ts",
+    "./notifications": "./src/notifications.ts",
+    "./reporting": "./src/reporting.ts",
+    "./roles": "./src/roles.ts"
+  },
   "main": "./src/index.ts",
   "types": "./src/index.ts",
   "scripts": {

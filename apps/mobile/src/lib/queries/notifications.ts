@@ -1,3 +1,4 @@
+import { resolveNotificationRoute } from "@eztrack/shared/notifications";
 import {
   useMutation,
   useQuery,
@@ -46,7 +47,7 @@ async function fetchNotifications(userId: string): Promise<NotificationRow[]> {
   }));
 }
 
-async function markNotificationRead(notificationId: string) {
+export async function markNotificationRead(notificationId: string) {
   const supabase = getSupabase();
   const { error } = await supabase
     .from("notifications")
@@ -58,7 +59,7 @@ async function markNotificationRead(notificationId: string) {
   }
 }
 
-async function markAllNotificationsRead(userId: string) {
+export async function markAllNotificationsRead(userId: string) {
   const supabase = getSupabase();
   const { error } = await supabase
     .from("notifications")
@@ -78,6 +79,14 @@ export function useNotifications() {
     enabled: canAccessProtected && Boolean(profile?.id),
     queryFn: () => fetchNotifications(profile!.id),
     queryKey: ["notifications", profile?.id ?? "unknown"],
+  });
+}
+
+export function getNotificationRoute(notification: Pick<NotificationRow, "actionUrl" | "metadata" | "type">) {
+  return resolveNotificationRoute({
+    actionUrl: notification.actionUrl,
+    metadata: notification.metadata,
+    type: notification.type,
   });
 }
 
