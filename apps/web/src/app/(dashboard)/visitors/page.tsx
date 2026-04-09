@@ -18,6 +18,7 @@ import {
   List,
 } from "lucide-react";
 import { Button } from "@/components/ui/Button";
+import { SegmentedControl } from "@/components/ui/SegmentedControl";
 import { Select } from "@/components/ui/Select";
 import { Badge, StatusBadge } from "@/components/ui/Badge";
 import { Card, CardContent } from "@/components/ui/Card";
@@ -216,33 +217,26 @@ export default function VisitorsPage() {
       {/* ── View Toggle + Filters ── */}
       <div className="flex flex-wrap items-end gap-3">
         {/* View toggle */}
-        <div className="flex rounded-lg border border-[var(--border-default)] overflow-hidden">
-          <button
-            onClick={() => setView("today")}
-            className={`flex items-center gap-1.5 px-3 h-9 text-[13px] font-medium transition-colors ${
-              view === "today"
-                ? "bg-[var(--action-primary)] text-white"
-                : "bg-[var(--surface-primary)] text-[var(--text-secondary)] hover:bg-[var(--surface-hover)]"
-            }`}
-          >
-            <LayoutGrid className="h-3.5 w-3.5" />
-            Today&apos;s Visitors
-          </button>
-          <button
-            onClick={() => setView("all")}
-            className={`flex items-center gap-1.5 px-3 h-9 text-[13px] font-medium transition-colors border-l border-[var(--border-default)] ${
-              view === "all"
-                ? "bg-[var(--action-primary)] text-white"
-                : "bg-[var(--surface-primary)] text-[var(--text-secondary)] hover:bg-[var(--surface-hover)]"
-            }`}
-          >
-            <List className="h-3.5 w-3.5" />
-            All Visits
-          </button>
-        </div>
+        <SegmentedControl
+          ariaLabel="Visitor list scope"
+          options={[
+            {
+              value: "today",
+              label: "Today’s Visitors",
+              icon: <LayoutGrid className="h-3.5 w-3.5" />,
+            },
+            {
+              value: "all",
+              label: "All Visits",
+              icon: <List className="h-3.5 w-3.5" />,
+            },
+          ]}
+          value={view}
+          onChange={setView}
+        />
 
         {/* Search */}
-        <div className="flex-1 min-w-[200px] max-w-xs">
+        <div className="page-toolbar-search">
           <div className="relative">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-[var(--text-tertiary)]" />
             <input

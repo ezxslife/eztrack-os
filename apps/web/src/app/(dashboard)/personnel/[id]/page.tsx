@@ -4,6 +4,7 @@ import { use, useState, useEffect } from "react";
 import { useToast } from "@/components/ui/Toast";
 import Link from "next/link";
 import { ArrowLeft, Phone, Mail, Shield, Clock } from "lucide-react";
+import { AppPage, PageSection } from "@/components/layout/AppPage";
 import { Badge } from "@/components/ui/Badge";
 import { Avatar } from "@/components/ui/Avatar";
 import { Card, CardContent } from "@/components/ui/Card";
@@ -114,7 +115,7 @@ export default function PersonnelDetailPage({
 
   if (loading) {
     return (
-      <div className="space-y-5 max-w-3xl animate-fade-in">
+      <AppPage width="base" className="animate-fade-in">
         <div className="flex items-center gap-3">
           <Skeleton className="h-12 w-12 rounded-full" />
           <div>
@@ -123,19 +124,21 @@ export default function PersonnelDetailPage({
           </div>
         </div>
         <Skeleton className="h-48 w-full" />
-      </div>
+      </AppPage>
     );
   }
 
   if (error || !staff) {
     return (
-      <div className="flex flex-col items-center justify-center h-64 gap-3">
-        <Shield size={32} className="text-[var(--text-tertiary)]" />
-        <p className="text-[var(--text-secondary)]">{error || "Staff member not found"}</p>
-        <Link href="/personnel">
-          <Button variant="secondary" size="sm">Back to Personnel</Button>
-        </Link>
-      </div>
+      <AppPage width="base">
+        <PageSection className="flex h-64 flex-col items-center justify-center gap-3">
+          <Shield size={32} className="text-[var(--text-tertiary)]" />
+          <p className="text-[var(--text-secondary)]">{error || "Staff member not found"}</p>
+          <Link href="/personnel">
+            <Button variant="secondary" size="sm">Back to Personnel</Button>
+          </Link>
+        </PageSection>
+      </AppPage>
     );
   }
 
@@ -147,7 +150,7 @@ export default function PersonnelDetailPage({
   });
 
   return (
-    <div className="space-y-5 max-w-3xl">
+    <AppPage width="base">
       {/* ── Back + Header ── */}
       <div className="flex items-center gap-3">
         <Link
@@ -332,6 +335,6 @@ export default function PersonnelDetailPage({
         personnelName={staff.fullName}
         badgeNumber=""
       />
-    </div>
+    </AppPage>
   );
 }

@@ -3,6 +3,7 @@
 import { use, useState, useEffect, useCallback } from "react";
 import Link from "next/link";
 import { ArrowLeft, ImageIcon, RotateCcw, Trash2, Link2, Pencil, Loader2, AlertCircle } from "lucide-react";
+import { AppPage, PageSection } from "@/components/layout/AppPage";
 import { Button } from "@/components/ui/Button";
 import { StatusBadge } from "@/components/ui/Badge";
 import { Card, CardContent } from "@/components/ui/Card";
@@ -59,24 +60,28 @@ export default function LostFoundDetailPage({
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center py-20">
-        <Loader2 size={24} className="animate-spin text-[var(--text-tertiary)]" />
-      </div>
+      <AppPage width="form">
+        <PageSection className="flex items-center justify-center py-20">
+          <Loader2 size={24} className="animate-spin text-[var(--text-tertiary)]" />
+        </PageSection>
+      </AppPage>
     );
   }
 
   if (error || !item) {
     return (
-      <div className="flex flex-col items-center justify-center py-20 gap-3">
-        <AlertCircle size={24} className="text-[var(--status-critical)]" />
-        <p className="text-[13px] text-[var(--text-tertiary)]">{error || "Item not found"}</p>
-        <Link href="/lost-found"><Button variant="outline" size="sm">Back to Lost &amp; Found</Button></Link>
-      </div>
+      <AppPage width="form">
+        <PageSection className="flex flex-col items-center justify-center gap-3 py-20">
+          <AlertCircle size={24} className="text-[var(--status-critical)]" />
+          <p className="text-[13px] text-[var(--text-tertiary)]">{error || "Item not found"}</p>
+          <Link href="/lost-found"><Button variant="outline" size="sm">Back to Lost &amp; Found</Button></Link>
+        </PageSection>
+      </AppPage>
     );
   }
 
   return (
-    <div className="space-y-5 max-w-2xl">
+    <AppPage width="form">
       {/* ── Back + Header ── */}
       <div className="flex items-center gap-3">
         <Link
@@ -292,6 +297,6 @@ export default function LostFoundDetailPage({
         }}
         itemDescription={item.description}
       />
-    </div>
+    </AppPage>
   );
 }

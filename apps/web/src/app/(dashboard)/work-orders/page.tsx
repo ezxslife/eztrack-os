@@ -199,7 +199,7 @@ export default function WorkOrdersPage() {
 
       {/* ── Filter Bar ── */}
       <div className="flex flex-wrap items-end gap-3">
-        <div className="flex-1 min-w-[200px] max-w-xs">
+        <div className="page-toolbar-search">
           <div className="relative">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-[var(--text-tertiary)]" />
             <input

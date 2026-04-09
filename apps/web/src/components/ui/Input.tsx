@@ -18,7 +18,7 @@ export const Input = forwardRef<HTMLInputElement, InputProps>(
         {label && (
           <label
             htmlFor={inputId}
-            className="block text-[13px] font-medium text-[var(--text-secondary)] mb-1"
+            className="mb-2 block text-[13px] font-semibold tracking-[0.01em] text-[var(--text-secondary)]"
           >
             {label}
           </label>
@@ -31,12 +31,12 @@ export const Input = forwardRef<HTMLInputElement, InputProps>(
             error ? `${inputId}-error` : helperText ? `${inputId}-helper` : undefined
           }
           className={clsx(
-            "w-full h-9 rounded-lg border bg-[var(--surface-primary)] px-3 text-[13px] text-[var(--text-primary)]",
+            "w-full min-h-11 rounded-[var(--input-radius)] border bg-[var(--surface-primary)] px-[var(--input-padding-x)] text-[14px] text-[var(--text-primary)] shadow-[var(--shadow-xs)]",
             "placeholder:text-[var(--text-tertiary)]",
             "transition-all duration-150 ease-out",
-            "focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--focus-ring)] focus-visible:border-[var(--border-focused)]",
+            "focus:outline-none focus-visible:border-[var(--border-focused)] focus-visible:shadow-[var(--focus-ring)]",
             error
-              ? "border-[var(--status-critical)] focus-visible:ring-[var(--status-critical)]"
+              ? "border-[var(--status-critical)] focus-visible:border-[var(--status-critical)]"
               : "border-[var(--border-default)] hover:border-[var(--border-hover)]",
             "disabled:opacity-50 disabled:cursor-not-allowed",
             className
@@ -44,10 +44,10 @@ export const Input = forwardRef<HTMLInputElement, InputProps>(
           {...rest}
         />
         {error && (
-          <p id={`${inputId}-error`} role="alert" className="mt-1 text-xs text-[var(--status-critical)]">{error}</p>
+          <p id={`${inputId}-error`} role="alert" className="mt-1.5 text-[12px] leading-5 text-[var(--status-critical)]">{error}</p>
         )}
         {!error && helperText && (
-          <p id={`${inputId}-helper`} className="mt-1 text-xs text-[var(--text-tertiary)]">{helperText}</p>
+          <p id={`${inputId}-helper`} className="mt-1.5 text-[12px] leading-5 text-[var(--text-tertiary)]">{helperText}</p>
         )}
       </div>
     );

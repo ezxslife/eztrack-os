@@ -4,6 +4,7 @@ import { useState, useEffect, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
 import { ArrowLeft, CheckCircle, Loader2 } from "lucide-react";
 import Link from "next/link";
+import { AppPage, PageHeader, PageSection } from "@/components/layout/AppPage";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { Select } from "@/components/ui/Select";
@@ -111,41 +112,39 @@ export default function NewDailyLogPage() {
 
   if (submitted) {
     return (
-      <div className="flex flex-col items-center justify-center py-20 animate-scale-in">
-        <div className="flex items-center justify-center h-12 w-12 rounded-full bg-[var(--green-500,#10b981)]/12 mb-4">
-          <CheckCircle size={24} className="text-[var(--green-500,#10b981)]" />
-        </div>
-        <h2 className="text-lg font-semibold text-[var(--text-primary)]">
-          Entry Created
-        </h2>
-        <p className="mt-1 text-[13px] text-[var(--text-tertiary)]">
-          {recordNumber ? `${recordNumber} — ` : ""}Redirecting to Daily Log...
-        </p>
-      </div>
+      <AppPage width="form" className="animate-scale-in">
+        <PageSection className="flex flex-col items-center justify-center py-20 text-center">
+          <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-[var(--green-500,#10b981)]/12">
+            <CheckCircle size={24} className="text-[var(--green-500,#10b981)]" />
+          </div>
+          <h2 className="text-lg font-semibold text-[var(--text-primary)]">
+            Entry Created
+          </h2>
+          <p className="mt-1 text-[13px] text-[var(--text-tertiary)]">
+            {recordNumber ? `${recordNumber} — ` : ""}Redirecting to Daily Log...
+          </p>
+        </PageSection>
+      </AppPage>
     );
   }
 
   return (
-    <div className="space-y-5 animate-fade-in">
-      {/* Header */}
-      <div className="flex items-center gap-3">
-        <Link href="/daily-log">
-          <Button variant="ghost" size="sm">
+    <AppPage width="form" className="animate-fade-in">
+      <PageHeader
+        breadcrumbs={
+          <Link
+            href="/daily-log"
+            className="inline-flex items-center gap-1.5 text-[13px] font-medium text-[var(--action-primary)] transition-colors hover:text-[var(--action-primary-hover)]"
+          >
             <ArrowLeft size={14} />
-          </Button>
-        </Link>
-        <div>
-          <h1 className="text-xl font-bold tracking-tight text-[var(--text-primary)]">
-            New Daily Log Entry
-          </h1>
-          <p className="mt-0.5 text-[13px] text-[var(--text-tertiary)]">
-            Create a new daily log entry
-          </p>
-        </div>
-      </div>
+            Daily Log
+          </Link>
+        }
+        title="New Daily Log Entry"
+        subtitle="Create a new daily log entry."
+      />
 
-      {/* Form */}
-      <div className="surface-card max-w-2xl mx-auto p-6">
+      <PageSection padding="lg">
         <form onSubmit={handleSubmit} className="space-y-5">
           <Input
             label="Topic"
@@ -197,7 +196,7 @@ export default function NewDailyLogPage() {
             </Button>
           </div>
         </form>
-      </div>
-    </div>
+      </PageSection>
+    </AppPage>
   );
 }

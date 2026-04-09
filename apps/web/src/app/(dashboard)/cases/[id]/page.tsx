@@ -276,7 +276,7 @@ export default function CaseDetailPage({
               <PriorityBadge priority={c.priority} />
               <Badge tone="info">{STAGES[currentStageIndex]?.label}</Badge>
             </div>
-            <p className="mt-0.5 text-[13px] text-[var(--text-tertiary)] max-w-2xl truncate">
+            <p className="mt-0.5 text-[13px] text-[var(--text-tertiary)] truncate">
               {c.title}
             </p>
           </div>
@@ -774,13 +774,13 @@ function OverviewTab({ c, stageIndex, relatedRecords, auditLog, costs, tasks }: 
                   <div key={stage.key} className="flex items-center flex-1 min-w-0">
                     <div className="flex flex-col items-center gap-1.5 flex-1 min-w-0">
                       <div
-                        className={`w-7 h-7 rounded-full flex items-center justify-center text-[11px] font-bold shrink-0 border-2 transition-colors ${
-                          isComplete
-                            ? "bg-[var(--status-success,#059669)] border-[var(--status-success,#059669)] text-white"
-                            : isCurrent
-                            ? "bg-[var(--action-primary)] border-[var(--action-primary)] text-white"
-                            : "bg-[var(--surface-secondary)] border-[var(--border-default)] text-[var(--text-tertiary)]"
-                        }`}
+                          className={`w-7 h-7 rounded-full flex items-center justify-center text-[11px] font-bold shrink-0 border-2 transition-colors ${
+                            isComplete
+                              ? "bg-[var(--status-success,#059669)] border-[var(--status-success,#059669)] text-[var(--text-on-brand)]"
+                              : isCurrent
+                              ? "bg-[var(--action-primary-fill)] border-[var(--action-primary-fill)] text-[var(--text-on-brand)]"
+                              : "bg-[var(--surface-secondary)] border-[var(--border-default)] text-[var(--text-tertiary)]"
+                          }`}
                       >
                         {isComplete ? <CheckCircle2 size={14} /> : stage.number}
                       </div>
@@ -1411,8 +1411,6 @@ function FinancialTab({ costs, onAddEntry }: { costs: CaseCostEntry[]; onAddEntr
    ================================================================ */
 
 function OutcomeTab({ onDocumentOutcome }: { onDocumentOutcome: () => void }) {
-  const outcomeTypes = ["founded", "unfounded", "inconclusive", "unresolved"];
-
   return (
     <div className="space-y-4">
       <Card>
@@ -1424,17 +1422,12 @@ function OutcomeTab({ onDocumentOutcome }: { onDocumentOutcome: () => void }) {
             <FieldRow label="Outcome Type">
               <div className="space-y-2">
                 <span className="text-[12px] text-[var(--text-tertiary)] italic">Not yet determined</span>
-                <div className="flex gap-2 flex-wrap">
-                  {outcomeTypes.map((t) => (
-                    <button
-                      key={t}
-                      className="px-2.5 py-1 text-[11px] rounded-md border border-[var(--border-default)] text-[var(--text-secondary)] hover:bg-[var(--surface-hover)] transition-colors capitalize"
-                      onClick={onDocumentOutcome}
-                    >
-                      {t}
-                    </button>
-                  ))}
-                </div>
+                <Button size="sm" onClick={onDocumentOutcome}>
+                  Document Outcome
+                </Button>
+                <p className="text-[11px] text-[var(--text-tertiary)]">
+                  Select the outcome type and classification in the documentation flow.
+                </p>
               </div>
             </FieldRow>
             <FieldRow label="Classification" value="—" />

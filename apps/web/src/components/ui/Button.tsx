@@ -4,28 +4,31 @@ import { type ButtonHTMLAttributes, type ReactNode } from "react";
 import clsx from "clsx";
 import { Loader2 } from "lucide-react";
 
-const variantStyles = {
+export const buttonVariantStyles = {
   default:
-    "bg-[var(--action-primary)] text-white hover:bg-[var(--action-primary-hover)] active:bg-[var(--action-primary-pressed)]",
+    "border-transparent bg-[var(--action-primary-fill)] text-[var(--text-on-brand)] shadow-[var(--shadow-sm)] hover:-translate-y-px hover:bg-[var(--action-primary-fill-hover)] hover:shadow-[var(--shadow-md)] active:translate-y-0 active:bg-[var(--action-primary-fill-pressed)]",
   secondary:
-    "bg-[var(--surface-primary)] text-[var(--text-primary)] border border-[var(--border-default)] hover:bg-[var(--surface-hover)] hover:border-[var(--border-hover)] active:bg-[var(--surface-pressed)]",
+    "bg-[var(--action-primary-surface)] text-[var(--action-primary)] border-[var(--action-primary-border)] shadow-[var(--shadow-xs)] hover:bg-[var(--action-primary-surface-hover)] hover:border-[var(--action-primary)] active:bg-[var(--surface-selected)]",
   outline:
-    "bg-transparent text-[var(--text-primary)] border border-[var(--border-default)] hover:bg-[var(--surface-hover)] hover:border-[var(--border-hover)] active:bg-[var(--surface-pressed)]",
+    "bg-[var(--surface-primary)] text-[var(--text-primary)] border-[var(--border-default)] shadow-[var(--shadow-xs)] hover:bg-[var(--surface-hover)] hover:border-[var(--border-hover)] hover:shadow-[var(--shadow-sm)] active:bg-[var(--surface-active)]",
   ghost:
-    "bg-transparent text-[var(--text-primary)] hover:bg-[var(--surface-hover)] active:bg-[var(--surface-pressed)]",
+    "bg-transparent text-[var(--text-secondary)] border-transparent hover:bg-[var(--surface-hover)] hover:text-[var(--text-primary)] active:bg-[var(--surface-active)]",
   destructive:
-    "bg-[var(--status-critical)] text-white hover:bg-[var(--status-critical-hover,#dc2626)] active:bg-[var(--status-critical-pressed,#b91c1c)]",
-  link: "bg-transparent text-[var(--action-primary)] underline-offset-4 hover:underline p-0 h-auto",
+    "border-transparent bg-[var(--action-destructive)] text-[var(--text-on-critical)] shadow-[var(--shadow-sm)] hover:-translate-y-px hover:bg-[var(--action-destructive-hover)] hover:shadow-[var(--shadow-md)] active:translate-y-0 active:bg-[var(--action-destructive-pressed)]",
+  link: "h-auto border-transparent bg-transparent px-0 py-0 text-[var(--action-primary)] underline-offset-4 hover:text-[var(--action-primary-hover)] hover:underline",
 } as const;
 
-const sizeStyles = {
-  sm: "h-7 text-xs px-2.5 gap-1",
-  md: "h-8 text-[13px] px-3 gap-1.5",
-  lg: "h-9 text-sm px-4 gap-2",
+export const buttonSizeStyles = {
+  sm: "min-h-8 px-3 text-[12px] gap-1.5",
+  md: "min-h-10 px-4 text-[13px] gap-2",
+  lg: "min-h-11 px-5 text-[14px] gap-2.5",
 } as const;
 
-type ButtonVariant = keyof typeof variantStyles;
-type ButtonSize = keyof typeof sizeStyles;
+export const buttonBaseClassName =
+  "inline-flex select-none items-center justify-center whitespace-nowrap rounded-[var(--btn-radius)] border font-semibold leading-none transition-[background-color,border-color,color,box-shadow,transform] duration-150 ease-out focus:outline-none focus-visible:border-[var(--border-focused)] focus-visible:shadow-[var(--focus-ring)] active:scale-[0.99] disabled:cursor-not-allowed disabled:opacity-50 disabled:shadow-none disabled:active:scale-100";
+
+export type ButtonVariant = keyof typeof buttonVariantStyles;
+export type ButtonSize = keyof typeof buttonSizeStyles;
 
 interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
   variant?: ButtonVariant;
@@ -45,15 +48,12 @@ export function Button({
 }: ButtonProps) {
   return (
     <button
+      aria-busy={isLoading || undefined}
       disabled={disabled || isLoading}
       className={clsx(
-        "inline-flex items-center justify-center font-medium rounded-lg",
-        "transition-all duration-150 ease-out",
-        "focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--focus-ring)] focus-visible:ring-offset-1 focus-visible:ring-offset-[var(--surface-primary)]",
-        "active:scale-[0.98]",
-        "disabled:opacity-50 disabled:cursor-not-allowed disabled:active:scale-100",
-        variantStyles[variant],
-        variant !== "link" && sizeStyles[size],
+        buttonBaseClassName,
+        buttonVariantStyles[variant],
+        variant !== "link" && buttonSizeStyles[size],
         className
       )}
       {...rest}

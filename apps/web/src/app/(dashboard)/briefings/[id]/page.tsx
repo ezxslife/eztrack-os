@@ -4,9 +4,11 @@ import { use, useState, useEffect, useCallback } from "react";
 import { useToast } from "@/components/ui/Toast";
 import Link from "next/link";
 import { ArrowLeft, CheckCircle2, Send } from "lucide-react";
+import { AppPage, PageHeader, PageSection } from "@/components/layout/AppPage";
 import { Button } from "@/components/ui/Button";
 import { Badge } from "@/components/ui/Badge";
 import { EmptyState } from "@/components/ui/EmptyState";
+import { IconButton } from "@/components/ui/IconButton";
 import { Skeleton } from "@/components/ui/Skeleton";
 import { EditBriefingModal, DeleteBriefingModal } from "@/components/modals/briefings";
 import { Avatar } from "@/components/ui/Avatar";
@@ -79,22 +81,24 @@ export default function BriefingDetailPage({
 
   if (loading) {
     return (
-      <div className="space-y-5 max-w-3xl animate-fade-in">
+      <AppPage width="base" className="animate-fade-in">
         <Skeleton className="h-8 w-64" />
         <Skeleton className="h-6 w-48" />
         <Skeleton className="h-48 w-full" />
-      </div>
+      </AppPage>
     );
   }
 
   if (error || !briefing) {
     return (
-      <div className="flex flex-col items-center justify-center h-64 gap-3">
-        <p className="text-[var(--text-secondary)]">{error || "Briefing not found"}</p>
-        <Link href="/briefings">
-          <Button variant="secondary" size="sm">Back to Briefings</Button>
-        </Link>
-      </div>
+      <AppPage width="base">
+        <PageSection className="flex h-64 flex-col items-center justify-center gap-3">
+          <p className="text-[var(--text-secondary)]">{error || "Briefing not found"}</p>
+          <Link href="/briefings">
+            <Button variant="secondary" size="sm">Back to Briefings</Button>
+          </Link>
+        </PageSection>
+      </AppPage>
     );
   }
 
@@ -119,23 +123,20 @@ export default function BriefingDetailPage({
   const acknowledged = Boolean(yourAcknowledgement);
 
   return (
-    <div className="space-y-5 max-w-3xl">
-      {/* ── Back + Title ── */}
-      <div className="flex items-center gap-3">
-        <Link
-          href="/briefings"
-          className="inline-flex items-center justify-center h-8 w-8 rounded-lg hover:bg-[var(--surface-hover)] transition-colors"
-        >
-          <ArrowLeft className="h-4 w-4 text-[var(--text-secondary)]" />
-        </Link>
-        <div className="flex-1">
-          <h1 className="text-xl font-semibold text-[var(--text-primary)]">
-            {briefing.title}
-          </h1>
-        </div>
-      </div>
+    <AppPage width="base">
+      <PageHeader
+        breadcrumbs={
+          <Link
+            href="/briefings"
+            className="inline-flex items-center gap-1.5 text-[13px] font-medium text-[var(--action-primary)] transition-colors hover:text-[var(--action-primary-hover)]"
+          >
+            <ArrowLeft className="h-4 w-4" />
+            Briefings
+          </Link>
+        }
+        title={briefing.title}
+      />
 
-      {/* ── Meta ── */}
       <div className="flex flex-wrap items-center gap-3">
         <Badge tone={priorityTone[briefing.priority] ?? "info"} dot>
           {briefing.priority.charAt(0).toUpperCase() + briefing.priority.slice(1)} Priority
@@ -151,7 +152,6 @@ export default function BriefingDetailPage({
         </span>
       </div>
 
-      {/* ── Action Buttons ── */}
       <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
         <Button variant="outline" size="md" onClick={() => setEditOpen(true)} className="w-full sm:w-auto">
           Edit
@@ -161,7 +161,6 @@ export default function BriefingDetailPage({
         </Button>
       </div>
 
-      {/* ── Content ── */}
       <Card>
         <CardContent>
           <div className="space-y-3">
@@ -189,7 +188,6 @@ export default function BriefingDetailPage({
         </CardContent>
       </Card>
 
-      {/* ── Acknowledgment Section ── */}
       <Card>
         <CardContent>
           <div className="space-y-4">
@@ -244,7 +242,6 @@ export default function BriefingDetailPage({
         </CardContent>
       </Card>
 
-      {/* ── Reply Input ── */}
       <Card>
         <CardContent>
           <h3 className="text-[13px] font-semibold text-[var(--text-primary)] mb-4">
@@ -290,9 +287,10 @@ export default function BriefingDetailPage({
                 onChange={(e) => setReplyText(e.target.value)}
                 className="w-full h-9 rounded-lg border border-[var(--border-default)] bg-[var(--surface-primary)] pl-3 pr-10 text-[13px] text-[var(--text-primary)] placeholder:text-[var(--text-tertiary)] transition-all duration-150 focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--focus-ring)] focus-visible:border-[var(--border-focused)] hover:border-[var(--border-hover)]"
               />
-              <button
-                className="absolute right-2 top-1/2 -translate-y-1/2 p-1 rounded hover:bg-[var(--surface-hover)] text-[var(--action-primary)] disabled:opacity-40"
+              <IconButton
+                className="absolute right-2 top-1/2 h-8 w-8 -translate-y-1/2 rounded-lg text-[var(--action-primary)] shadow-none hover:bg-[var(--action-primary-surface)]"
                 disabled={!replyText.trim()}
+                label="Send reply"
                 onClick={async () => {
                   try {
                     if (!briefing) throw new Error("Briefing not loaded");
@@ -309,15 +307,17 @@ export default function BriefingDetailPage({
                     toast(err.message || "Failed to save reply", { variant: "error" });
                   }
                 }}
+                size="sm"
+                type="button"
+                variant="ghost"
               >
                 <Send className="h-3.5 w-3.5" />
-              </button>
+              </IconButton>
             </div>
           </div>
         </CardContent>
       </Card>
 
-      {/* ── Modals ── */}
       <EditBriefingModal
         open={editOpen}
         onClose={() => setEditOpen(false)}
@@ -361,6 +361,6 @@ export default function BriefingDetailPage({
           }
         }}
       />
-    </div>
+    </AppPage>
   );
 }

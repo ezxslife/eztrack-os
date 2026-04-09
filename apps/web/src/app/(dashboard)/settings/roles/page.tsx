@@ -3,6 +3,8 @@
 import { useState, useEffect, useCallback } from "react";
 import Link from "next/link";
 import { ArrowLeft, Shield, Loader2, AlertCircle } from "lucide-react";
+import { AppPage, PageSection } from "@/components/layout/AppPage";
+import { SettingsLayout } from "@/components/layout/SettingsLayout";
 import { Card, CardContent } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
 import { useToast } from "@/components/ui/Toast";
@@ -86,50 +88,51 @@ export default function RolesSettingsPage() {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center py-20">
-        <Loader2 className="h-6 w-6 animate-spin text-[var(--text-tertiary)]" />
-      </div>
+      <AppPage width="wide">
+        <PageSection className="flex items-center justify-center py-20">
+          <Loader2 className="h-6 w-6 animate-spin text-[var(--text-tertiary)]" />
+        </PageSection>
+      </AppPage>
     );
   }
 
   if (error) {
     return (
-      <div className="flex flex-col items-center justify-center py-20 gap-3">
-        <AlertCircle className="h-6 w-6 text-red-400" />
-        <p className="text-[13px] text-[var(--text-secondary)]">{error}</p>
-        <Button variant="outline" size="sm" onClick={load}>
-          Retry
-        </Button>
-      </div>
+      <AppPage width="wide">
+        <PageSection className="flex flex-col items-center justify-center gap-3 py-20">
+          <AlertCircle className="h-6 w-6 text-red-400" />
+          <p className="text-[13px] text-[var(--text-secondary)]">{error}</p>
+          <Button variant="outline" size="sm" onClick={load}>
+            Retry
+          </Button>
+        </PageSection>
+      </AppPage>
     );
   }
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-center gap-3">
-        <Link
-          href="/settings"
-          className="inline-flex items-center gap-1 text-[13px] text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-colors"
-        >
-          <ArrowLeft className="h-3.5 w-3.5" />
-          Settings
+    <SettingsLayout
+      title="Roles & Permissions"
+      subtitle="Configure role-based access control. Click a cell to cycle permissions."
+      asideTitle="Access matrix"
+      asideDescription="Use the shared matrix to keep role capability decisions visible at a glance. One grid, one permission cycle, and no duplicated role explanations."
+      secondaryActions={(
+        <Link href="/settings">
+          <Button variant="ghost" size="sm">
+            <ArrowLeft className="h-3.5 w-3.5" />
+            Settings
+          </Button>
         </Link>
-      </div>
-
-      <div>
-        <h1 className="text-2xl font-semibold text-[var(--text-primary)]">Roles &amp; Permissions</h1>
-        <p className="text-[13px] text-[var(--text-secondary)] mt-1">Configure role-based access control. Click a cell to cycle permissions.</p>
-      </div>
-
-      {/* Legend */}
-      <div className="flex items-center gap-4 text-[12px]">
+      )}
+    >
+      <PageSection className="flex flex-wrap items-center gap-4 text-[12px]">
         {permCycle.map((p) => (
           <div key={p} className="flex items-center gap-1.5">
             <span className={`inline-block h-2.5 w-2.5 rounded-sm border ${permColors[p]}`} />
             <span className="text-[var(--text-secondary)] capitalize">{p === "none" ? "No access" : p === "full" ? "Full access" : p === "edit" ? "Create & edit" : "View only"}</span>
           </div>
         ))}
-      </div>
+      </PageSection>
 
       <Card>
         <CardContent className="!p-0">
@@ -160,12 +163,15 @@ export default function RolesSettingsPage() {
                       const perm = role.permissions[mod] ?? "none";
                       return (
                         <td key={role.id} className="px-3 py-2.5 text-center">
-                          <button
+                          <Button
                             onClick={() => cyclePermission(role.id, mod)}
-                            className={`inline-flex items-center justify-center rounded-md border px-2 py-0.5 text-[11px] font-medium capitalize transition-colors hover:opacity-80 cursor-pointer ${permColors[perm]}`}
+                            className={`min-h-8 rounded-lg px-2 text-[11px] font-medium capitalize shadow-none hover:opacity-80 ${permColors[perm]}`}
+                            size="sm"
+                            type="button"
+                            variant="ghost"
                           >
                             {perm}
-                          </button>
+                          </Button>
                         </td>
                       );
                     })}
@@ -182,6 +188,6 @@ export default function RolesSettingsPage() {
           No roles found for this organization.
         </div>
       )}
-    </div>
+    </SettingsLayout>
   );
 }

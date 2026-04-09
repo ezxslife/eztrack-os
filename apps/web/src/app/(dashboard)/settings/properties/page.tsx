@@ -3,6 +3,8 @@
 import { useState, useEffect, useCallback } from "react";
 import Link from "next/link";
 import { ArrowLeft, Plus, Building, MapPin, MoreHorizontal, Loader2, AlertCircle } from "lucide-react";
+import { AppPage, PageSection } from "@/components/layout/AppPage";
+import { SettingsLayout } from "@/components/layout/SettingsLayout";
 import { Button } from "@/components/ui/Button";
 import { Badge } from "@/components/ui/Badge";
 import { EmptyState } from "@/components/ui/EmptyState";
@@ -52,45 +54,47 @@ export default function PropertiesSettingsPage() {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center py-20">
-        <Loader2 className="h-6 w-6 animate-spin text-[var(--text-tertiary)]" />
-      </div>
+      <AppPage width="wide">
+        <PageSection className="flex items-center justify-center py-20">
+          <Loader2 className="h-6 w-6 animate-spin text-[var(--text-tertiary)]" />
+        </PageSection>
+      </AppPage>
     );
   }
 
   if (error) {
     return (
-      <div className="flex flex-col items-center justify-center py-20 gap-3">
-        <AlertCircle className="h-6 w-6 text-red-400" />
-        <p className="text-[13px] text-[var(--text-secondary)]">{error}</p>
-        <Button variant="outline" size="sm" onClick={load}>Retry</Button>
-      </div>
+      <AppPage width="wide">
+        <PageSection className="flex flex-col items-center justify-center gap-3 py-20">
+          <AlertCircle className="h-6 w-6 text-red-400" />
+          <p className="text-[13px] text-[var(--text-secondary)]">{error}</p>
+          <Button variant="outline" size="sm" onClick={load}>Retry</Button>
+        </PageSection>
+      </AppPage>
     );
   }
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-center gap-3">
-        <Link
-          href="/settings"
-          className="inline-flex items-center gap-1 text-[13px] text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-colors"
-        >
-          <ArrowLeft className="h-3.5 w-3.5" />
-          Settings
-        </Link>
-      </div>
-
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-semibold text-[var(--text-primary)]">Properties</h1>
-          <p className="text-[13px] text-[var(--text-secondary)] mt-1">Manage properties and venue sites</p>
-        </div>
+    <SettingsLayout
+      title="Properties"
+      subtitle="Manage properties and venue sites."
+      asideTitle="Property structure"
+      asideDescription="Properties should stay discoverable and lightweight. Use this list to manage site-level organization before drilling into zones and locations."
+      primaryAction={(
         <Button onClick={() => setAddPropertyOpen(true)}>
           <Plus className="h-3.5 w-3.5" />
           Add Property
         </Button>
-      </div>
-
+      )}
+      secondaryActions={(
+        <Link href="/settings">
+          <Button variant="ghost" size="sm">
+            <ArrowLeft className="h-3.5 w-3.5" />
+            Settings
+          </Button>
+        </Link>
+      )}
+    >
       <div className="grid gap-4 sm:grid-cols-2">
         {properties.map((prop) => (
           <Card key={prop.id}>
@@ -154,6 +158,6 @@ export default function PropertiesSettingsPage() {
           }
         }}
       />
-    </div>
+    </SettingsLayout>
   );
 }

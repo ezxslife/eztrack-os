@@ -3,7 +3,6 @@
 import { useState, useMemo, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import {
-  Search,
   Plus,
   Phone,
   Mail,
@@ -11,9 +10,14 @@ import {
   Building2,
   User,
 } from "lucide-react";
+import { AppPage, PageSection } from "@/components/layout/AppPage";
+import { IndexPageLayout } from "@/components/layout/IndexPageLayout";
 import { Button } from "@/components/ui/Button";
 import { Badge } from "@/components/ui/Badge";
 import { EmptyState } from "@/components/ui/EmptyState";
+import { FilterChipGroup } from "@/components/ui/FilterChipGroup";
+import { IconButton } from "@/components/ui/IconButton";
+import { SearchInput } from "@/components/ui/SearchInput";
 import { CreateContactModal } from "@/components/modals/contacts";
 import { fetchContacts, createContact, type ContactRow } from "@/lib/queries/contacts";
 import { getSupabaseBrowser } from "@/lib/supabase-browser";
@@ -118,81 +122,56 @@ export default function ContactsPage() {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center py-20">
-        <Loader2 size={24} className="animate-spin text-[var(--text-tertiary)]" />
-      </div>
+      <AppPage width="full">
+        <PageSection className="flex items-center justify-center py-20">
+          <Loader2 size={24} className="animate-spin text-[var(--text-tertiary)]" />
+        </PageSection>
+      </AppPage>
     );
   }
 
   if (error) {
     return (
-      <div className="flex flex-col items-center justify-center py-20 gap-3">
-        <AlertCircle size={24} className="text-[var(--status-critical)]" />
-        <p className="text-[13px] text-[var(--text-tertiary)]">{error}</p>
-        <Button variant="outline" size="sm" onClick={loadContacts}>Retry</Button>
-      </div>
+      <AppPage width="full">
+        <PageSection className="flex flex-col items-center justify-center gap-3 py-20">
+          <AlertCircle size={24} className="text-[var(--status-critical)]" />
+          <p className="text-[13px] text-[var(--text-tertiary)]">{error}</p>
+          <Button variant="outline" size="sm" onClick={loadContacts}>Retry</Button>
+        </PageSection>
+      </AppPage>
     );
   }
 
   return (
-    <div className="space-y-5 animate-fade-in">
-      {/* Page header */}
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-        <div>
-          <h1 className="text-xl font-bold tracking-tight text-[var(--text-primary)]">
-            Contacts
-          </h1>
-          <p className="mt-0.5 text-[13px] text-[var(--text-tertiary)]">
-            Contact directory and management
-          </p>
-        </div>
+    <IndexPageLayout
+      title="Contacts"
+      subtitle="Contact directory and management."
+      className="animate-fade-in"
+      primaryAction={(
         <Button variant="default" size="md" onClick={() => setCreateOpen(true)} className="w-full sm:w-auto">
           <Plus size={14} />
           Add Contact
         </Button>
-      </div>
-
-      {/* Search bar */}
-      <div className="relative">
-        <Search
-          size={16}
-          className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--text-tertiary)] pointer-events-none"
-        />
-        <input
-          type="text"
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          placeholder="Search by name, organization, or email..."
-          className="w-full h-9 rounded-lg border border-[var(--border-default)] bg-[var(--surface-primary)] pl-9 pr-3 text-[13px] text-[var(--text-primary)] placeholder:text-[var(--text-tertiary)] transition-all duration-150 ease-out focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--focus-ring)] focus-visible:border-[var(--border-focused)] hover:border-[var(--border-hover)]"
-        />
-      </div>
-
-      {/* Filter chips */}
-      <div className="flex items-center gap-1.5 overflow-x-auto">
-        {CATEGORY_FILTERS.map((f) => {
-          const isActive = categoryFilter === f.value;
-          return (
-            <button
-              key={f.value}
-              onClick={() => setCategoryFilter(f.value)}
-              className={`inline-flex items-center px-2.5 py-1 rounded-full text-[12px] font-medium border transition-all duration-150 whitespace-nowrap cursor-pointer ${
-                isActive
-                  ? "bg-[var(--action-primary)] text-white border-[var(--action-primary)]"
-                  : "bg-[var(--surface-secondary)] text-[var(--text-secondary)] border-[var(--border-default)] hover:border-[var(--border-hover)] hover:bg-[var(--surface-hover)]"
-              }`}
-            >
-              {f.label}
-            </button>
-          );
-        })}
-      </div>
-
-      {/* Results count */}
-      <p className="text-[12px] text-[var(--text-tertiary)]">
-        {filtered.length} contact{filtered.length !== 1 ? "s" : ""}
-      </p>
-
-      {/* Table */}
+      )}
+      summary={`${filtered.length} contact${filtered.length !== 1 ? "s" : ""}`}
+      toolbar={(
+        <>
+          <div className="page-toolbar-search">
+            <SearchInput
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder="Search by name, organization, or email..."
+            />
+          </div>
+          <FilterChipGroup
+            ariaLabel="Filter contacts by category"
+            options={CATEGORY_FILTERS}
+            value={categoryFilter}
+            onChange={setCategoryFilter}
+          />
+        </>
+      )}
+    >
       <div className="surface-card overflow-hidden">
         <table className="w-full text-[13px]">
           <thead>
@@ -265,12 +244,16 @@ export default function ContactsPage() {
                     </span>
                   </td>
                   <td className="px-4 py-2.5 text-right">
-                    <button
+                    <IconButton
                       onClick={(e) => e.stopPropagation()}
-                      className="p-1 rounded hover:bg-[var(--surface-hover)] text-[var(--text-tertiary)] hover:text-[var(--text-secondary)] transition-colors cursor-pointer"
+                      className="h-8 w-8 rounded-lg text-[var(--text-secondary)] shadow-none"
+                      label={`More actions for ${contact.firstName} ${contact.lastName}`}
+                      size="sm"
+                      type="button"
+                      variant="ghost"
                     >
                       <MoreHorizontal size={14} />
-                    </button>
+                    </IconButton>
                   </td>
                 </tr>
               );
@@ -290,7 +273,6 @@ export default function ContactsPage() {
         </div>
       )}
 
-      {/* ── Modals ── */}
       <CreateContactModal
         open={createOpen}
         onClose={() => setCreateOpen(false)}
@@ -317,6 +299,6 @@ export default function ContactsPage() {
           }
         }}
       />
-    </div>
+    </IndexPageLayout>
   );
 }

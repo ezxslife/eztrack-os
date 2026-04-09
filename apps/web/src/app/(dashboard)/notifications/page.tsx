@@ -1,5 +1,6 @@
 "use client";
 
+import { resolveNotificationRoute } from "@eztrack/shared";
 import { useState, useEffect, useMemo, useCallback } from "react";
 import Link from "next/link";
 import {
@@ -17,8 +18,11 @@ import {
   CheckCheck,
   Loader2,
 } from "lucide-react";
+import { AppPage, PageSection } from "@/components/layout/AppPage";
+import { IndexPageLayout } from "@/components/layout/IndexPageLayout";
 import { Button } from "@/components/ui/Button";
 import { Badge } from "@/components/ui/Badge";
+import { SegmentedControl } from "@/components/ui/SegmentedControl";
 import { useToast } from "@/components/ui/Toast";
 import { useRealtimeSubscription } from "@/hooks/useRealtimeSubscription";
 import { getSupabaseBrowser } from "@/lib/supabase-browser";
@@ -121,7 +125,11 @@ function dbRowToNotification(row: NotificationRow): Notification {
     description: row.message || "",
     timestamp,
     read: row.read,
-    href: row.actionUrl || "#",
+    href: resolveNotificationRoute({
+      actionUrl: row.actionUrl,
+      metadata: row.metadata,
+      type: row.type,
+    }),
     group,
   };
 }
@@ -236,28 +244,36 @@ export default function NotificationsPage() {
     }
   };
 
+  if (loading) {
+    return (
+      <AppPage width="full">
+        <PageSection className="flex items-center justify-center py-20">
+          <Loader2 size={24} className="animate-spin text-[var(--text-tertiary)]" />
+        </PageSection>
+      </AppPage>
+    );
+  }
+
+  if (error) {
+    return (
+      <AppPage width="full">
+        <PageSection className="flex flex-col items-center justify-center gap-3 py-20">
+          <p className="text-center text-[13px] text-[var(--status-critical)]">{error}</p>
+          <Button variant="outline" size="sm" onClick={loadNotifications}>
+            Retry
+          </Button>
+        </PageSection>
+      </AppPage>
+    );
+  }
+
   return (
-    <div className="space-y-5">
-      {/* ── Page Header ── */}
-      <div className="flex items-start justify-between gap-4">
-        <div className="flex items-center gap-3">
-          <div>
-            <div className="flex items-center gap-2">
-              <h1 className="text-xl font-semibold text-[var(--text-primary)]">
-                Notifications
-              </h1>
-              {unreadCount > 0 && (
-                <Badge tone="info" dot>
-                  {unreadCount} unread
-                </Badge>
-              )}
-            </div>
-            <p className="text-[13px] text-[var(--text-tertiary)] mt-0.5">
-              Stay updated on incidents, dispatches, and system events
-            </p>
-          </div>
-        </div>
-        <div className="flex items-center gap-2">
+    <IndexPageLayout
+      title="Notifications"
+      subtitle="Stay updated on incidents, dispatches, and system events."
+      summary={unreadCount > 0 ? `${unreadCount} unread` : "All caught up"}
+      secondaryActions={(
+        <div className="flex flex-wrap items-center gap-2">
           <Button variant="secondary" size="sm" onClick={markAllRead}>
             <CheckCheck className="h-3.5 w-3.5" />
             Mark All Read
@@ -269,39 +285,29 @@ export default function NotificationsPage() {
             </Button>
           </Link>
         </div>
-      </div>
-
-      {/* ── Filter Tabs ── */}
-      <div className="flex items-center gap-1 border-b border-[var(--border-default)]">
-        {TABS.map((tab) => (
-          <button
-            key={tab.value}
-            onClick={() => setActiveTab(tab.value)}
-            className={`px-3 py-2 text-[13px] font-medium transition-colors duration-150 border-b-2 -mb-px ${
-              activeTab === tab.value
-                ? "text-[var(--action-primary)] border-[var(--action-primary)]"
-                : "text-[var(--text-tertiary)] border-transparent hover:text-[var(--text-secondary)] hover:border-[var(--border-hover)]"
-            }`}
-          >
-            {tab.label}
-          </button>
-        ))}
-      </div>
-
-      {/* ── Loading / Error ── */}
-      {loading && (
-        <div className="flex items-center justify-center py-12">
-          <Loader2 size={24} className="animate-spin" style={{ color: "var(--text-tertiary)" }} />
-        </div>
       )}
-      {error && !loading && (
-        <div className="text-center py-8 text-[13px]" style={{ color: "var(--status-critical)" }}>
-          {error}
-        </div>
+      toolbar={(
+        <>
+          <div className="flex flex-wrap items-center gap-2">
+            <SegmentedControl
+              ariaLabel="Notification filters"
+              options={TABS.map((tab) => ({ value: tab.value, label: tab.label }))}
+              scrollable
+              value={activeTab}
+              onChange={setActiveTab}
+            />
+          </div>
+          {unreadCount > 0 ? (
+            <div className="flex items-center gap-2 text-[12px] text-[var(--text-tertiary)]">
+              <Badge tone="info" dot>
+                {unreadCount} unread
+              </Badge>
+            </div>
+          ) : null}
+        </>
       )}
-
-      {/* ── Notification List ── */}
-      {!loading && !error && <div className="space-y-5">
+    >
+      <div className="space-y-5">
         {(["today", "yesterday", "earlier"] as const).map((groupKey) => {
           const items = grouped[groupKey];
           if (!items || items.length === 0) return null;
@@ -383,7 +389,7 @@ export default function NotificationsPage() {
             No notifications match this filter
           </div>
         )}
-      </div>}
-    </div>
+      </div>
+    </IndexPageLayout>
   );
 }

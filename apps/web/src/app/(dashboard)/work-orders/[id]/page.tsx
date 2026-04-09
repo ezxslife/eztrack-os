@@ -20,6 +20,7 @@ import {
   MessageSquare,
   RefreshCw,
 } from "lucide-react";
+import { AppPage, PageSection } from "@/components/layout/AppPage";
 import { Button } from "@/components/ui/Button";
 import { Badge, StatusBadge } from "@/components/ui/Badge";
 import { PriorityBadge } from "@/components/ui/PriorityBadge";
@@ -124,19 +125,23 @@ export default function WorkOrderDetailPage({
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center py-20">
-        <Loader2 size={24} className="animate-spin text-[var(--text-tertiary)]" />
-      </div>
+      <AppPage width="base">
+        <PageSection className="flex items-center justify-center py-20">
+          <Loader2 size={24} className="animate-spin text-[var(--text-tertiary)]" />
+        </PageSection>
+      </AppPage>
     );
   }
 
   if (error || !workOrderData) {
     return (
-      <div className="flex flex-col items-center justify-center py-20 gap-3">
-        <AlertCircle size={24} className="text-[var(--status-critical)]" />
-        <p className="text-[13px] text-[var(--text-tertiary)]">{error || "Work order not found"}</p>
-        <Link href="/work-orders"><Button variant="outline" size="sm">Back to Work Orders</Button></Link>
-      </div>
+      <AppPage width="base">
+        <PageSection className="flex flex-col items-center justify-center gap-3 py-20">
+          <AlertCircle size={24} className="text-[var(--status-critical)]" />
+          <p className="text-[13px] text-[var(--text-tertiary)]">{error || "Work order not found"}</p>
+          <Link href="/work-orders"><Button variant="outline" size="sm">Back to Work Orders</Button></Link>
+        </PageSection>
+      </AppPage>
     );
   }
 
@@ -175,7 +180,7 @@ export default function WorkOrderDetailPage({
   const progressPercent = Math.round(((currentStepIndex + 1) / STATUS_STEPS.length) * 100);
 
   return (
-    <div className="space-y-5 max-w-3xl pb-24">
+    <AppPage width="base" className="pb-24">
       {/* ── Header ── */}
       <div className="flex items-start gap-3">
         <Link
@@ -230,7 +235,7 @@ export default function WorkOrderDetailPage({
                         }}
                       >
                         {isCompleted ? (
-                          <CheckCircle2 className="h-4 w-4 text-white" />
+                          <CheckCircle2 className="h-4 w-4 text-[var(--text-on-brand)]" />
                         ) : (
                           <Circle className="h-3 w-3 text-[var(--text-tertiary)]" />
                         )}
@@ -323,8 +328,8 @@ export default function WorkOrderDetailPage({
             <div
               className="flex items-center justify-center h-9 w-9 rounded-full shrink-0 text-[12px] font-semibold"
               style={{
-                backgroundColor: "var(--action-primary)",
-                color: "white",
+                backgroundColor: "var(--action-primary-fill)",
+                color: "var(--text-on-brand)",
               }}
             >
               {wo.assignedTo.initials}
@@ -551,7 +556,7 @@ export default function WorkOrderDetailPage({
           borderColor: "var(--border-default)",
         }}
       >
-        <div className="mx-auto flex max-w-3xl flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div className="mx-auto flex w-full max-w-[var(--page-max-base)] flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div className="flex items-center gap-2">
             <CircleDot className="h-3.5 w-3.5 text-[var(--text-tertiary)]" />
             <span className="text-[13px] text-[var(--text-secondary)]">
@@ -681,6 +686,6 @@ export default function WorkOrderDetailPage({
           }
         }}
       />
-    </div>
+    </AppPage>
   );
 }

@@ -221,7 +221,7 @@ export default function DailyLogPage() {
 
       {/* Filter bar */}
       <div className="flex flex-wrap items-end gap-3">
-        <div className="flex-1 min-w-[200px] max-w-sm">
+        <div className="page-toolbar-search">
           <Input
             placeholder="Search logs..."
             value={searchQuery}

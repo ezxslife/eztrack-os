@@ -27,7 +27,7 @@ export function EmptyState({
     <div
       role="status"
       className={clsx(
-        "flex flex-col items-center justify-center py-12 px-4 text-center",
+        "flex flex-col items-center justify-center px-[var(--card-padding-sm)] py-12 text-center sm:px-[var(--card-padding-md)]",
         className
       )}
     >

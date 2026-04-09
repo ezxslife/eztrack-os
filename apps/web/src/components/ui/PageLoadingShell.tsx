@@ -14,7 +14,7 @@ export function PageLoadingShell({
   rows = 6,
 }: PageLoadingShellProps) {
   return (
-    <div aria-label={label} className="space-y-5 animate-fade-in">
+    <div aria-label={label} className="space-y-[var(--page-section-gap)] animate-fade-in">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div className="space-y-2">
           <Skeleton className="h-7 w-40 sm:w-56" />

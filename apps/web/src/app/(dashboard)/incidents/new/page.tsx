@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { ArrowLeft, CheckCircle, Loader2 } from "lucide-react";
 import { INCIDENT_TYPES } from "@eztrack/shared";
+import { AppPage, PageHeader, PageSection } from "@/components/layout/AppPage";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { Select } from "@/components/ui/Select";
@@ -138,8 +139,8 @@ export default function CreateIncidentPage() {
 
   if (submitted) {
     return (
-      <div className="max-w-2xl mx-auto">
-        <div className="rounded-xl border border-[var(--border-default)] bg-[var(--surface-primary)] p-8 text-center">
+      <AppPage width="form">
+        <PageSection padding="lg" className="text-center">
           <div className="inline-flex items-center justify-center h-12 w-12 rounded-full bg-[var(--status-success-surface,#ecfdf5)] mb-4">
             <CheckCircle className="h-6 w-6 text-[var(--status-success,#059669)]" />
           </div>
@@ -179,31 +180,29 @@ export default function CreateIncidentPage() {
               Create Another
             </Button>
           </div>
-        </div>
-      </div>
+        </PageSection>
+      </AppPage>
     );
   }
 
   return (
-    <div className="max-w-2xl mx-auto">
-      {/* ── Back + Title ── */}
-      <div className="mb-6">
-        <Link
-          href="/incidents"
-          className="inline-flex items-center gap-1.5 text-[13px] text-[var(--text-tertiary)] hover:text-[var(--text-secondary)] transition-colors mb-3"
-        >
-          <ArrowLeft className="h-3.5 w-3.5" />
-          Back to Incidents
-        </Link>
-        <h1 className="text-xl font-semibold text-[var(--text-primary)]">Create Incident</h1>
-        <p className="text-[13px] text-[var(--text-tertiary)] mt-0.5">
-          Report a new security incident for tracking and investigation
-        </p>
-      </div>
+    <AppPage width="form">
+      <PageHeader
+        breadcrumbs={
+          <Link
+            href="/incidents"
+            className="inline-flex items-center gap-1.5 text-[13px] font-medium text-[var(--action-primary)] transition-colors hover:text-[var(--action-primary-hover)]"
+          >
+            <ArrowLeft className="h-3.5 w-3.5" />
+            Incidents
+          </Link>
+        }
+        title="Create Incident"
+        subtitle="Report a new security incident for tracking and investigation."
+      />
 
-      {/* ── Form Card ── */}
       <form onSubmit={handleSubmit}>
-        <div className="rounded-xl border border-[var(--border-default)] bg-[var(--surface-primary)] p-5 space-y-5">
+        <PageSection className="space-y-5">
           {/* Row: Type + Severity */}
           <div className="grid grid-cols-2 gap-4">
             <Select
@@ -261,7 +260,7 @@ export default function CreateIncidentPage() {
             value={form.reporterName}
             onChange={(e) => updateField("reporterName", e.target.value)}
           />
-        </div>
+        </PageSection>
 
         {/* ── Actions ── */}
         <div className="flex items-center justify-end gap-3 mt-5">
@@ -275,6 +274,6 @@ export default function CreateIncidentPage() {
           </Button>
         </div>
       </form>
-    </div>
+    </AppPage>
   );
 }
