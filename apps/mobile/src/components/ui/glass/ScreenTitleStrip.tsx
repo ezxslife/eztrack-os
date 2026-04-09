@@ -1,5 +1,6 @@
-import { StyleSheet, Text, View } from "react-native";
+import { Platform, StyleSheet, Text, View } from "react-native";
 
+import { useAdaptiveLayout } from "@/theme/layout";
 import {
   useThemeColors,
   useThemeSpacing,
@@ -18,21 +19,24 @@ export function ScreenTitleStrip({
   const colors = useThemeColors();
   const spacing = useThemeSpacing();
   const typography = useThemeTypography();
+  const layout = useAdaptiveLayout();
 
   const styles = StyleSheet.create({
     container: {
       gap: spacing[0.5],
-      paddingBottom: spacing[3],
-      paddingTop: spacing[2],
+      paddingBottom: layout.isRegularWidth ? spacing[4] : spacing[3],
+      paddingTop: spacing[1],
     },
     subtitle: {
       ...typography.subheadline,
       color: colors.textSecondary,
-      maxWidth: 640,
+      lineHeight: 21,
+      maxWidth: layout.contentMaxWidth,
     },
     title: {
-      ...typography.title1,
+      ...(Platform.OS === "ios" ? typography.largeTitle : typography.title1),
       color: colors.textPrimary,
+      maxWidth: layout.contentMaxWidth,
     },
   });
 

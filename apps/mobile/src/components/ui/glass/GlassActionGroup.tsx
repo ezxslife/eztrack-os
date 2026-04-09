@@ -1,12 +1,15 @@
 import { Ionicons } from "@expo/vector-icons";
 import { StyleSheet, Text, View } from "react-native";
 
+import { AppSymbol } from "@/components/ui/AppSymbol";
 import { GlassPill } from "@/components/ui/glass/GlassPill";
 import { MaterialSurface } from "@/components/ui/MaterialSurface";
 import { useThemeColors, useThemeTypography } from "@/theme";
+import type { SFSymbol } from "expo-symbols";
 
 interface ActionItem {
   icon?: keyof typeof Ionicons.glyphMap;
+  iosSymbol?: SFSymbol;
   label: string;
   onPress: () => void;
 }
@@ -57,7 +60,13 @@ export function GlassActionGroup({ actions }: GlassActionGroupProps) {
           >
             <View style={styles.iconLabel}>
               {action.icon ? (
-                <Ionicons color={colors.textPrimary} name={action.icon} size={16} />
+                <AppSymbol
+                  color={colors.textPrimary}
+                  fallbackName={action.icon}
+                  iosName={action.iosSymbol}
+                  size={16}
+                  weight="medium"
+                />
               ) : null}
               <Text style={styles.label}>{action.label}</Text>
             </View>

@@ -1,5 +1,6 @@
 import { ReactNode } from "react";
 import {
+  Platform,
   RefreshControl,
   ScrollView,
   StyleSheet,
@@ -8,6 +9,7 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 
 import { ScreenTitleStrip } from "@/components/ui/glass/ScreenTitleStrip";
+import { useAdaptiveLayout } from "@/theme/layout";
 import {
   useThemeColors,
   useThemeSpacing,
@@ -16,6 +18,7 @@ import {
 interface ScreenContainerProps {
   accessory?: ReactNode;
   children: ReactNode;
+  iosNativeHeader?: boolean;
   onRefresh?: () => void;
   padded?: boolean;
   refreshing?: boolean;
@@ -26,6 +29,7 @@ interface ScreenContainerProps {
 export function ScreenContainer({
   accessory,
   children,
+  iosNativeHeader = false,
   onRefresh,
   padded = true,
   refreshing = false,
@@ -34,22 +38,38 @@ export function ScreenContainer({
 }: ScreenContainerProps) {
   const colors = useThemeColors();
   const spacing = useThemeSpacing();
+  const layout = useAdaptiveLayout();
   const styles = StyleSheet.create({
     accessory: {
       marginBottom: spacing[4],
     },
     body: {
-      gap: spacing[4],
+      gap: layout.bodyGap,
     },
     content: {
       paddingBottom: spacing[8],
-      paddingHorizontal: spacing[4],
+      paddingHorizontal: layout.horizontalPadding,
+    },
+    contentInner: {
+      alignSelf: "center",
+      maxWidth: layout.contentMaxWidth,
+      width: "100%",
     },
     contentCompact: {
-      paddingTop: spacing[3],
+      paddingTop:
+        Platform.OS === "ios" && iosNativeHeader
+          ? spacing[2]
+          : layout.isRegularWidth
+            ? spacing[4]
+            : spacing[3],
     },
     contentPadded: {
-      paddingTop: spacing[5],
+      paddingTop:
+        Platform.OS === "ios" && iosNativeHeader
+          ? spacing[2]
+          : layout.isRegularWidth
+            ? spacing[6]
+            : spacing[5],
     },
     safeArea: {
       backgroundColor: colors.background,
@@ -78,9 +98,13 @@ export function ScreenContainer({
         }
         showsVerticalScrollIndicator={false}
       >
-        <ScreenTitleStrip subtitle={subtitle} title={title} />
-        {accessory ? <View style={styles.accessory}>{accessory}</View> : null}
-        <View style={styles.body}>{children}</View>
+        <View style={styles.contentInner}>
+          {Platform.OS === "ios" && iosNativeHeader ? null : (
+            <ScreenTitleStrip subtitle={subtitle} title={title} />
+          )}
+          {accessory ? <View style={styles.accessory}>{accessory}</View> : null}
+          <View style={styles.body}>{children}</View>
+        </View>
       </ScrollView>
     </SafeAreaView>
   );

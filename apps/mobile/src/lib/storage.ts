@@ -41,10 +41,12 @@ const secretSecureStoreOptions = {
 
 export const USER_SCOPED_STORAGE_KEYS = {
   auth: "eztrack-mobile-auth",
+  coachMarks: "eztrack-mobile-coach-marks",
   drafts: "eztrack-mobile-drafts",
   filters: "eztrack-mobile-filters",
   offline: "eztrack-mobile-offline",
   organization: "eztrack-mobile-org",
+  recentSearches: "eztrack-mobile-recent-searches",
 } as const;
 
 const userScopedStorageKeyList = Object.values(USER_SCOPED_STORAGE_KEYS);

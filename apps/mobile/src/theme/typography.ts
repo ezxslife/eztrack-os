@@ -1,4 +1,4 @@
-export const typography = {
+const baseTypography = {
   largeTitle: { fontSize: 34, fontWeight: "700" as const, lineHeight: 41, letterSpacing: 0.37 },
   title1: { fontSize: 28, fontWeight: "700" as const, lineHeight: 34, letterSpacing: 0.36 },
   title2: { fontSize: 22, fontWeight: "700" as const, lineHeight: 28, letterSpacing: 0.35 },
@@ -11,6 +11,30 @@ export const typography = {
   caption1: { fontSize: 12, fontWeight: "400" as const, lineHeight: 16, letterSpacing: 0 },
   caption2: { fontSize: 11, fontWeight: "400" as const, lineHeight: 13, letterSpacing: 0.07 },
 } as const;
+
+export type ThemeTypography = typeof baseTypography;
+
+function getScaledLineHeight(lineHeight: number, fontScale: number) {
+  if (fontScale <= 1) {
+    return lineHeight;
+  }
+
+  return Math.round(lineHeight * Math.min(fontScale, 1.45));
+}
+
+export function createTypography(fontScale: number): ThemeTypography {
+  return Object.fromEntries(
+    Object.entries(baseTypography).map(([key, value]) => [
+      key,
+      {
+        ...value,
+        lineHeight: getScaledLineHeight(value.lineHeight, fontScale),
+      },
+    ])
+  ) as ThemeTypography;
+}
+
+export const typography = createTypography(1);
 
 export const fontWeights = {
   light: "300" as const,

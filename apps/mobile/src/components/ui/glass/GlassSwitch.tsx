@@ -1,7 +1,10 @@
-import * as Haptics from "expo-haptics";
-import { Platform, Pressable, StyleSheet, View } from "react-native";
+import {
+  Platform,
+  Switch,
+} from "react-native";
 
-import { useThemeColors } from "@/theme";
+import { triggerSelectionHaptic } from "@/lib/haptics";
+import { useThemeControls } from "@/theme";
 
 interface GlassSwitchProps {
   onToggle: (value: boolean) => void;
@@ -9,45 +12,18 @@ interface GlassSwitchProps {
 }
 
 export function GlassSwitch({ onToggle, value }: GlassSwitchProps) {
-  const colors = useThemeColors();
-
-  const styles = StyleSheet.create({
-    thumb: {
-      backgroundColor: "#FFFFFF",
-      borderRadius: 14,
-      height: 28,
-      shadowColor: "#000000",
-      shadowOffset: { width: 0, height: 4 },
-      shadowOpacity: 0.16,
-      shadowRadius: 10,
-      transform: [{ translateX: value ? 24 : 0 }],
-      width: 28,
-    },
-    track: {
-      backgroundColor: value ? "rgba(6, 182, 212, 0.3)" : colors.surfaceSecondary,
-      borderColor: value ? colors.primaryStrong : colors.borderSubtle,
-      borderRadius: 20,
-      borderWidth: 1,
-      padding: 4,
-      width: 60,
-    },
-  });
+  const controls = useThemeControls();
 
   return (
-    <Pressable
-      accessibilityRole="switch"
-      accessibilityState={{ checked: value }}
-      onPress={() => {
-        if (Platform.OS !== "web") {
-          void Haptics.selectionAsync();
-        }
-
-        onToggle(!value);
+    <Switch
+      ios_backgroundColor={controls.switchTrackFalse}
+      onValueChange={(nextValue) => {
+        triggerSelectionHaptic();
+        onToggle(nextValue);
       }}
-    >
-      <View style={styles.track}>
-        <View style={styles.thumb} />
-      </View>
-    </Pressable>
+      thumbColor={Platform.OS === "android" ? "#FFFFFF" : undefined}
+      trackColor={{ false: controls.switchTrackFalse, true: controls.switchTrackTrue }}
+      value={value}
+    />
   );
 }

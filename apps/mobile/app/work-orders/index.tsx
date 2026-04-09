@@ -8,6 +8,7 @@ import {
 } from "react-native";
 
 import { ScreenContainer } from "@/components/layout/ScreenContainer";
+import { useIOSNativeSearchHeader } from "@/navigation/useIOSNativeSearchHeader";
 import { Button } from "@/components/ui/Button";
 import { FilterChips } from "@/components/ui/FilterChips";
 import { PriorityBadge } from "@/components/ui/PriorityBadge";
@@ -20,7 +21,8 @@ import {
   defaultFilterState,
   useFilterStore,
 } from "@/stores/filter-store";
-import { useThemeColors } from "@/theme";
+import { useThemeColors, useThemeTypography } from "@/theme";
+import { useAdaptiveLayout } from "@/theme/layout";
 
 const moduleKey = "work-orders";
 const statusFilters = [
@@ -33,7 +35,8 @@ const statusFilters = [
 
 export default function WorkOrdersScreen() {
   const colors = useThemeColors();
-  const styles = createStyles(colors);
+  const typography = useThemeTypography();
+  const layout = useAdaptiveLayout();
   const router = useRouter();
   const workOrdersQuery = useWorkOrders();
   const rows = workOrdersQuery.data ?? [];
@@ -46,6 +49,13 @@ export default function WorkOrdersScreen() {
   const selectedStatusLabel =
     statusFilters.find((filter) => filter.value === selectedStatus)?.label ??
     "All";
+  const { nativeIOSHeader } = useIOSNativeSearchHeader({
+    placeholder: "Search work order number, title, category, or assignee",
+    query,
+    setQuery: (value) => setFilter(moduleKey, { search: value }),
+    title: "Work Orders",
+  });
+  const styles = createStyles(colors, layout, typography);
 
   const filtered = useMemo(
     () =>
@@ -72,11 +82,14 @@ export default function WorkOrdersScreen() {
     <ScreenContainer
       accessory={
         <View style={styles.accessory}>
-          <SearchField
-            onChangeText={(value) => setFilter(moduleKey, { search: value })}
-            placeholder="Search work order number, title, category, or assignee"
-            value={query}
-          />
+          {!nativeIOSHeader ? (
+            <SearchField
+              onChangeText={(value) => setFilter(moduleKey, { search: value })}
+              placeholder="Search work order number, title, category, or assignee"
+              style={styles.searchField}
+              value={query}
+            />
+          ) : null}
           <FilterChips
             onSelect={(value) => {
               const match = statusFilters.find((filter) => filter.label === value);
@@ -92,6 +105,7 @@ export default function WorkOrdersScreen() {
           />
         </View>
       }
+      iosNativeHeader={nativeIOSHeader}
       onRefresh={() => {
         void workOrdersQuery.refetch();
       }}
@@ -146,43 +160,53 @@ export default function WorkOrdersScreen() {
   );
 }
 
-function createStyles(colors: ReturnType<typeof useThemeColors>) {
+function createStyles(
+  colors: ReturnType<typeof useThemeColors>,
+  layout: ReturnType<typeof useAdaptiveLayout>,
+  typography: ReturnType<typeof useThemeTypography>
+) {
   return StyleSheet.create({
     accessory: {
-      gap: 12,
+      flexDirection: "row",
+      flexWrap: "wrap",
+      gap: layout.gridGap,
     },
     card: {
       backgroundColor: colors.surfaceSecondary,
       borderRadius: 18,
       gap: 8,
-      padding: 14,
+      padding: layout.listItemPadding,
     },
     emptyCopy: {
+      ...typography.subheadline,
       color: colors.textTertiary,
-      fontSize: 14,
-      lineHeight: 20,
     },
     list: {
-      gap: 12,
+      gap: layout.gridGap,
     },
     meta: {
+      ...typography.footnote,
       color: colors.textTertiary,
-      fontSize: 13,
     },
     rowBetween: {
-      alignItems: "center",
+      alignItems: "flex-start",
       flexDirection: "row",
       gap: 12,
       justifyContent: "space-between",
     },
+    searchField: {
+      width: "100%",
+    },
     title: {
+      ...typography.headline,
       color: colors.textPrimary,
-      fontSize: 16,
       fontWeight: "700",
+      flex: 1,
+      paddingRight: 12,
     },
     type: {
+      ...typography.subheadline,
       color: colors.textPrimary,
-      fontSize: 15,
       fontWeight: "600",
     },
   });

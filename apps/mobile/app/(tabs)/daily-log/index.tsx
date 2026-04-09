@@ -12,11 +12,13 @@ import {
 } from "react-native";
 
 import { ScreenContainer } from "@/components/layout/ScreenContainer";
+import { useIOSNativeSearchHeader } from "@/navigation/useIOSNativeSearchHeader";
 import { Button } from "@/components/ui/Button";
 import { MaterialSurface } from "@/components/ui/MaterialSurface";
 import { SearchField } from "@/components/ui/SearchField";
 import { SectionCard } from "@/components/ui/SectionCard";
 import { formatRelativeTimestamp } from "@/lib/format";
+import { triggerNotificationHaptic } from "@/lib/haptics";
 import {
   useCreateDailyLogMutation,
   useDailyLogs,
@@ -32,14 +34,16 @@ import {
   useFilterStore,
 } from "@/stores/filter-store";
 import { useOfflineStore } from "@/stores/offline-store";
-import { useThemeColors } from "@/theme";
+import { useThemeColors, useThemeTypography } from "@/theme";
+import { useAdaptiveLayout } from "@/theme/layout";
 
 const filterModuleKey = "daily-log";
 const quickEntryModuleKey = "daily-log-quick-entry";
 
 export default function DailyLogScreen() {
   const colors = useThemeColors();
-  const styles = createStyles(colors);
+  const typography = useThemeTypography();
+  const layout = useAdaptiveLayout();
   const router = useRouter();
   const filtersState = useFilterStore(
     (state) => state.filters[filterModuleKey] ?? defaultFilterState
@@ -68,6 +72,13 @@ export default function DailyLogScreen() {
     )
   );
   const query = filtersState.search;
+  const { nativeIOSHeader } = useIOSNativeSearchHeader({
+    placeholder: "Search previous log entries or people",
+    query,
+    setQuery: (value) => setFilter(filterModuleKey, { search: value }),
+    title: "Daily Log",
+  });
+  const styles = createStyles(colors, layout, typography);
 
   const logs = (logsQuery.data ?? []).filter((log) =>
     [log.recordNumber, log.topic, log.synopsis, log.location]
@@ -111,6 +122,7 @@ export default function DailyLogScreen() {
         synopsis: draft.trim(),
         topic: draft.trim().slice(0, 60) || "Field note",
       });
+      triggerNotificationHaptic("success");
       clearModuleDrafts(quickEntryModuleKey);
       setDraft("");
       Alert.alert(
@@ -120,6 +132,7 @@ export default function DailyLogScreen() {
           : "The entry has been saved. Use the full form when you need location or priority changes."
       );
     } catch (error) {
+      triggerNotificationHaptic("error");
       Alert.alert(
         "Save failed",
         error instanceof Error ? error.message : "Could not queue the daily log."
@@ -130,12 +143,16 @@ export default function DailyLogScreen() {
   return (
     <ScreenContainer
       accessory={
-        <SearchField
-          onChangeText={(value) => setFilter(filterModuleKey, { search: value })}
-          placeholder="Search previous log entries or people"
-          value={query}
-        />
+        !nativeIOSHeader ? (
+          <SearchField
+            onChangeText={(value) => setFilter(filterModuleKey, { search: value })}
+            placeholder="Search previous log entries or people"
+            style={styles.searchField}
+            value={query}
+          />
+        ) : undefined
       }
+      iosNativeHeader={nativeIOSHeader}
       onRefresh={() => {
         void Promise.all([logsQuery.refetch(), locationsQuery.refetch()]);
       }}
@@ -252,94 +269,97 @@ export default function DailyLogScreen() {
   );
 }
 
-function createStyles(colors: ReturnType<typeof useThemeColors>) {
+function createStyles(
+  colors: ReturnType<typeof useThemeColors>,
+  layout: ReturnType<typeof useAdaptiveLayout>,
+  typography: ReturnType<typeof useThemeTypography>
+) {
   return StyleSheet.create({
     actions: {
       marginTop: 16,
     },
     copy: {
+      ...typography.subheadline,
       color: colors.textSecondary,
-      fontSize: 15,
-      lineHeight: 22,
     },
     helper: {
+      ...typography.footnote,
       color: colors.textTertiary,
-      fontSize: 13,
-      lineHeight: 18,
     },
     hero: {
-      gap: 12,
+      gap: layout.gridGap,
     },
     heroActions: {
       flexDirection: "row",
       flexWrap: "wrap",
-      gap: 10,
+      gap: layout.gridGap,
     },
     heroCopy: {
+      ...typography.subheadline,
       color: colors.textSecondary,
-      fontSize: 14,
-      lineHeight: 20,
     },
     heroInput: {
       backgroundColor: colors.input,
       borderRadius: 18,
       color: colors.textPrimary,
-      fontSize: 15,
+      ...typography.subheadline,
       minHeight: 110,
-      paddingHorizontal: 14,
-      paddingVertical: 14,
+      paddingHorizontal: layout.listItemPadding,
+      paddingVertical: layout.listItemPadding,
     },
     heroTitle: {
+      ...typography.title2,
       color: colors.textPrimary,
-      fontSize: 22,
       fontWeight: "700",
     },
     item: {
+      ...typography.subheadline,
       color: colors.textSecondary,
-      fontSize: 15,
-      lineHeight: 22,
     },
     list: {
-      gap: 10,
+      gap: layout.gridGap,
     },
     meta: {
+      ...typography.caption1,
       color: colors.textTertiary,
-      fontSize: 12,
       marginTop: 8,
     },
     pendingMeta: {
+      ...typography.caption1,
       color: colors.accentSoft,
-      fontSize: 12,
       fontWeight: "600",
       marginTop: 8,
     },
     priority: {
+      ...typography.caption1,
       color: colors.accentSoft,
-      fontSize: 12,
       fontWeight: "700",
     },
     rowActions: {
       flexDirection: "row",
       flexWrap: "wrap",
-      gap: 10,
+      gap: layout.gridGap,
       marginTop: 12,
     },
     row: {
       backgroundColor: colors.surfaceSecondary,
       borderRadius: 18,
-      padding: 14,
+      padding: layout.listItemPadding,
     },
     rowHeader: {
-      alignItems: "center",
+      alignItems: "flex-start",
       flexDirection: "row",
       gap: 12,
       justifyContent: "space-between",
       marginBottom: 8,
     },
+    searchField: {
+      width: "100%",
+    },
     topic: {
+      ...typography.subheadline,
       color: colors.textPrimary,
       flex: 1,
-      fontSize: 15,
       fontWeight: "700",
     },
   });

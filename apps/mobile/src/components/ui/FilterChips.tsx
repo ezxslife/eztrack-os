@@ -1,11 +1,7 @@
-import * as Haptics from "expo-haptics";
-import {
-  Platform,
-  ScrollView,
-  StyleSheet,
-} from "react-native";
+import { ScrollView, StyleSheet } from "react-native";
 
 import { GlassPill } from "@/components/ui/glass/GlassPill";
+import { triggerSelectionHaptic } from "@/lib/haptics";
 
 interface FilterChipsProps {
   options: string[];
@@ -39,9 +35,7 @@ export function FilterChips({
             key={option}
             label={option}
             onPress={() => {
-              if (Platform.OS !== "web") {
-                void Haptics.selectionAsync();
-              }
+              triggerSelectionHaptic();
               onSelect(option);
             }}
             selected={isSelected}

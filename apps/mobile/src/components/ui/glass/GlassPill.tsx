@@ -1,4 +1,3 @@
-import * as Haptics from "expo-haptics";
 import { type ReactNode } from "react";
 import {
   Platform,
@@ -12,6 +11,8 @@ import {
 } from "react-native";
 
 import { MaterialSurface } from "@/components/ui/MaterialSurface";
+import { triggerSelectionHaptic } from "@/lib/haptics";
+import { useAdaptiveLayout } from "@/theme/layout";
 import { useThemeColors, useThemeTypography } from "@/theme";
 
 interface GlassPillProps {
@@ -45,7 +46,15 @@ export function GlassPill({
 }: GlassPillProps) {
   const colors = useThemeColors();
   const typography = useThemeTypography();
-  const metrics = sizeMap[size];
+  const layout = useAdaptiveLayout();
+  const baseMetrics = sizeMap[size];
+  const metrics = {
+    ...baseMetrics,
+    minHeight: Math.max(
+      baseMetrics.minHeight,
+      size === "sm" ? layout.compactControlMinHeight : layout.controlMinHeight
+    ),
+  };
 
   const styles = StyleSheet.create({
     content: {
@@ -54,6 +63,7 @@ export function GlassPill({
       gap: 8,
       justifyContent: "center",
       minHeight: metrics.minHeight,
+      maxWidth: "100%",
       paddingHorizontal: metrics.paddingHorizontal,
       paddingVertical: metrics.paddingVertical,
     },
@@ -64,7 +74,10 @@ export function GlassPill({
     },
     label: {
       ...typography.footnote,
-      fontWeight: "700",
+      flexShrink: 1,
+      fontWeight: Platform.OS === "ios" ? "600" : "700",
+      lineHeight: 18,
+      textAlign: "center",
     },
     outlineBorder: {
       borderColor: selected ? colors.primaryStrong : colors.borderSubtle,
@@ -92,9 +105,7 @@ export function GlassPill({
       return;
     }
 
-    if (Platform.OS !== "web") {
-      void Haptics.selectionAsync();
-    }
+    triggerSelectionHaptic();
 
     onPress();
   };
@@ -119,7 +130,7 @@ export function GlassPill({
         <MaterialSurface
           padding={0}
           style={variant === "tinted" ? styles.tintedBorder : styles.outlineBorder}
-          variant={variant === "tinted" ? "cta" : "subtle"}
+          variant={variant === "tinted" ? "cta" : "grouped"}
         >
           {content}
         </MaterialSurface>

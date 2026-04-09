@@ -15,11 +15,14 @@ import {
   useModuleActivityCounts,
   usePatronFlagDistribution,
 } from "@/lib/queries/analytics";
-import { useThemeColors } from "@/theme";
+import { useThemeColors, useThemeTypography } from "@/theme";
+import { useAdaptiveLayout } from "@/theme/layout";
 
 export default function AnalyticsScreen() {
   const colors = useThemeColors();
-  const styles = createStyles(colors);
+  const typography = useThemeTypography();
+  const layout = useAdaptiveLayout();
+  const styles = createStyles(colors, layout, typography);
   const byStatusQuery = useIncidentsByStatus();
   const byTypeQuery = useIncidentsByType();
   const overTimeQuery = useIncidentsOverTime();
@@ -138,43 +141,46 @@ export default function AnalyticsScreen() {
   );
 }
 
-function createStyles(colors: ReturnType<typeof useThemeColors>) {
+function createStyles(
+  colors: ReturnType<typeof useThemeColors>,
+  layout: ReturnType<typeof useAdaptiveLayout>,
+  typography: ReturnType<typeof useThemeTypography>
+) {
   return StyleSheet.create({
     copy: {
+      ...typography.subheadline,
       color: colors.textSecondary,
-      fontSize: 15,
-      lineHeight: 22,
     },
     eyebrow: {
+      ...typography.caption1,
       color: colors.accentSoft,
-      fontSize: 12,
       fontWeight: "700",
       textTransform: "uppercase",
     },
     grid: {
       flexDirection: "row",
       flexWrap: "wrap",
-      gap: 12,
+      gap: layout.gridGap,
     },
     hero: {
-      gap: 8,
+      gap: layout.gridGap,
     },
     list: {
-      gap: 12,
+      gap: layout.gridGap,
     },
     row: {
       backgroundColor: colors.surfaceSecondary,
       borderRadius: 18,
       gap: 6,
-      padding: 14,
+      padding: layout.listItemPadding,
     },
     rowMeta: {
+      ...typography.footnote,
       color: colors.textTertiary,
-      fontSize: 13,
     },
     rowTitle: {
+      ...typography.subheadline,
       color: colors.textPrimary,
-      fontSize: 15,
       fontWeight: "700",
     },
     statCard: {
@@ -182,25 +188,26 @@ function createStyles(colors: ReturnType<typeof useThemeColors>) {
       borderColor: colors.divider,
       borderRadius: 20,
       borderWidth: 1,
+      flexBasis: layout.isRegularWidth ? layout.minGridColumnWidth : "47%",
       flexGrow: 1,
-      minWidth: "47%",
-      padding: 16,
+      minWidth: layout.isRegularWidth ? layout.minGridColumnWidth : undefined,
+      padding: layout.cardPadding,
     },
     statLabel: {
+      ...typography.caption1,
       color: colors.textSecondary,
-      fontSize: 12,
       fontWeight: "700",
       textTransform: "uppercase",
     },
     statValue: {
+      ...typography.title1,
       color: colors.textPrimary,
-      fontSize: 28,
       fontWeight: "700",
       marginTop: 10,
     },
     title: {
+      ...typography.title1,
       color: colors.textPrimary,
-      fontSize: 24,
       fontWeight: "700",
     },
   });

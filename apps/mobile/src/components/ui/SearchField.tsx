@@ -1,26 +1,46 @@
-import { Ionicons } from "@expo/vector-icons";
-import { StyleSheet, TextInput, View } from "react-native";
+import {
+  type NativeSyntheticEvent,
+  Platform,
+  type StyleProp,
+  StyleSheet,
+  TextInput,
+  type TextInputSubmitEditingEventData,
+  type ViewStyle,
+  View,
+} from "react-native";
 
+import { AppSymbol } from "@/components/ui/AppSymbol";
 import { MaterialSurface } from "@/components/ui/MaterialSurface";
-import { useThemeColors } from "@/theme";
+import { useAdaptiveLayout } from "@/theme/layout";
+import { useThemeColors, useThemeControls, useThemeTypography } from "@/theme";
 
 interface SearchFieldProps {
   onChangeText?: (value: string) => void;
+  onSubmitEditing?: (
+    event: NativeSyntheticEvent<TextInputSubmitEditingEventData>
+  ) => void;
   placeholder: string;
+  style?: StyleProp<ViewStyle>;
   value: string;
 }
 
 export function SearchField({
   onChangeText,
+  onSubmitEditing,
   placeholder,
+  style,
   value,
 }: SearchFieldProps) {
   const colors = useThemeColors();
+  const controls = useThemeControls();
+  const typography = useThemeTypography();
+  const layout = useAdaptiveLayout();
   const styles = StyleSheet.create({
     input: {
+      ...typography.body,
       color: colors.textPrimary,
       flex: 1,
-      fontSize: 16,
+      minHeight: layout.controlMinHeight - 12,
       paddingVertical: 0,
     },
     row: {
@@ -29,18 +49,33 @@ export function SearchField({
       gap: 10,
     },
     surface: {
-      paddingHorizontal: 14,
-      paddingVertical: 10,
+      backgroundColor: Platform.OS === "ios" ? controls.searchFieldFill : undefined,
+      minHeight: layout.controlMinHeight,
+      paddingHorizontal: layout.isRegularWidth ? 16 : 14,
+      paddingVertical: Platform.OS === "ios" ? 9 : 10,
     },
   });
 
   return (
-    <MaterialSurface intensity={64} style={styles.surface} variant="subtle">
+    <MaterialSurface
+      intensity={48}
+      style={[styles.surface, style]}
+      variant={Platform.OS === "ios" ? "grouped" : "subtle"}
+    >
       <View style={styles.row}>
-        <Ionicons name="search" size={18} color={colors.textTertiary} />
+        <AppSymbol
+          color={colors.textTertiary}
+          fallbackName="search"
+          iosName="magnifyingglass"
+          size={18}
+          weight="medium"
+        />
         <TextInput
+          autoCapitalize="none"
+          autoCorrect={false}
           clearButtonMode="while-editing"
           onChangeText={onChangeText}
+          onSubmitEditing={onSubmitEditing}
           placeholder={placeholder}
           placeholderTextColor={colors.textTertiary}
           returnKeyType="search"

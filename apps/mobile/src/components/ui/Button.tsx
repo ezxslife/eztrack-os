@@ -1,4 +1,3 @@
-import * as Haptics from "expo-haptics";
 import {
   ActivityIndicator,
   Platform,
@@ -11,9 +10,11 @@ import {
 
 import {
   useThemeColors,
+  useThemeControls,
   useThemeTypography,
 } from "@/theme";
-import { useUIStore } from "@/stores/ui-store";
+import { triggerImpactHaptic, triggerSelectionHaptic } from "@/lib/haptics";
+import { useAdaptiveLayout } from "@/theme/layout";
 
 interface ButtonProps {
   disabled?: boolean;
@@ -33,24 +34,28 @@ export function Button({
   style,
 }: ButtonProps) {
   const colors = useThemeColors();
-  const sensoryEnabled = useUIStore((state) => state.sensoryEnabled);
+  const controls = useThemeControls();
   const typography = useThemeTypography();
+  const layout = useAdaptiveLayout();
 
   const styles = StyleSheet.create({
     base: {
       alignItems: "center",
       borderRadius: 999,
       justifyContent: "center",
-      minHeight: variant === "plain" ? 36 : 44,
-      paddingHorizontal: variant === "plain" ? 0 : 18,
-      paddingVertical: variant === "plain" ? 0 : 11,
+      minHeight:
+        variant === "plain"
+          ? layout.compactControlMinHeight
+          : layout.controlMinHeight,
+      paddingHorizontal: variant === "plain" ? 0 : layout.isRegularWidth ? 20 : 18,
+      paddingVertical: variant === "plain" ? 0 : Platform.OS === "ios" ? 10 : 11,
     },
     disabled: {
       opacity: 0.52,
     },
     label: {
       ...typography.subheadline,
-      fontWeight: "700",
+      fontWeight: Platform.OS === "ios" ? "600" : "700",
     },
     plain: {
       backgroundColor: "transparent",
@@ -59,8 +64,8 @@ export function Button({
       color: colors.primaryStrong,
     },
     pressed: {
-      opacity: 0.84,
-      transform: [{ scale: 0.985 }],
+      opacity: Platform.OS === "ios" ? 0.72 : 0.84,
+      transform: Platform.OS === "ios" ? [] : [{ scale: 0.985 }],
     },
     primary: {
       backgroundColor: colors.primaryStrong,
@@ -69,12 +74,12 @@ export function Button({
       color: colors.primaryText,
     },
     secondary: {
-      backgroundColor: colors.surfaceSecondary,
-      borderColor: colors.borderSubtle,
-      borderWidth: 1,
+      backgroundColor: controls.secondaryButtonFill,
+      borderColor: Platform.OS === "ios" ? "transparent" : colors.borderSubtle,
+      borderWidth: Platform.OS === "ios" ? 0 : 1,
     },
     secondaryLabel: {
-      color: colors.textPrimary,
+      color: Platform.OS === "ios" ? controls.secondaryButtonLabel : colors.textPrimary,
     },
   });
 
@@ -83,12 +88,10 @@ export function Button({
       return;
     }
 
-    if (sensoryEnabled && Platform.OS !== "web") {
-      if (variant === "primary") {
-        void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-      } else {
-        void Haptics.selectionAsync();
-      }
+    if (variant === "primary") {
+      triggerImpactHaptic();
+    } else {
+      triggerSelectionHaptic();
     }
 
     onPress();
@@ -117,7 +120,7 @@ export function Button({
             variant === "primary"
               ? colors.primaryText
               : variant === "secondary"
-                ? colors.textPrimary
+                ? colors.primaryStrong
                 : colors.primaryStrong
           }
           size="small"

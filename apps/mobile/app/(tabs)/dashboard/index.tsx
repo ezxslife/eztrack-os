@@ -5,6 +5,7 @@ import { Pressable, StyleSheet, Text, View } from "react-native";
 import { NAV_ITEMS, ROLE_DISPLAY } from "@eztrack/shared";
 
 import { ScreenContainer } from "@/components/layout/ScreenContainer";
+import { useIOSNativeSearchHeader } from "@/navigation/useIOSNativeSearchHeader";
 import { Button } from "@/components/ui/Button";
 import { MaterialSurface } from "@/components/ui/MaterialSurface";
 import { SearchField } from "@/components/ui/SearchField";
@@ -16,13 +17,36 @@ import {
   useRecentActivity,
 } from "@/lib/queries/dashboard";
 import { useOperationalSearch } from "@/lib/queries/search";
-import { useThemeColors } from "@/theme";
+import { useRecentSearchStore } from "@/stores/recent-search-store";
+import { useThemeColors, useThemeTypography } from "@/theme";
+import { useAdaptiveLayout } from "@/theme/layout";
+
+const searchScope = "dashboard-global";
 
 export default function DashboardScreen() {
   const colors = useThemeColors();
-  const styles = createStyles(colors);
+  const typography = useThemeTypography();
+  const layout = useAdaptiveLayout();
   const router = useRouter();
   const [query, setQuery] = useState("");
+  const recentSearches = useRecentSearchStore(
+    (state) => state.entriesByScope[searchScope] ?? []
+  );
+  const addRecentSearch = useRecentSearchStore((state) => state.addRecentSearch);
+  const clearRecentSearches = useRecentSearchStore(
+    (state) => state.clearRecentSearches
+  );
+  const handleSearchSubmit = (value: string) => {
+    addRecentSearch(searchScope, value);
+  };
+  const { nativeIOSHeader } = useIOSNativeSearchHeader({
+    onSubmit: handleSearchSubmit,
+    placeholder: "Search incidents, dispatches, or logs",
+    query,
+    setQuery,
+    title: "Operations Overview",
+  });
+  const styles = createStyles(colors, layout, typography);
   const { profile, usePreviewData } = useSessionContext();
   const statsQuery = useDashboardStats();
   const activityQuery = useRecentActivity(8);
@@ -44,14 +68,19 @@ export default function DashboardScreen() {
   return (
     <ScreenContainer
       accessory={
-        <View style={styles.accessory}>
-          <SearchField
-            onChangeText={setQuery}
-            placeholder="Search incidents, dispatches, or logs"
-            value={query}
-          />
-        </View>
+        !nativeIOSHeader ? (
+          <View style={styles.accessory}>
+            <SearchField
+              onChangeText={setQuery}
+              onSubmitEditing={() => handleSearchSubmit(query)}
+              placeholder="Search incidents, dispatches, or logs"
+              style={styles.searchField}
+              value={query}
+            />
+          </View>
+        ) : undefined
       }
+      iosNativeHeader={nativeIOSHeader}
       onRefresh={() => {
         void Promise.all([
           statsQuery.refetch(),
@@ -107,6 +136,32 @@ export default function DashboardScreen() {
         </SectionCard>
       ) : (
         <>
+          {recentSearches.length ? (
+            <SectionCard
+              subtitle="Persisted per operator on this device."
+              title="Recent searches"
+            >
+              <View style={styles.recentSearchList}>
+                <View style={styles.recentSearchChips}>
+                  {recentSearches.map((entry) => (
+                    <Pressable
+                      key={entry.query}
+                      onPress={() => setQuery(entry.query)}
+                      style={styles.recentSearchChip}
+                    >
+                      <Text style={styles.recentSearchLabel}>{entry.query}</Text>
+                    </Pressable>
+                  ))}
+                </View>
+                <Button
+                  label="Clear Recent Searches"
+                  onPress={() => clearRecentSearches(searchScope)}
+                  variant="plain"
+                />
+              </View>
+            </SectionCard>
+          ) : null}
+
           <View style={styles.statsGrid}>
             {statCards.map((item) => (
               <View key={item.label} style={styles.statCard}>
@@ -175,7 +230,9 @@ function SearchGroup({
   title,
 }: SearchGroupProps) {
   const colors = useThemeColors();
-  const styles = createStyles(colors);
+  const typography = useThemeTypography();
+  const layout = useAdaptiveLayout();
+  const styles = createStyles(colors, layout, typography);
 
   return (
     <View style={styles.list}>
@@ -200,33 +257,37 @@ function SearchGroup({
   );
 }
 
-function createStyles(colors: ReturnType<typeof useThemeColors>) {
+function createStyles(
+  colors: ReturnType<typeof useThemeColors>,
+  layout: ReturnType<typeof useAdaptiveLayout>,
+  typography: ReturnType<typeof useThemeTypography>
+) {
   return StyleSheet.create({
     accessory: {
-      gap: 12,
+      flexDirection: "row",
+      flexWrap: "wrap",
+      gap: layout.gridGap,
     },
     emptyCopy: {
+      ...typography.subheadline,
       color: colors.textTertiary,
-      fontSize: 14,
-      lineHeight: 20,
     },
     hero: {
-      gap: 16,
-      padding: 18,
+      gap: layout.gridGap,
+      padding: layout.cardPadding,
     },
     heroActions: {
       flexDirection: "row",
       flexWrap: "wrap",
-      gap: 10,
+      gap: layout.gridGap,
     },
     heroCopy: {
+      ...typography.subheadline,
       color: colors.textSecondary,
-      fontSize: 15,
-      lineHeight: 22,
     },
     heroEyebrow: {
+      ...typography.caption1,
       color: colors.accentSoft,
-      fontSize: 12,
       fontWeight: "700",
       letterSpacing: 0.4,
       textTransform: "uppercase",
@@ -235,38 +296,60 @@ function createStyles(colors: ReturnType<typeof useThemeColors>) {
       gap: 6,
     },
     heroTitle: {
+      ...typography.title1,
       color: colors.textPrimary,
-      fontSize: 25,
       fontWeight: "700",
       letterSpacing: -0.5,
     },
     list: {
-      gap: 12,
+      gap: layout.gridGap,
     },
     preview: {
+      ...typography.footnote,
       color: colors.accentSoft,
-      fontSize: 13,
       fontWeight: "700",
+    },
+    recentSearchChip: {
+      backgroundColor: colors.surfaceSecondary,
+      borderRadius: 999,
+      paddingHorizontal: 14,
+      paddingVertical: 10,
+    },
+    recentSearchChips: {
+      flexDirection: "row",
+      flexWrap: "wrap",
+      gap: 10,
+    },
+    recentSearchLabel: {
+      ...typography.subheadline,
+      color: colors.textPrimary,
+      fontWeight: "600",
+    },
+    recentSearchList: {
+      gap: 14,
     },
     row: {
       backgroundColor: colors.surfaceSecondary,
       borderRadius: 14,
-      paddingHorizontal: 14,
-      paddingVertical: 12,
+      paddingHorizontal: layout.listItemPadding,
+      paddingVertical: layout.listItemPadding - 2,
     },
     rowMeta: {
+      ...typography.footnote,
       color: colors.textTertiary,
-      fontSize: 13,
       marginTop: 4,
     },
     rowTitle: {
+      ...typography.subheadline,
       color: colors.textPrimary,
-      fontSize: 15,
       fontWeight: "600",
     },
+    searchField: {
+      width: "100%",
+    },
     sectionLabel: {
+      ...typography.subheadline,
       color: colors.textPrimary,
-      fontSize: 14,
       fontWeight: "700",
     },
     statCard: {
@@ -274,27 +357,28 @@ function createStyles(colors: ReturnType<typeof useThemeColors>) {
       borderColor: colors.divider,
       borderRadius: 22,
       borderWidth: 1,
+      flexBasis: layout.isRegularWidth ? layout.minGridColumnWidth : "47%",
       flexGrow: 1,
-      minWidth: "47%",
-      padding: 16,
+      minWidth: layout.isRegularWidth ? layout.minGridColumnWidth : undefined,
+      padding: layout.cardPadding,
     },
     statLabel: {
+      ...typography.caption1,
       color: colors.textSecondary,
-      fontSize: 12,
       fontWeight: "700",
       letterSpacing: 0.3,
       textTransform: "uppercase",
     },
     statValue: {
+      ...typography.title1,
       color: colors.textPrimary,
-      fontSize: 30,
       fontWeight: "700",
       marginTop: 10,
     },
     statsGrid: {
       flexDirection: "row",
       flexWrap: "wrap",
-      gap: 12,
+      gap: layout.gridGap,
     },
   });
 }

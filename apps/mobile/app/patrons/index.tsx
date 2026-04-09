@@ -8,6 +8,7 @@ import {
 } from "react-native";
 
 import { ScreenContainer } from "@/components/layout/ScreenContainer";
+import { useIOSNativeSearchHeader } from "@/navigation/useIOSNativeSearchHeader";
 import { Button } from "@/components/ui/Button";
 import { FilterChips } from "@/components/ui/FilterChips";
 import { SearchField } from "@/components/ui/SearchField";
@@ -19,7 +20,8 @@ import {
   defaultFilterState,
   useFilterStore,
 } from "@/stores/filter-store";
-import { useThemeColors } from "@/theme";
+import { useThemeColors, useThemeTypography } from "@/theme";
+import { useAdaptiveLayout } from "@/theme/layout";
 
 const moduleKey = "patrons";
 const flagFilters = [
@@ -32,7 +34,8 @@ const flagFilters = [
 
 export default function PatronsScreen() {
   const colors = useThemeColors();
-  const styles = createStyles(colors);
+  const typography = useThemeTypography();
+  const layout = useAdaptiveLayout();
   const router = useRouter();
   const patronsQuery = usePatrons();
   const patrons = patronsQuery.data ?? [];
@@ -44,6 +47,13 @@ export default function PatronsScreen() {
   const selectedFlag = filtersState.status;
   const selectedFlagLabel =
     flagFilters.find((filter) => filter.value === selectedFlag)?.label ?? "All";
+  const { nativeIOSHeader } = useIOSNativeSearchHeader({
+    placeholder: "Search patrons, contact info, or notes",
+    query,
+    setQuery: (value) => setFilter(moduleKey, { search: value }),
+    title: "Patrons",
+  });
+  const styles = createStyles(colors, layout, typography);
 
   const filtered = useMemo(
     () =>
@@ -71,11 +81,14 @@ export default function PatronsScreen() {
     <ScreenContainer
       accessory={
         <View style={styles.accessory}>
-          <SearchField
-            onChangeText={(value) => setFilter(moduleKey, { search: value })}
-            placeholder="Search patrons, contact info, or notes"
-            value={query}
-          />
+          {!nativeIOSHeader ? (
+            <SearchField
+              onChangeText={(value) => setFilter(moduleKey, { search: value })}
+              placeholder="Search patrons, contact info, or notes"
+              style={styles.searchField}
+              value={query}
+            />
+          ) : null}
           <FilterChips
             onSelect={(value) => {
               const match = flagFilters.find((filter) => filter.label === value);
@@ -91,6 +104,7 @@ export default function PatronsScreen() {
           />
         </View>
       }
+      iosNativeHeader={nativeIOSHeader}
       onRefresh={() => {
         void patronsQuery.refetch();
       }}
@@ -151,47 +165,54 @@ export default function PatronsScreen() {
   );
 }
 
-function createStyles(colors: ReturnType<typeof useThemeColors>) {
+function createStyles(
+  colors: ReturnType<typeof useThemeColors>,
+  layout: ReturnType<typeof useAdaptiveLayout>,
+  typography: ReturnType<typeof useThemeTypography>
+) {
   return StyleSheet.create({
     accessory: {
-      gap: 12,
+      flexDirection: "row",
+      flexWrap: "wrap",
+      gap: layout.gridGap,
     },
     card: {
       backgroundColor: colors.surfaceSecondary,
       borderRadius: 18,
       gap: 8,
-      padding: 14,
+      padding: layout.listItemPadding,
     },
     copy: {
+      ...typography.subheadline,
       color: colors.textSecondary,
-      fontSize: 14,
-      lineHeight: 20,
     },
     emptyCopy: {
+      ...typography.subheadline,
       color: colors.textTertiary,
-      fontSize: 14,
-      lineHeight: 20,
     },
     grow: {
       flex: 1,
       gap: 4,
     },
     list: {
-      gap: 12,
+      gap: layout.gridGap,
     },
     meta: {
+      ...typography.footnote,
       color: colors.textTertiary,
-      fontSize: 13,
     },
     rowBetween: {
-      alignItems: "center",
+      alignItems: "flex-start",
       flexDirection: "row",
       gap: 12,
       justifyContent: "space-between",
     },
+    searchField: {
+      width: "100%",
+    },
     title: {
+      ...typography.headline,
       color: colors.textPrimary,
-      fontSize: 16,
       fontWeight: "700",
     },
   });

@@ -26,7 +26,7 @@ export function GlassSegmentedControl({
   });
 
   return (
-    <MaterialSurface variant="subtle">
+    <MaterialSurface variant="grouped">
       <View style={styles.row}>
         {segments.map((segment, index) => (
           <GlassPill

@@ -1,7 +1,8 @@
 import { ReactNode } from "react";
 import { StyleSheet, Text, View } from "react-native";
 
-import { GlassCard } from "@/components/ui/glass/GlassCard";
+import { MaterialSurface } from "@/components/ui/MaterialSurface";
+import { useAdaptiveLayout } from "@/theme/layout";
 import {
   useThemeColors,
   useThemeTypography,
@@ -22,12 +23,13 @@ export function SectionCard({
 }: SectionCardProps) {
   const colors = useThemeColors();
   const typography = useThemeTypography();
+  const layout = useAdaptiveLayout();
   const styles = StyleSheet.create({
     card: {
-      gap: 14,
+      gap: layout.cardPadding - 2,
     },
     footer: {
-      paddingTop: 4,
+      paddingTop: 6,
     },
     header: {
       gap: 4,
@@ -45,13 +47,13 @@ export function SectionCard({
   });
 
   return (
-    <GlassCard style={styles.card}>
+    <MaterialSurface padding={layout.cardPadding} style={styles.card} variant="grouped">
       <View style={styles.header}>
         <Text style={styles.title}>{title}</Text>
         {subtitle ? <Text style={styles.subtitle}>{subtitle}</Text> : null}
       </View>
       {children}
       {footer ? <View style={styles.footer}>{footer}</View> : null}
-    </GlassCard>
+    </MaterialSurface>
   );
 }

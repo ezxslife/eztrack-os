@@ -1,17 +1,20 @@
-import * as Haptics from "expo-haptics";
 import { Ionicons } from "@expo/vector-icons";
-import { Platform, Pressable, StyleSheet, Text, View } from "react-native";
+import { Pressable, StyleSheet, Text, View } from "react-native";
 
+import { AppSymbol } from "@/components/ui/AppSymbol";
 import { MaterialSurface } from "@/components/ui/MaterialSurface";
+import { triggerImpactHaptic } from "@/lib/haptics";
 import { useThemeColors, useThemeTypography } from "@/theme";
+import type { SFSymbol } from "expo-symbols";
 
 interface GlassFABProps {
   icon: keyof typeof Ionicons.glyphMap;
+  iosSymbol?: SFSymbol;
   label: string;
   onPress: () => void;
 }
 
-export function GlassFAB({ icon, label, onPress }: GlassFABProps) {
+export function GlassFAB({ icon, iosSymbol, label, onPress }: GlassFABProps) {
   const colors = useThemeColors();
   const typography = useThemeTypography();
 
@@ -39,17 +42,20 @@ export function GlassFAB({ icon, label, onPress }: GlassFABProps) {
     <Pressable
       accessibilityRole="button"
       onPress={() => {
-        if (Platform.OS !== "web") {
-          void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-        }
-
+        triggerImpactHaptic();
         onPress();
       }}
       style={({ pressed }) => [pressed && styles.pressed]}
     >
       <MaterialSurface padding={0} variant="cta">
         <View style={styles.content}>
-          <Ionicons color={colors.primaryStrong} name={icon} size={18} />
+          <AppSymbol
+            color={colors.primaryStrong}
+            fallbackName={icon}
+            iosName={iosSymbol}
+            size={18}
+            weight="semibold"
+          />
           <Text style={styles.label}>{label}</Text>
         </View>
       </MaterialSurface>

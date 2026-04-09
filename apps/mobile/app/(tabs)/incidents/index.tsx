@@ -8,6 +8,7 @@ import {
 } from "react-native";
 
 import { ScreenContainer } from "@/components/layout/ScreenContainer";
+import { useIOSNativeSearchHeader } from "@/navigation/useIOSNativeSearchHeader";
 import { Button } from "@/components/ui/Button";
 import { FilterChips } from "@/components/ui/FilterChips";
 import { PriorityBadge } from "@/components/ui/PriorityBadge";
@@ -20,7 +21,8 @@ import {
   defaultFilterState,
   useFilterStore,
 } from "@/stores/filter-store";
-import { useThemeColors } from "@/theme";
+import { useThemeColors, useThemeTypography } from "@/theme";
+import { useAdaptiveLayout } from "@/theme/layout";
 
 const moduleKey = "incidents";
 const filters = [
@@ -32,7 +34,8 @@ const filters = [
 
 export default function IncidentsScreen() {
   const colors = useThemeColors();
-  const styles = createStyles(colors);
+  const typography = useThemeTypography();
+  const layout = useAdaptiveLayout();
   const router = useRouter();
   const incidentsQuery = useIncidents();
   const incidents = incidentsQuery.data ?? [];
@@ -45,6 +48,13 @@ export default function IncidentsScreen() {
   const selectedFilterLabel =
     filters.find((filter) => filter.value === selectedFilterValue)?.label ??
     "All";
+  const { nativeIOSHeader } = useIOSNativeSearchHeader({
+    placeholder: "Search by record, type, or location",
+    query,
+    setQuery: (value) => setFilter(moduleKey, { search: value }),
+    title: "Incidents",
+  });
+  const styles = createStyles(colors, layout, typography);
 
   const filtered = useMemo(() => {
     return incidents.filter((incident) => {
@@ -67,11 +77,14 @@ export default function IncidentsScreen() {
     <ScreenContainer
       accessory={
         <View style={styles.accessory}>
-          <SearchField
-            onChangeText={(value) => setFilter(moduleKey, { search: value })}
-            placeholder="Search by record, type, or location"
-            value={query}
-          />
+          {!nativeIOSHeader ? (
+            <SearchField
+              onChangeText={(value) => setFilter(moduleKey, { search: value })}
+              placeholder="Search by record, type, or location"
+              style={styles.searchField}
+              value={query}
+            />
+          ) : null}
           <FilterChips
             onSelect={(value) => {
               const match = filters.find((filter) => filter.label === value);
@@ -82,6 +95,7 @@ export default function IncidentsScreen() {
           />
         </View>
       }
+      iosNativeHeader={nativeIOSHeader}
       onRefresh={() => {
         void incidentsQuery.refetch();
       }}
@@ -143,54 +157,63 @@ export default function IncidentsScreen() {
   );
 }
 
-function createStyles(colors: ReturnType<typeof useThemeColors>) {
+function createStyles(
+  colors: ReturnType<typeof useThemeColors>,
+  layout: ReturnType<typeof useAdaptiveLayout>,
+  typography: ReturnType<typeof useThemeTypography>
+) {
   return StyleSheet.create({
     accessory: {
-      gap: 12,
+      flexDirection: "row",
+      flexWrap: "wrap",
+      gap: layout.gridGap,
     },
     card: {
       backgroundColor: colors.surfaceSecondary,
       borderRadius: 18,
-      gap: 4,
-      padding: 14,
+      gap: 6,
+      padding: layout.listItemPadding,
     },
     emptyCopy: {
+      ...typography.subheadline,
       color: colors.textTertiary,
-      fontSize: 14,
-      lineHeight: 20,
     },
     list: {
-      gap: 12,
+      gap: layout.gridGap,
     },
     meta: {
+      ...typography.footnote,
       color: colors.textTertiary,
-      fontSize: 13,
     },
     reported: {
+      ...typography.caption1,
       color: colors.textTertiary,
-      fontSize: 12,
       marginTop: 8,
     },
     row: {
-      alignItems: "center",
+      alignItems: "flex-start",
       flexDirection: "row",
       gap: 12,
       justifyContent: "space-between",
     },
+    searchField: {
+      width: "100%",
+    },
     synopsis: {
+      ...typography.subheadline,
       color: colors.textSecondary,
-      fontSize: 14,
-      lineHeight: 20,
       marginTop: 6,
     },
     title: {
+      ...typography.headline,
       color: colors.textPrimary,
-      fontSize: 16,
       fontWeight: "700",
+      paddingRight: 12,
+      flex: 1,
     },
     type: {
+      ...typography.subheadline,
       color: colors.accent,
-      fontSize: 14,
       fontWeight: "600",
       marginTop: 8,
     },

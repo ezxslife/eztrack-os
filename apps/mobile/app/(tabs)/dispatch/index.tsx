@@ -11,6 +11,7 @@ import {
 import { DispatchStatus } from "@eztrack/shared";
 
 import { ScreenContainer } from "@/components/layout/ScreenContainer";
+import { useIOSNativeSearchHeader } from "@/navigation/useIOSNativeSearchHeader";
 import { Button } from "@/components/ui/Button";
 import { FilterChips } from "@/components/ui/FilterChips";
 import { MaterialSurface } from "@/components/ui/MaterialSurface";
@@ -19,6 +20,7 @@ import { SearchField } from "@/components/ui/SearchField";
 import { SectionCard } from "@/components/ui/SectionCard";
 import { StatusBadge } from "@/components/ui/StatusBadge";
 import { formatRelativeTimestamp } from "@/lib/format";
+import { triggerNotificationHaptic } from "@/lib/haptics";
 import {
   useDispatches,
   useAssignDispatchOfficerMutation,
@@ -30,7 +32,8 @@ import type {
   OfflineUpdateDispatchStatusAction,
 } from "@/lib/offline/types";
 import { useOfflineStore } from "@/stores/offline-store";
-import { useThemeColors } from "@/theme";
+import { useThemeColors, useThemeTypography } from "@/theme";
+import { useAdaptiveLayout } from "@/theme/layout";
 
 const filters = ["All", "Critical", "Scheduled", "On Scene"];
 
@@ -62,7 +65,8 @@ function getDispatchActions(status: string) {
 
 export default function DispatchScreen() {
   const colors = useThemeColors();
-  const styles = createStyles(colors);
+  const typography = useThemeTypography();
+  const layout = useAdaptiveLayout();
   const router = useRouter();
   const [query, setQuery] = useState("");
   const [selectedFilter, setSelectedFilter] = useState("All");
@@ -98,6 +102,13 @@ export default function DispatchScreen() {
     ...pendingDispatchStatusIds,
     ...pendingDispatchAssignmentIds,
   ]);
+  const { nativeIOSHeader } = useIOSNativeSearchHeader({
+    placeholder: "Search calls, units, and locations",
+    query,
+    setQuery,
+    title: "Dispatch",
+  });
+  const styles = createStyles(colors, layout, typography);
 
   const dispatches = (dispatchesQuery.data ?? []).filter((dispatch) => {
     const matchesQuery =
@@ -133,7 +144,9 @@ export default function DispatchScreen() {
         officerName: dispatch.officerName,
         recordNumber: dispatch.recordNumber,
       });
+      triggerNotificationHaptic("success");
     } catch (error) {
+      triggerNotificationHaptic("error");
       Alert.alert(
         "Update failed",
         error instanceof Error
@@ -157,8 +170,10 @@ export default function DispatchScreen() {
         previousOfficerName: dispatch.officerName,
         recordNumber: dispatch.recordNumber,
       });
+      triggerNotificationHaptic("success");
       setAssignmentTargetId(null);
     } catch (error) {
+      triggerNotificationHaptic("error");
       Alert.alert(
         "Assignment failed",
         error instanceof Error
@@ -172,11 +187,14 @@ export default function DispatchScreen() {
     <ScreenContainer
       accessory={
         <View style={styles.accessory}>
-          <SearchField
-            onChangeText={setQuery}
-            placeholder="Search calls, units, and locations"
-            value={query}
-          />
+          {!nativeIOSHeader ? (
+            <SearchField
+              onChangeText={setQuery}
+              placeholder="Search calls, units, and locations"
+              style={styles.searchField}
+              value={query}
+            />
+          ) : null}
           <FilterChips onSelect={setSelectedFilter} options={filters} selected={selectedFilter} />
           <Button
             label="New Dispatch"
@@ -185,6 +203,7 @@ export default function DispatchScreen() {
           />
         </View>
       }
+      iosNativeHeader={nativeIOSHeader}
       onRefresh={() => {
         void Promise.all([dispatchesQuery.refetch(), officersQuery.refetch()]);
       }}
@@ -344,105 +363,113 @@ export default function DispatchScreen() {
   );
 }
 
-function createStyles(colors: ReturnType<typeof useThemeColors>) {
+function createStyles(
+  colors: ReturnType<typeof useThemeColors>,
+  layout: ReturnType<typeof useAdaptiveLayout>,
+  typography: ReturnType<typeof useThemeTypography>
+) {
   return StyleSheet.create({
     accessory: {
-      gap: 12,
+      flexDirection: "row",
+      flexWrap: "wrap",
+      gap: layout.gridGap,
     },
     actionButton: {
       minHeight: 40,
     },
     actionRow: {
       flexDirection: "row",
-      gap: 10,
+      gap: layout.gridGap,
       flexWrap: "wrap",
     },
     assignee: {
+      ...typography.footnote,
       color: colors.textTertiary,
-      fontSize: 13,
     },
     assignmentCopy: {
+      ...typography.footnote,
       color: colors.textTertiary,
-      fontSize: 13,
-      lineHeight: 18,
     },
     assignmentSurface: {
-      gap: 10,
+      gap: layout.gridGap,
     },
     assignmentTitle: {
+      ...typography.subheadline,
       color: colors.textPrimary,
-      fontSize: 14,
       fontWeight: "700",
     },
     card: {
       backgroundColor: colors.surfaceSecondary,
       borderRadius: 18,
-      gap: 8,
-      padding: 14,
+      gap: layout.gridGap,
+      padding: layout.listItemPadding,
     },
     description: {
+      ...typography.subheadline,
       color: colors.textSecondary,
-      fontSize: 14,
-      lineHeight: 20,
     },
     emptyCopy: {
+      ...typography.subheadline,
       color: colors.textTertiary,
-      fontSize: 14,
     },
     list: {
-      gap: 12,
+      gap: layout.gridGap,
     },
     location: {
+      ...typography.subheadline,
       color: colors.primaryStrong,
-      fontSize: 14,
       fontWeight: "600",
     },
     meta: {
+      ...typography.caption1,
       color: colors.textTertiary,
-      fontSize: 12,
     },
     pendingMeta: {
+      ...typography.caption1,
       color: colors.accentSoft,
-      fontSize: 12,
       fontWeight: "600",
     },
     officerRow: {
-      alignItems: "center",
+      alignItems: "flex-start",
       backgroundColor: colors.surfaceSecondary,
       borderRadius: 18,
       flexDirection: "row",
       justifyContent: "space-between",
-      padding: 14,
+      padding: layout.listItemPadding,
     },
     row: {
-      alignItems: "center",
+      alignItems: "flex-start",
       flexDirection: "row",
       gap: 12,
       justifyContent: "space-between",
     },
+    searchField: {
+      width: "100%",
+    },
     summary: {
-      gap: 6,
+      gap: layout.gridGap,
     },
     summaryCopy: {
+      ...typography.subheadline,
       color: colors.textSecondary,
-      fontSize: 14,
-      lineHeight: 20,
     },
     summaryEyebrow: {
+      ...typography.caption1,
       color: colors.accentSoft,
-      fontSize: 12,
       fontWeight: "700",
       textTransform: "uppercase",
     },
     summaryValue: {
+      ...typography.title2,
       color: colors.textPrimary,
-      fontSize: 24,
       fontWeight: "700",
     },
     title: {
+      ...typography.subheadline,
       color: colors.textPrimary,
-      fontSize: 16,
       fontWeight: "700",
+      flex: 1,
+      paddingRight: 12,
     },
   });
 }

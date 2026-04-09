@@ -15,10 +15,12 @@ import { ScreenContainer } from "@/components/layout/ScreenContainer";
 import { Button } from "@/components/ui/Button";
 import { MaterialSurface } from "@/components/ui/MaterialSurface";
 import { SectionCard } from "@/components/ui/SectionCard";
+import { GlassAlert } from "@/components/ui/glass/GlassAlert";
 import { signOutCurrentUser } from "@/lib/auth";
 import { clearUserScopedAppData } from "@/lib/user-scoped-data";
 import { getPrimaryTabLabelsForRole } from "@/navigation/tab-specs";
 import { useAuthStore } from "@/stores/auth-store";
+import { useCoachMarkStore } from "@/stores/coach-mark-store";
 import { useOfflineStore } from "@/stores/offline-store";
 import { useThemeColors } from "@/theme";
 
@@ -53,6 +55,8 @@ const extraGlobalDestinations = [
   { href: "/sync-center", label: "Sync Center" },
 ] as const;
 
+const syncCoachMarkId = "more-sync-center";
+
 export default function MoreScreen() {
   const colors = useThemeColors();
   const styles = createStyles(colors);
@@ -61,6 +65,10 @@ export default function MoreScreen() {
   const profile = useAuthStore((state) => state.profile);
   const previewMode = useAuthStore((state) => state.previewMode);
   const setSignedOut = useAuthStore((state) => state.setSignedOut);
+  const syncCoachMarkDismissed = useCoachMarkStore((state) =>
+    state.isDismissed(syncCoachMarkId)
+  );
+  const dismissCoachMark = useCoachMarkStore((state) => state.dismissCoachMark);
   const pendingQueueCount = useOfflineStore(
     (state) =>
       state.pendingActions.filter((action) => action.syncState === "pending")
@@ -127,6 +135,28 @@ export default function MoreScreen() {
           hangs off the core tabs.
         </Text>
       </MaterialSurface>
+
+      {!syncCoachMarkDismissed ? (
+        <GlassAlert
+          actions={[
+            {
+              label: "Open Sync Center",
+              onPress: () => {
+                dismissCoachMark(syncCoachMarkId);
+                router.push("/sync-center");
+              },
+            },
+            {
+              icon: "checkmark",
+              label: "Dismiss",
+              onPress: () => dismissCoachMark(syncCoachMarkId),
+            },
+          ]}
+          message="Queued writes already replay automatically. Sync Center is where operators can inspect pending work and dead letters before they become support incidents."
+          title="Operational hint"
+          tone="info"
+        />
+      ) : null}
 
       <SectionCard subtitle={previewMode ? "Preview mode" : "Live session"} title="Operator">
         <View style={styles.list}>

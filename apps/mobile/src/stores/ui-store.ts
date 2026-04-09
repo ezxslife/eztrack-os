@@ -26,13 +26,13 @@ export const useUIStore = create<UIStore>()(
       _hasHydrated: false,
       biometricLockEnabled: false,
       biometricTimeoutSeconds: 300,
-      colorSchemePreference: "dark",
+      colorSchemePreference: "system",
       sensoryEnabled: true,
       resetPreferences: () =>
         set({
           biometricLockEnabled: false,
           biometricTimeoutSeconds: 300,
-          colorSchemePreference: "dark",
+          colorSchemePreference: "system",
           sensoryEnabled: true,
         }),
       setBiometricLockEnabled: (biometricLockEnabled) =>

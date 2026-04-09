@@ -8,6 +8,7 @@ import {
 } from "react-native";
 
 import { ScreenContainer } from "@/components/layout/ScreenContainer";
+import { useIOSNativeSearchHeader } from "@/navigation/useIOSNativeSearchHeader";
 import { Button } from "@/components/ui/Button";
 import { SearchField } from "@/components/ui/SearchField";
 import { SectionCard } from "@/components/ui/SectionCard";
@@ -16,13 +17,15 @@ import {
   defaultFilterState,
   useFilterStore,
 } from "@/stores/filter-store";
-import { useThemeColors } from "@/theme";
+import { useThemeColors, useThemeTypography } from "@/theme";
+import { useAdaptiveLayout } from "@/theme/layout";
 
 const moduleKey = "vehicles";
 
 export default function VehiclesScreen() {
   const colors = useThemeColors();
-  const styles = createStyles(colors);
+  const typography = useThemeTypography();
+  const layout = useAdaptiveLayout();
   const router = useRouter();
   const vehiclesQuery = useVehicles();
   const rows = vehiclesQuery.data ?? [];
@@ -31,6 +34,13 @@ export default function VehiclesScreen() {
   );
   const setFilter = useFilterStore((state) => state.setFilter);
   const query = filtersState.search;
+  const { nativeIOSHeader } = useIOSNativeSearchHeader({
+    placeholder: "Search plate, make, model, type, or owner",
+    query,
+    setQuery: (value) => setFilter(moduleKey, { search: value }),
+    title: "Vehicles",
+  });
+  const styles = createStyles(colors, layout, typography);
 
   const filtered = useMemo(
     () =>
@@ -55,11 +65,14 @@ export default function VehiclesScreen() {
     <ScreenContainer
       accessory={
         <View style={styles.accessory}>
-          <SearchField
-            onChangeText={(value) => setFilter(moduleKey, { search: value })}
-            placeholder="Search plate, make, model, type, or owner"
-            value={query}
-          />
+          {!nativeIOSHeader ? (
+            <SearchField
+              onChangeText={(value) => setFilter(moduleKey, { search: value })}
+              placeholder="Search plate, make, model, type, or owner"
+              style={styles.searchField}
+              value={query}
+            />
+          ) : null}
           <Button
             label="New Vehicle"
             onPress={() => router.push("/vehicles/new")}
@@ -67,6 +80,7 @@ export default function VehiclesScreen() {
           />
         </View>
       }
+      iosNativeHeader={nativeIOSHeader}
       onRefresh={() => {
         void vehiclesQuery.refetch();
       }}
@@ -120,48 +134,58 @@ export default function VehiclesScreen() {
   );
 }
 
-function createStyles(colors: ReturnType<typeof useThemeColors>) {
+function createStyles(
+  colors: ReturnType<typeof useThemeColors>,
+  layout: ReturnType<typeof useAdaptiveLayout>,
+  typography: ReturnType<typeof useThemeTypography>
+) {
   return StyleSheet.create({
     accessory: {
-      gap: 12,
+      flexDirection: "row",
+      flexWrap: "wrap",
+      gap: layout.gridGap,
     },
     card: {
       backgroundColor: colors.surfaceSecondary,
       borderRadius: 18,
       gap: 6,
-      padding: 14,
+      padding: layout.listItemPadding,
     },
     copy: {
+      ...typography.subheadline,
       color: colors.textPrimary,
-      fontSize: 15,
       fontWeight: "600",
     },
     emptyCopy: {
+      ...typography.subheadline,
       color: colors.textTertiary,
-      fontSize: 14,
-      lineHeight: 20,
     },
     list: {
-      gap: 12,
+      gap: layout.gridGap,
     },
     meta: {
+      ...typography.footnote,
       color: colors.textTertiary,
-      fontSize: 13,
     },
     rowBetween: {
-      alignItems: "center",
+      alignItems: "flex-start",
       flexDirection: "row",
       gap: 12,
       justifyContent: "space-between",
     },
+    searchField: {
+      width: "100%",
+    },
     title: {
+      ...typography.headline,
       color: colors.textPrimary,
-      fontSize: 16,
       fontWeight: "700",
+      flex: 1,
+      paddingRight: 12,
     },
     type: {
+      ...typography.caption1,
       color: colors.accent,
-      fontSize: 13,
       fontWeight: "700",
       textTransform: "uppercase",
     },
