@@ -13,8 +13,9 @@
       }
     },
     "preview": {
-      "distribution": "internal",
-      "environment": "preview"
+      "distribution": "store",
+      "environment": "preview",
+      "autoIncrement": true
     },
     "production": {
       "environment": "production",
@@ -22,6 +23,19 @@
     }
   },
   "submit": {
-    "production": {}
+    "preview": {
+      "ios": {
+        "appleId": "support@ezxs.events",
+        "appleTeamId": "545C5PNKB8",
+        "ascAppId": "6762022524"
+      }
+    },
+    "production": {
+      "ios": {
+        "appleId": "support@ezxs.events",
+        "appleTeamId": "545C5PNKB8",
+        "ascAppId": "6762022524"
+      }
+    }
   }
 }
