@@ -55,7 +55,7 @@ export function Button({
     },
     label: {
       ...typography.subheadline,
-      fontWeight: Platform.OS === "ios" ? "600" : "700",
+      fontWeight: "700",
     },
     plain: {
       backgroundColor: "transparent",
@@ -69,6 +69,21 @@ export function Button({
     },
     primary: {
       backgroundColor: colors.primaryStrong,
+      ...Platform.select({
+        ios: {
+          shadowColor: colors.primaryStrong,
+          shadowOffset: {
+            width: 0,
+            height: 10,
+          },
+          shadowOpacity: 0.22,
+          shadowRadius: 20,
+        },
+        android: {
+          elevation: 2,
+        },
+        default: {},
+      }),
     },
     primaryLabel: {
       color: colors.primaryText,

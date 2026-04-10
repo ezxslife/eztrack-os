@@ -1,23 +1,34 @@
 import { useRouter } from "expo-router";
 import { useState } from "react";
 import {
+  KeyboardAvoidingView,
+  Platform,
   Pressable,
+  ScrollView,
   StyleSheet,
   Text,
   View,
 } from "react-native";
+import {
+  SafeAreaView,
+  useSafeAreaInsets,
+} from "react-native-safe-area-context";
 
 import { Ionicons } from "@expo/vector-icons";
 
-import { ScreenContainer } from "@/components/layout/ScreenContainer";
 import { Button } from "@/components/ui/Button";
 import { MaterialSurface } from "@/components/ui/MaterialSurface";
-import { SectionCard } from "@/components/ui/SectionCard";
 import { TextField } from "@/components/ui/TextField";
 import { signInWithPassword } from "@/lib/auth";
 import { getPreviewMessage } from "@/lib/env";
 import { useAuthStore } from "@/stores/auth-store";
-import { useThemeColors } from "@/theme";
+import { useNetworkStore } from "@/stores/network-store";
+import { useOfflineStore } from "@/stores/offline-store";
+import {
+  useThemeColors,
+  useThemeTypography,
+} from "@/theme";
+import { useAdaptiveLayout } from "@/theme/layout";
 
 const DEMO_ACCOUNTS = [
   {
@@ -69,21 +80,23 @@ function getLogoutMessage(reason: string | null) {
   }
 }
 
-function formatRoleLabel(role: string) {
-  return role.charAt(0).toUpperCase() + role.slice(1);
-}
-
 function getPreviewSummary(previewMessage: string | null) {
   if (!previewMessage) {
     return null;
   }
 
-  return "Live auth is not configured on this build yet.";
+  return "Preview mode is available on this build.";
+}
+
+function formatRoleLabel(role: string) {
+  return role.charAt(0).toUpperCase() + role.slice(1);
 }
 
 export default function LoginScreen() {
   const colors = useThemeColors();
-  const styles = createStyles(colors);
+  const typography = useThemeTypography();
+  const layout = useAdaptiveLayout();
+  const insets = useSafeAreaInsets();
   const router = useRouter();
   const authEnabled = useAuthStore((state) => state.authEnabled);
   const authError = useAuthStore((state) => state.error);
@@ -91,9 +104,31 @@ export default function LoginScreen() {
   const lastLogoutReason = useAuthStore((state) => state.lastLogoutReason);
   const setAuthenticating = useAuthStore((state) => state.setAuthenticating);
   const setAuthError = useAuthStore((state) => state.setAuthError);
+  const isOnline = useNetworkStore((state) => state.isOnline);
+  const processing = useOfflineStore((state) => state.processing);
+  const pendingCount = useOfflineStore(
+    (state) =>
+      state.pendingActions.filter((action) => action.syncState === "pending")
+        .length
+  );
+  const deadLetterCount = useOfflineStore(
+    (state) =>
+      state.pendingActions.filter((action) => action.syncState === "dead_letter")
+        .length
+  );
   const previewMessage = getPreviewMessage();
   const previewSummary = getPreviewSummary(previewMessage);
   const logoutMessage = getLogoutMessage(lastLogoutReason);
+  const hasStatusBanner =
+    !isOnline || processing || pendingCount > 0 || deadLetterCount > 0;
+  const styles = createStyles({
+    bottomInset: Math.max(insets.bottom, 20),
+    colors,
+    hasStatusBanner,
+    horizontalPadding: layout.horizontalPadding,
+    typography,
+    topInset: Math.max(insets.top, 18),
+  });
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [demoPickerOpen, setDemoPickerOpen] = useState(false);
@@ -135,151 +170,255 @@ export default function LoginScreen() {
     setLocalError(null);
   };
 
+  const handleEmailChange = (value: string) => {
+    setEmail(value);
+    setDemoPickerOpen(false);
+  };
+
+  const statusMessage = localError || authError || logoutMessage;
+  const isErrorState = Boolean(localError || authError);
+
   return (
-    <ScreenContainer
-      accessory={
-        <MaterialSurface intensity={86} style={styles.hero} variant="panel">
-          <View pointerEvents="none" style={styles.heroGlowPrimary} />
-          <View pointerEvents="none" style={styles.heroGlowAccent} />
-          <Text style={styles.eyebrow}>EZTRACK</Text>
-          <Text style={styles.heroTitle}>Welcome back.</Text>
-          <Text style={styles.heroCopy}>
-            Sign in with your EZTrack account or load a demo email for a faster handoff.
-          </Text>
-          <View style={styles.heroPills}>
-            <View style={styles.heroPill}>
-              <Text style={styles.heroPillText}>Live session</Text>
-            </View>
-            <View style={styles.heroPill}>
-              <Text style={styles.heroPillText}>Quick fill</Text>
-            </View>
-          </View>
-        </MaterialSurface>
-      }
-      iosNativeHeader
-      title="Welcome back"
-    >
-      <SectionCard subtitle="Use your EZTrack credentials." title="Sign in">
-        <View style={styles.stack}>
-          <View style={styles.fieldGroup}>
-            <Text style={styles.fieldLabel}>Demo account</Text>
-            <Pressable
-              accessibilityRole="button"
-              onPress={() => setDemoPickerOpen((current) => !current)}
-              style={({ pressed }) => [
-                styles.demoPicker,
-                pressed ? styles.demoPickerPressed : null,
-              ]}
-            >
-              <View style={styles.demoPickerCopy}>
-                <Text style={styles.demoPickerTitle}>
-                  {selectedDemoAccount ? selectedDemoAccount.name : "Select a demo login"}
-                </Text>
-                <Text style={styles.demoPickerSubtitle}>
-                  {selectedDemoAccount
-                    ? `${selectedDemoAccount.email} | ${formatRoleLabel(selectedDemoAccount.role)}`
-                    : "Autofills email only"}
+    <SafeAreaView edges={["left", "right"]} style={styles.safeArea}>
+      <View pointerEvents="none" style={styles.backdrop}>
+        <View style={styles.primaryOrb} />
+        <View style={styles.accentOrb} />
+        <View style={styles.backdropBeam} />
+      </View>
+      <KeyboardAvoidingView
+        behavior={Platform.OS === "ios" ? "padding" : undefined}
+        style={styles.keyboard}
+      >
+        <ScrollView
+          contentContainerStyle={styles.content}
+          contentInsetAdjustmentBehavior="automatic"
+          keyboardDismissMode="on-drag"
+          keyboardShouldPersistTaps="handled"
+          showsVerticalScrollIndicator={false}
+        >
+          <View style={styles.shell}>
+            <MaterialSurface intensity={90} padding={22} style={styles.card} variant="panel">
+              <View style={styles.headerRow}>
+                <View style={styles.brandBadge}>
+                  <Text style={styles.brandBadgeText}>EZTRACK</Text>
+                </View>
+                <View style={styles.headerIcon}>
+                  <Ionicons
+                    color={colors.primaryInk}
+                    name="shield-checkmark-outline"
+                    size={20}
+                  />
+                </View>
+              </View>
+
+              <View style={styles.header}>
+                <Text style={styles.title}>Sign in</Text>
+                <Text style={styles.subtitle}>
+                  Use your EZTrack work account to continue.
                 </Text>
               </View>
-              <Ionicons
-                color={colors.textSecondary}
-                name={demoPickerOpen ? "chevron-up" : "chevron-down"}
-                size={18}
-              />
-            </Pressable>
-            {demoPickerOpen ? (
-              <MaterialSurface padding={8} style={styles.demoMenu} variant="grouped">
-                {DEMO_ACCOUNTS.map((account, index) => {
-                  const selected = account.email === selectedDemoAccount?.email;
 
-                  return (
-                    <Pressable
-                      accessibilityRole="button"
-                      key={account.email}
-                      onPress={() => handleSelectDemoAccount(account)}
-                      style={({ pressed }) => [
-                        styles.demoOption,
-                        index < DEMO_ACCOUNTS.length - 1 ? styles.demoOptionBorder : null,
-                        selected ? styles.demoOptionSelected : null,
-                        pressed ? styles.demoOptionPressed : null,
-                      ]}
-                    >
-                      <View style={styles.demoOptionHeader}>
-                        <Text style={styles.demoOptionName}>{account.name}</Text>
-                        <View style={styles.roleBadge}>
-                          <Text style={styles.roleBadgeText}>
-                            {formatRoleLabel(account.role)}
-                          </Text>
-                        </View>
-                      </View>
-                      <Text style={styles.demoOptionEmail}>{account.email}</Text>
-                    </Pressable>
-                  );
-                })}
-              </MaterialSurface>
-            ) : null}
+              {statusMessage ? (
+                <View
+                  style={[
+                    styles.message,
+                    isErrorState ? styles.messageError : styles.messageNeutral,
+                  ]}
+                >
+                  <Text
+                    style={[
+                      styles.messageText,
+                      isErrorState ? styles.messageErrorText : null,
+                    ]}
+                  >
+                    {statusMessage}
+                  </Text>
+                </View>
+              ) : null}
+
+              <View style={styles.form}>
+                <View style={styles.fieldGroup}>
+                  <Text style={styles.fieldLabel}>Demo login</Text>
+                  <Pressable
+                    accessibilityRole="button"
+                    onPress={() => setDemoPickerOpen((current) => !current)}
+                    style={({ pressed }) => [
+                      styles.demoPicker,
+                      pressed ? styles.pressed : null,
+                    ]}
+                  >
+                    <View style={styles.demoPickerCopy}>
+                      <Text style={styles.demoPickerTitle}>
+                        {selectedDemoAccount
+                          ? selectedDemoAccount.name
+                          : "Select a temporary demo login"}
+                      </Text>
+                      <Text style={styles.demoPickerSubtitle}>
+                        {selectedDemoAccount
+                          ? `${selectedDemoAccount.email} | ${formatRoleLabel(selectedDemoAccount.role)}`
+                          : "Fills email only"}
+                      </Text>
+                    </View>
+                    <Ionicons
+                      color={colors.textSecondary}
+                      name={demoPickerOpen ? "chevron-up" : "chevron-down"}
+                      size={18}
+                    />
+                  </Pressable>
+                  {demoPickerOpen ? (
+                    <MaterialSurface padding={8} style={styles.demoMenu} variant="grouped">
+                      {DEMO_ACCOUNTS.map((account, index) => {
+                        const selected = account.email === selectedDemoAccount?.email;
+
+                        return (
+                          <Pressable
+                            accessibilityRole="button"
+                            key={account.email}
+                            onPress={() => handleSelectDemoAccount(account)}
+                            style={({ pressed }) => [
+                              styles.demoOption,
+                              index < DEMO_ACCOUNTS.length - 1
+                                ? styles.demoOptionBorder
+                                : null,
+                              selected ? styles.demoOptionSelected : null,
+                              pressed ? styles.pressed : null,
+                            ]}
+                          >
+                            <View style={styles.demoOptionHeader}>
+                              <Text style={styles.demoOptionName}>{account.name}</Text>
+                              <Text style={styles.demoOptionRole}>
+                                {formatRoleLabel(account.role)}
+                              </Text>
+                            </View>
+                            <Text style={styles.demoOptionEmail}>{account.email}</Text>
+                          </Pressable>
+                        );
+                      })}
+                    </MaterialSurface>
+                  ) : null}
+                </View>
+
+                <TextField
+                  autoCapitalize="none"
+                  autoComplete="email"
+                  keyboardType="email-address"
+                  label="Email"
+                  onChangeText={handleEmailChange}
+                  placeholder="name@eztrack.io"
+                  value={email}
+                />
+                <TextField
+                  autoComplete="password"
+                  label="Password"
+                  onChangeText={setPassword}
+                  placeholder="Enter password"
+                  secureTextEntry
+                  value={password}
+                />
+                <Button
+                  disabled={!authEnabled}
+                  label="Sign In"
+                  loading={submitting}
+                  onPress={handleSignIn}
+                  style={styles.primaryButton}
+                />
+              </View>
+
+              <View style={styles.footer}>
+                {previewSummary ? (
+                  <View style={styles.previewBlock}>
+                    <Text style={styles.previewEyebrow}>Preview</Text>
+                    <Text style={styles.previewCopy}>{previewSummary}</Text>
+                    <Button
+                      label="Continue in Preview"
+                      onPress={handlePreview}
+                      style={styles.previewButton}
+                      variant="secondary"
+                    />
+                  </View>
+                ) : null}
+                <Text style={styles.helpText}>
+                  Need help? Contact your operations admin.
+                </Text>
+              </View>
+            </MaterialSurface>
           </View>
-
-          <TextField
-            autoCapitalize="none"
-            autoComplete="email"
-            keyboardType="email-address"
-            label="Email"
-            onChangeText={setEmail}
-            placeholder="name@eztrack.io"
-            value={email}
-          />
-          <TextField
-            autoComplete="password"
-            label="Password"
-            onChangeText={setPassword}
-            placeholder="Enter password"
-            secureTextEntry
-            value={password}
-          />
-          {!localError && !authError && logoutMessage ? (
-            <Text style={styles.notice}>{logoutMessage}</Text>
-          ) : null}
-          {localError || authError ? (
-            <Text style={styles.error}>{localError || authError}</Text>
-          ) : null}
-          <Button
-            disabled={!authEnabled}
-            label="Sign In"
-            loading={submitting}
-            onPress={handleSignIn}
-          />
-        </View>
-      </SectionCard>
-
-      {previewSummary ? (
-        <SectionCard title="Preview mode">
-          <View style={styles.stack}>
-            <Text style={styles.body}>{previewSummary}</Text>
-            <Button
-              label="Continue in Preview"
-              onPress={handlePreview}
-              variant="secondary"
-            />
-          </View>
-        </SectionCard>
-      ) : null}
-    </ScreenContainer>
+        </ScrollView>
+      </KeyboardAvoidingView>
+    </SafeAreaView>
   );
 }
 
-function createStyles(colors: ReturnType<typeof useThemeColors>) {
+function createStyles({
+  bottomInset,
+  colors,
+  hasStatusBanner,
+  horizontalPadding,
+  topInset,
+  typography,
+}: {
+  bottomInset: number;
+  colors: ReturnType<typeof useThemeColors>;
+  hasStatusBanner: boolean;
+  horizontalPadding: number;
+  topInset: number;
+  typography: ReturnType<typeof useThemeTypography>;
+}) {
   return StyleSheet.create({
-    body: {
-      color: colors.textSecondary,
-      fontSize: 15,
-      lineHeight: 22,
+    accentOrb: {
+      backgroundColor: colors.warning,
+      borderRadius: 999,
+      bottom: 72,
+      height: 220,
+      left: -88,
+      opacity: 0.08,
+      position: "absolute",
+      width: 220,
+    },
+    backdrop: {
+      ...StyleSheet.absoluteFillObject,
+      overflow: "hidden",
+    },
+    backdropBeam: {
+      backgroundColor: colors.surfaceOverlay,
+      borderRadius: 999,
+      height: 420,
+      opacity: 0.08,
+      position: "absolute",
+      right: -64,
+      top: 110,
+      transform: [{ rotate: "-26deg" }],
+      width: 140,
+    },
+    brandBadge: {
+      backgroundColor: colors.surfaceOverlay,
+      borderColor: colors.borderSubtle,
+      borderRadius: 999,
+      borderWidth: 1,
+      paddingHorizontal: 12,
+      paddingVertical: 7,
+    },
+    brandBadgeText: {
+      color: colors.accentSoft,
+      fontSize: 11,
+      fontWeight: "700",
+      letterSpacing: 0.9,
+      textTransform: "uppercase",
+    },
+    card: {
+      gap: 20,
+    },
+    content: {
+      flexGrow: 1,
+      paddingBottom: bottomInset + 28,
+      paddingHorizontal: horizontalPadding,
+      paddingTop: topInset + (hasStatusBanner ? 94 : 44),
     },
     demoMenu: {
       gap: 0,
+      marginTop: 6,
     },
     demoOption: {
-      borderRadius: 16,
       gap: 6,
       paddingHorizontal: 12,
       paddingVertical: 12,
@@ -287,8 +426,6 @@ function createStyles(colors: ReturnType<typeof useThemeColors>) {
     demoOptionBorder: {
       borderBottomColor: colors.borderSubtle,
       borderBottomWidth: 1,
-      borderBottomLeftRadius: 0,
-      borderBottomRightRadius: 0,
     },
     demoOptionEmail: {
       color: colors.textSecondary,
@@ -306,11 +443,17 @@ function createStyles(colors: ReturnType<typeof useThemeColors>) {
       fontWeight: "600",
       lineHeight: 20,
     },
-    demoOptionPressed: {
-      opacity: 0.82,
+    demoOptionRole: {
+      color: colors.primaryInk,
+      fontSize: 11,
+      fontWeight: "700",
+      letterSpacing: 0.4,
+      lineHeight: 14,
+      textTransform: "uppercase",
     },
     demoOptionSelected: {
       backgroundColor: colors.primarySoft,
+      borderRadius: 14,
     },
     demoPicker: {
       alignItems: "center",
@@ -321,16 +464,13 @@ function createStyles(colors: ReturnType<typeof useThemeColors>) {
       flexDirection: "row",
       gap: 12,
       justifyContent: "space-between",
-      minHeight: 54,
+      minHeight: 56,
       paddingHorizontal: 14,
       paddingVertical: 12,
     },
     demoPickerCopy: {
       flex: 1,
       gap: 2,
-    },
-    demoPickerPressed: {
-      opacity: 0.82,
     },
     demoPickerSubtitle: {
       color: colors.textSecondary,
@@ -343,109 +483,131 @@ function createStyles(colors: ReturnType<typeof useThemeColors>) {
       fontWeight: "600",
       lineHeight: 20,
     },
-    error: {
-      color: colors.error,
-      fontSize: 14,
-      lineHeight: 20,
-    },
-    eyebrow: {
-      color: colors.accentSoft,
-      fontSize: 12,
-      fontWeight: "700",
-      letterSpacing: 0.9,
-      textTransform: "uppercase",
-    },
     fieldGroup: {
       gap: 8,
     },
     fieldLabel: {
+      ...typography.caption1,
       color: colors.textPrimary,
+      fontWeight: "700",
+      letterSpacing: 0.2,
+    },
+    footer: {
+      gap: 12,
+    },
+    form: {
+      gap: 14,
+    },
+    header: {
+      gap: 8,
+    },
+    headerIcon: {
+      alignItems: "center",
+      backgroundColor: colors.primarySoft,
+      borderColor: colors.borderSubtle,
+      borderRadius: 16,
+      borderWidth: 1,
+      height: 42,
+      justifyContent: "center",
+      width: 42,
+    },
+    headerRow: {
+      alignItems: "center",
+      flexDirection: "row",
+      justifyContent: "space-between",
+    },
+    helpText: {
+      color: colors.textTertiary,
       fontSize: 12,
-      fontWeight: "600",
       lineHeight: 16,
     },
-    hero: {
-      gap: 10,
-      overflow: "hidden",
-      paddingBottom: 18,
-      paddingTop: 18,
-      position: "relative",
+    keyboard: {
+      flex: 1,
     },
-    heroCopy: {
-      color: colors.textSecondary,
-      fontSize: 15,
-      lineHeight: 21,
-      maxWidth: 280,
+    message: {
+      borderRadius: 18,
+      borderWidth: 1,
+      paddingHorizontal: 14,
+      paddingVertical: 12,
     },
-    heroGlowAccent: {
-      backgroundColor: colors.warningBg,
-      borderRadius: 999,
-      bottom: -58,
-      height: 148,
-      left: -24,
-      opacity: 0.72,
-      position: "absolute",
-      width: 148,
+    messageError: {
+      backgroundColor: colors.errorBg,
+      borderColor: colors.error,
     },
-    heroGlowPrimary: {
-      backgroundColor: colors.primarySoft,
-      borderRadius: 999,
-      height: 184,
-      opacity: 0.95,
-      position: "absolute",
-      right: -48,
-      top: -40,
-      width: 184,
+    messageErrorText: {
+      color: colors.error,
     },
-    heroPill: {
+    messageNeutral: {
       backgroundColor: colors.surfaceOverlay,
       borderColor: colors.borderSubtle,
-      borderRadius: 999,
+    },
+    messageText: {
+      color: colors.textSecondary,
+      fontSize: 13,
+      lineHeight: 19,
+    },
+    previewBlock: {
+      backgroundColor: colors.surfaceOverlay,
+      borderColor: colors.borderSubtle,
+      borderRadius: 20,
       borderWidth: 1,
-      paddingHorizontal: 12,
-      paddingVertical: 7,
-    },
-    heroPills: {
-      flexDirection: "row",
-      flexWrap: "wrap",
       gap: 8,
-      marginTop: 4,
+      paddingHorizontal: 14,
+      paddingVertical: 12,
     },
-    heroPillText: {
-      color: colors.textPrimary,
-      fontSize: 12,
-      fontWeight: "600",
-      lineHeight: 16,
+    previewButton: {
+      width: "100%",
     },
-    heroTitle: {
-      color: colors.textPrimary,
-      fontSize: 30,
-      fontWeight: "700",
-      letterSpacing: -0.8,
-      lineHeight: 34,
-    },
-    notice: {
+    previewCopy: {
       color: colors.textSecondary,
       fontSize: 14,
       lineHeight: 20,
     },
-    roleBadge: {
-      backgroundColor: colors.surfaceOverlay,
-      borderColor: colors.borderSubtle,
-      borderRadius: 999,
-      borderWidth: 1,
-      paddingHorizontal: 10,
-      paddingVertical: 5,
-    },
-    roleBadgeText: {
-      color: colors.textSecondary,
+    previewEyebrow: {
+      color: colors.primaryInk,
       fontSize: 11,
       fontWeight: "700",
-      lineHeight: 13,
+      letterSpacing: 0.6,
       textTransform: "uppercase",
     },
-    stack: {
-      gap: 12,
+    pressed: {
+      opacity: 0.82,
+    },
+    primaryButton: {
+      marginTop: 4,
+      width: "100%",
+    },
+    primaryOrb: {
+      backgroundColor: colors.primaryStrong,
+      borderRadius: 999,
+      height: 280,
+      opacity: 0.12,
+      position: "absolute",
+      right: -70,
+      top: 36,
+      width: 280,
+    },
+    safeArea: {
+      backgroundColor: colors.background,
+      flex: 1,
+    },
+    shell: {
+      alignSelf: "center",
+      maxWidth: 440,
+      width: "100%",
+    },
+    subtitle: {
+      color: colors.textSecondary,
+      fontSize: 16,
+      lineHeight: 24,
+      maxWidth: 320,
+    },
+    title: {
+      color: colors.textPrimary,
+      fontSize: 34,
+      fontWeight: "800",
+      letterSpacing: -1.1,
+      lineHeight: 38,
     },
   });
 }

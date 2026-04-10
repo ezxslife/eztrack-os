@@ -73,7 +73,7 @@ export const lightColors: ThemeColors = {
   primaryInk: "#0E7490",
   primaryStrong: "#0891B2",
   primarySoft: "rgba(6, 182, 212, 0.12)",
-  primaryText: "#071418",
+  primaryText: "#FFFFFF",
   accent: brand.accent,
   accentSoft: "#B45309",
   accentText: "#1A1204",
@@ -91,7 +91,7 @@ export const lightColors: ThemeColors = {
   chromeStrong: "rgba(255, 255, 255, 0.9)",
   shadow: "rgba(15, 23, 42, 0.12)",
   input: "rgba(255, 255, 255, 0.82)",
-  focusRing: "rgba(6, 182, 212, 0.24)",
+  focusRing: "rgba(8, 145, 178, 0.24)",
 };
 
 export const darkColors: ThemeColors = {
@@ -111,10 +111,10 @@ export const darkColors: ThemeColors = {
   borderStrong: "#414656",
   divider: "rgba(255, 255, 255, 0.08)",
   primary: brand.primary,
-  primaryInk: "#67E8F9",
-  primaryStrong: "#67E8F9",
-  primarySoft: "rgba(6, 182, 212, 0.18)",
-  primaryText: "#041317",
+  primaryInk: "#A5F3FC",
+  primaryStrong: "#0891B2",
+  primarySoft: "rgba(8, 145, 178, 0.24)",
+  primaryText: "#FFFFFF",
   accent: brand.accent,
   accentSoft: "#FCD34D",
   accentText: "#1A1204",
@@ -132,7 +132,7 @@ export const darkColors: ThemeColors = {
   chromeStrong: "rgba(4, 5, 8, 0.9)",
   shadow: "rgba(0, 0, 0, 0.4)",
   input: "rgba(18, 19, 24, 0.88)",
-  focusRing: "rgba(103, 232, 249, 0.22)",
+  focusRing: "rgba(34, 211, 238, 0.24)",
 };
 
 export function createThemeColors(scheme: ResolvedThemeScheme) {

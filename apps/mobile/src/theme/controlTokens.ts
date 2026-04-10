@@ -22,7 +22,7 @@ export const IOS_CONTROL_TOKENS = {
     light: "rgba(118, 118, 128, 0.12)",
   },
   secondaryButtonLabel: {
-    dark: "#67E8F9",
+    dark: BRAND.primaryLight,
     light: BRAND.primaryDark,
   },
   switchTrackFalse: {
@@ -30,7 +30,7 @@ export const IOS_CONTROL_TOKENS = {
     light: "rgba(120, 120, 128, 0.16)",
   },
   switchTrackTrue: {
-    dark: "rgba(103, 232, 249, 0.64)",
+    dark: "rgba(8, 145, 178, 0.72)",
     light: "#0891B2",
   },
 } as const;
