@@ -4,6 +4,7 @@ import { useState, useEffect, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
 import { ArrowLeft, CheckCircle, Loader2 } from "lucide-react";
 import Link from "next/link";
+import { AppPage, PageHeader, PageSection } from "@/components/layout/AppPage";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { Select } from "@/components/ui/Select";
@@ -33,30 +34,47 @@ export default function NewDailyLogPage() {
   const [locationOptions, setLocationOptions] = useState<{ value: string; label: string }[]>([]);
   const [orgId, setOrgId] = useState<string | null>(null);
   const [propertyId, setPropertyId] = useState<string | null>(null);
+  const [profileLoading, setProfileLoading] = useState(true);
+
+  async function resolveUserContext() {
+    const supabase = getSupabaseBrowser();
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+
+    if (!user) {
+      throw new Error("Not authenticated");
+    }
+
+    const { data: profile, error } = await supabase
+      .from("profiles")
+      .select("org_id, property_id")
+      .eq("id", user.id)
+      .single();
+
+    if (error || !profile?.org_id) {
+      throw new Error("Unable to determine organization");
+    }
+
+    setOrgId(profile.org_id);
+    setPropertyId(profile.property_id);
+
+    return {
+      orgId: profile.org_id,
+      propertyId: profile.property_id,
+    };
+  }
 
   useEffect(() => {
     async function loadFormData() {
       try {
-        const [locations, supabase] = await Promise.all([
-          fetchLocations(),
-          Promise.resolve(getSupabaseBrowser()),
-        ]);
+        const locations = await fetchLocations();
         setLocationOptions(locations.map((l) => ({ value: l.id, label: l.name })));
-
-        const { data: { user } } = await supabase.auth.getUser();
-        if (user) {
-          const { data: profile } = await supabase
-            .from("profiles")
-            .select("org_id, property_id")
-            .eq("id", user.id)
-            .single();
-          if (profile) {
-            setOrgId(profile.org_id);
-            setPropertyId(profile.property_id);
-          }
-        }
+        await resolveUserContext();
       } catch {
         // Locations will fall back to empty
+      } finally {
+        setProfileLoading(false);
       }
     }
     loadFormData();
@@ -64,15 +82,16 @@ export default function NewDailyLogPage() {
 
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();
-    if (!orgId) {
-      toast("Unable to determine organization", { variant: "error" });
-      return;
-    }
     try {
       setSubmitting(true);
+      const context =
+        orgId
+          ? { orgId, propertyId }
+          : await resolveUserContext();
+
       const result = await createDailyLog({
-        orgId,
-        propertyId,
+        orgId: context.orgId,
+        propertyId: context.propertyId,
         topic,
         synopsis: synopsis || undefined,
         priority,
@@ -93,41 +112,39 @@ export default function NewDailyLogPage() {
 
   if (submitted) {
     return (
-      <div className="flex flex-col items-center justify-center py-20 animate-scale-in">
-        <div className="flex items-center justify-center h-12 w-12 rounded-full bg-[var(--green-500,#10b981)]/12 mb-4">
-          <CheckCircle size={24} className="text-[var(--green-500,#10b981)]" />
-        </div>
-        <h2 className="text-lg font-semibold text-[var(--text-primary)]">
-          Entry Created
-        </h2>
-        <p className="mt-1 text-[13px] text-[var(--text-tertiary)]">
-          {recordNumber ? `${recordNumber} — ` : ""}Redirecting to Daily Log...
-        </p>
-      </div>
+      <AppPage width="form" className="animate-scale-in">
+        <PageSection className="flex flex-col items-center justify-center py-20 text-center">
+          <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-[var(--green-500,#10b981)]/12">
+            <CheckCircle size={24} className="text-[var(--green-500,#10b981)]" />
+          </div>
+          <h2 className="text-lg font-semibold text-[var(--text-primary)]">
+            Entry Created
+          </h2>
+          <p className="mt-1 text-[13px] text-[var(--text-tertiary)]">
+            {recordNumber ? `${recordNumber} — ` : ""}Redirecting to Daily Log...
+          </p>
+        </PageSection>
+      </AppPage>
     );
   }
 
   return (
-    <div className="space-y-5 animate-fade-in">
-      {/* Header */}
-      <div className="flex items-center gap-3">
-        <Link href="/daily-log">
-          <Button variant="ghost" size="sm">
+    <AppPage width="form" className="animate-fade-in">
+      <PageHeader
+        breadcrumbs={
+          <Link
+            href="/daily-log"
+            className="inline-flex items-center gap-1.5 text-[13px] font-medium text-[var(--action-primary)] transition-colors hover:text-[var(--action-primary-hover)]"
+          >
             <ArrowLeft size={14} />
-          </Button>
-        </Link>
-        <div>
-          <h1 className="text-xl font-bold tracking-tight text-[var(--text-primary)]">
-            New Daily Log Entry
-          </h1>
-          <p className="mt-0.5 text-[13px] text-[var(--text-tertiary)]">
-            Create a new daily log entry
-          </p>
-        </div>
-      </div>
+            Daily Log
+          </Link>
+        }
+        title="New Daily Log Entry"
+        subtitle="Create a new daily log entry."
+      />
 
-      {/* Form */}
-      <div className="surface-card max-w-2xl mx-auto p-6">
+      <PageSection padding="lg">
         <form onSubmit={handleSubmit} className="space-y-5">
           <Input
             label="Topic"
@@ -168,13 +185,18 @@ export default function NewDailyLogPage() {
                 Cancel
               </Button>
             </Link>
-            <Button variant="default" size="md" type="submit" disabled={submitting}>
+            <Button
+              variant="default"
+              size="md"
+              type="submit"
+              disabled={submitting || profileLoading || locationOptions.length === 0}
+            >
               {submitting && <Loader2 size={14} className="animate-spin" />}
-              {submitting ? "Creating..." : "Submit Entry"}
+              {submitting ? "Creating..." : profileLoading ? "Loading..." : "Submit Entry"}
             </Button>
           </div>
         </form>
-      </div>
-    </div>
+      </PageSection>
+    </AppPage>
   );
 }

@@ -618,6 +618,79 @@ export type Database = {
           },
         ]
       }
+      case_resources: {
+        Row: {
+          id: string
+          case_id: string
+          org_id: string
+          profile_id: string | null
+          name: string
+          alias: string | null
+          role: string
+          hourly_rate: number | null
+          hours_logged: number
+          status: string
+          notes: string | null
+          created_by: string | null
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          case_id: string
+          org_id: string
+          profile_id?: string | null
+          name: string
+          alias?: string | null
+          role: string
+          hourly_rate?: number | null
+          hours_logged?: number
+          status?: string
+          notes?: string | null
+          created_by?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          case_id?: string
+          org_id?: string
+          profile_id?: string | null
+          name?: string
+          alias?: string | null
+          role?: string
+          hourly_rate?: number | null
+          hours_logged?: number
+          status?: string
+          notes?: string | null
+          created_by?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "case_resources_case_id_fkey"
+            columns: ["case_id"]
+            isOneToOne: false
+            referencedRelation: "cases"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "case_resources_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "case_resources_profile_id_fkey"
+            columns: ["profile_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       case_tasks: {
         Row: {
           assigned_to: string | null
@@ -720,6 +793,7 @@ export type Database = {
           org_id: string
           property_id: string | null
           record_number: string
+          stage: string
           status: Database["public"]["Enums"]["case_status"]
           synopsis: string | null
           updated_at: string
@@ -735,6 +809,7 @@ export type Database = {
           org_id: string
           property_id?: string | null
           record_number: string
+          stage?: string
           status?: Database["public"]["Enums"]["case_status"]
           synopsis?: string | null
           updated_at?: string
@@ -750,6 +825,7 @@ export type Database = {
           org_id?: string
           property_id?: string | null
           record_number?: string
+          stage?: string
           status?: Database["public"]["Enums"]["case_status"]
           synopsis?: string | null
           updated_at?: string
@@ -1549,6 +1625,79 @@ export type Database = {
             columns: ["org_id"]
             isOneToOne: false
             referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      incident_media: {
+        Row: {
+          id: string
+          incident_id: string
+          org_id: string
+          media_type: string | null
+          title: string | null
+          description: string | null
+          file_name: string
+          file_path: string
+          file_size: number | null
+          mime_type: string | null
+          storage_bucket: string
+          uploaded_by: string | null
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          incident_id: string
+          org_id: string
+          media_type?: string | null
+          title?: string | null
+          description?: string | null
+          file_name: string
+          file_path: string
+          file_size?: number | null
+          mime_type?: string | null
+          storage_bucket?: string
+          uploaded_by?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          incident_id?: string
+          org_id?: string
+          media_type?: string | null
+          title?: string | null
+          description?: string | null
+          file_name?: string
+          file_path?: string
+          file_size?: number | null
+          mime_type?: string | null
+          storage_bucket?: string
+          uploaded_by?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "incident_media_incident_id_fkey"
+            columns: ["incident_id"]
+            isOneToOne: false
+            referencedRelation: "incidents"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "incident_media_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "incident_media_uploaded_by_fkey"
+            columns: ["uploaded_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
             referencedColumns: ["id"]
           },
         ]

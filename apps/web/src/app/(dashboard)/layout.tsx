@@ -42,13 +42,13 @@ export default function DashboardLayout({
   }, []);
 
   return (
-    <div className="flex h-screen overflow-hidden bg-[var(--surface-bg)]">
-      <a
-        href="#main-content"
-        className="sr-only focus:not-sr-only focus:fixed focus:top-2 focus:left-2 focus:z-[100] focus:px-4 focus:py-2 focus:rounded-lg focus:bg-[var(--eztrack-primary-500,#6366f1)] focus:text-white focus:text-[13px] focus:font-medium"
-      >
-        Skip to main content
-      </a>
+    <div className="flex min-h-screen overflow-hidden bg-[var(--surface-bg)]">
+        <a
+          href="#main-content"
+          className="sr-only focus:not-sr-only focus:fixed focus:top-2 focus:left-2 focus:z-[100] focus:px-4 focus:py-2 focus:rounded-lg focus:bg-[var(--action-primary-fill)] focus:text-[var(--text-on-brand)] focus:text-[13px] focus:font-medium"
+        >
+          Skip to main content
+        </a>
       <Sidebar
         collapsed={sidebarCollapsed}
         onToggle={() => setSidebarCollapsed(!sidebarCollapsed)}
@@ -63,7 +63,7 @@ export default function DashboardLayout({
         />
         <main
           id="main-content"
-          className="flex-1 overflow-y-auto px-3 py-3 sm:px-4 sm:py-4 lg:px-6 lg:py-5"
+          className="flex-1 overflow-y-auto px-[var(--page-gutter-mobile)] py-4 sm:px-[var(--page-gutter-tablet)] sm:py-5 lg:px-[var(--page-gutter-desktop)] lg:py-6"
         >
           {children}
         </main>

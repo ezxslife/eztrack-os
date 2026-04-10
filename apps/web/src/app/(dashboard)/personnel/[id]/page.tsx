@@ -4,9 +4,11 @@ import { use, useState, useEffect } from "react";
 import { useToast } from "@/components/ui/Toast";
 import Link from "next/link";
 import { ArrowLeft, Phone, Mail, Shield, Clock } from "lucide-react";
+import { AppPage, PageSection } from "@/components/layout/AppPage";
 import { Badge } from "@/components/ui/Badge";
 import { Avatar } from "@/components/ui/Avatar";
 import { Card, CardContent } from "@/components/ui/Card";
+import { EmptyState } from "@/components/ui/EmptyState";
 import { Tabs } from "@/components/ui/Tabs";
 import { Skeleton } from "@/components/ui/Skeleton";
 import { EditPersonnelModal, DeletePersonnelModal } from "@/components/modals/personnel";
@@ -113,7 +115,7 @@ export default function PersonnelDetailPage({
 
   if (loading) {
     return (
-      <div className="space-y-5 max-w-3xl animate-fade-in">
+      <AppPage width="base" className="animate-fade-in">
         <div className="flex items-center gap-3">
           <Skeleton className="h-12 w-12 rounded-full" />
           <div>
@@ -122,19 +124,21 @@ export default function PersonnelDetailPage({
           </div>
         </div>
         <Skeleton className="h-48 w-full" />
-      </div>
+      </AppPage>
     );
   }
 
   if (error || !staff) {
     return (
-      <div className="flex flex-col items-center justify-center h-64 gap-3">
-        <Shield size={32} className="text-[var(--text-tertiary)]" />
-        <p className="text-[var(--text-secondary)]">{error || "Staff member not found"}</p>
-        <Link href="/personnel">
-          <Button variant="secondary" size="sm">Back to Personnel</Button>
-        </Link>
-      </div>
+      <AppPage width="base">
+        <PageSection className="flex h-64 flex-col items-center justify-center gap-3">
+          <Shield size={32} className="text-[var(--text-tertiary)]" />
+          <p className="text-[var(--text-secondary)]">{error || "Staff member not found"}</p>
+          <Link href="/personnel">
+            <Button variant="secondary" size="sm">Back to Personnel</Button>
+          </Link>
+        </PageSection>
+      </AppPage>
     );
   }
 
@@ -146,7 +150,7 @@ export default function PersonnelDetailPage({
   });
 
   return (
-    <div className="space-y-5 max-w-3xl">
+    <AppPage width="base">
       {/* ── Back + Header ── */}
       <div className="flex items-center gap-3">
         <Link
@@ -198,11 +202,11 @@ export default function PersonnelDetailPage({
       </div>
 
       {/* ── Action Buttons ── */}
-      <div className="flex items-center gap-2">
-        <Button variant="outline" size="md" onClick={() => setEditOpen(true)}>
+      <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+        <Button variant="outline" size="md" onClick={() => setEditOpen(true)} className="w-full sm:w-auto">
           Edit
         </Button>
-        <Button variant="destructive" size="md" onClick={() => setDeleteOpen(true)}>
+        <Button variant="destructive" size="md" onClick={() => setDeleteOpen(true)} className="w-full sm:w-auto">
           Deactivate
         </Button>
       </div>
@@ -288,10 +292,11 @@ export default function PersonnelDetailPage({
                 ))}
               </div>
             ) : (
-              <div className="text-center py-8">
-                <Clock size={24} className="mx-auto mb-2 text-[var(--text-tertiary)]" />
-                <p className="text-[13px] text-[var(--text-tertiary)]">No activity recorded yet</p>
-              </div>
+              <EmptyState
+                icon={<Clock size={20} />}
+                title="No activity recorded yet"
+                description="Recent personnel actions and status changes will appear here."
+              />
             )}
           </CardContent>
         </Card>
@@ -330,6 +335,6 @@ export default function PersonnelDetailPage({
         personnelName={staff.fullName}
         badgeNumber=""
       />
-    </div>
+    </AppPage>
   );
 }

@@ -441,3 +441,318 @@ export async function updateIncidentStatus(id: string, status: Enums<"incident_s
 
   if (error) throw error;
 }
+
+/** Update incident fields (severity, disposition, etc.) */
+export async function updateIncident(id: string, fields: {
+  severity?: Enums<"incident_severity">;
+  status?: Enums<"incident_status">;
+  disposition?: string | null;
+  description?: string | null;
+  created_by?: string | null;
+}) {
+  const supabase = getSupabaseBrowser();
+
+  const { error } = await supabase
+    .from("incidents")
+    .update(fields)
+    .eq("id", id);
+
+  if (error) throw error;
+}
+
+/** Soft-delete an incident */
+export async function deleteIncident(id: string) {
+  const supabase = getSupabaseBrowser();
+
+  const { error } = await supabase
+    .from("incidents")
+    .update({ deleted_at: new Date().toISOString() })
+    .eq("id", id);
+
+  if (error) throw error;
+}
+
+/** Create a narrative entry */
+export async function createIncidentNarrative(incidentId: string, data: {
+  title: string;
+  content: string;
+}) {
+  const supabase = getSupabaseBrowser();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) throw new Error("Not authenticated");
+
+  const { error } = await supabase
+    .from("incident_narratives")
+    .insert({
+      incident_id: incidentId,
+      title: data.title,
+      content: data.content,
+      author_id: user.id,
+    });
+
+  if (error) throw error;
+}
+
+/** Update a narrative entry */
+export async function updateIncidentNarrative(id: string, data: {
+  title: string;
+  content: string;
+}) {
+  const supabase = getSupabaseBrowser();
+
+  const { error } = await supabase
+    .from("incident_narratives")
+    .update({
+      title: data.title,
+      content: data.content,
+      updated_at: new Date().toISOString(),
+    })
+    .eq("id", id);
+
+  if (error) throw error;
+}
+
+/** Add a participant to an incident */
+export async function addIncidentParticipant(incidentId: string, data: {
+  personType: string;
+  firstName: string;
+  lastName: string;
+  phone?: string;
+  email?: string;
+  primaryRole: string;
+  secondaryRole?: string;
+  description?: string;
+  policeContacted?: boolean;
+  policeResult?: string;
+  medicalAttention?: boolean;
+  medicalDetails?: string;
+}) {
+  const supabase = getSupabaseBrowser();
+
+  const { error } = await supabase
+    .from("incident_participants")
+    .insert({
+      incident_id: incidentId,
+      person_type: data.personType,
+      first_name: data.firstName,
+      last_name: data.lastName,
+      phone: data.phone || null,
+      email: data.email || null,
+      primary_role: data.primaryRole,
+      secondary_role: data.secondaryRole || null,
+      description: data.description || null,
+      police_contacted: data.policeContacted ?? false,
+      police_result: data.policeResult || null,
+      medical_attention: data.medicalAttention ?? false,
+      medical_details: data.medicalDetails || null,
+    });
+
+  if (error) throw error;
+}
+
+/** Create a financial entry */
+export async function createIncidentFinancial(incidentId: string, data: {
+  entryType: string;
+  amount: number;
+  description?: string;
+}) {
+  const supabase = getSupabaseBrowser();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) throw new Error("Not authenticated");
+
+  const { error } = await supabase
+    .from("incident_financials")
+    .insert({
+      incident_id: incidentId,
+      entry_type: data.entryType,
+      amount: data.amount,
+      description: data.description || null,
+      created_by: user.id,
+    });
+
+  if (error) throw error;
+}
+
+/** Share an incident with a user or role */
+export async function createIncidentShare(incidentId: string, orgId: string, data: {
+  sharedWithUserId?: string | null;
+  sharedWithRole?: string | null;
+  permissionLevel: string;
+  expiresAt?: string | null;
+}) {
+  const supabase = getSupabaseBrowser();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) throw new Error("Not authenticated");
+
+  const { error } = await supabase
+    .from("incident_shares")
+    .insert({
+      incident_id: incidentId,
+      org_id: orgId,
+      shared_by_id: user.id,
+      shared_with_user_id: data.sharedWithUserId || null,
+      shared_with_role: data.sharedWithRole || null,
+      permission_level: data.permissionLevel as any,
+      expires_at: data.expiresAt || null,
+    });
+
+  if (error) throw error;
+}
+
+/** Link two incidents together */
+export async function linkRelatedIncident(incidentId: string, orgId: string, data: {
+  relatedIncidentId: string;
+  relationshipType: string;
+  reason?: string;
+}) {
+  const supabase = getSupabaseBrowser();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) throw new Error("Not authenticated");
+
+  const { error } = await supabase
+    .from("related_incidents")
+    .insert({
+      incident_id_primary: incidentId,
+      incident_id_related: data.relatedIncidentId,
+      relationship_type: data.relationshipType as any,
+      reason: data.reason || null,
+      linked_by: user.id,
+      org_id: orgId,
+    });
+
+  if (error) throw error;
+}
+
+/* ─── Incident Media types & CRUD ────────────── */
+
+export interface IncidentMediaItem {
+  id: string;
+  incidentId: string;
+  orgId: string;
+  mediaType: string | null;
+  title: string | null;
+  description: string | null;
+  fileName: string;
+  filePath: string;
+  fileSize: number | null;
+  mimeType: string | null;
+  storageBucket: string;
+  uploadedBy: string | null;
+  uploadedByName: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export async function fetchIncidentMedia(incidentId: string): Promise<IncidentMediaItem[]> {
+  const supabase = getSupabaseBrowser();
+
+  const { data, error } = await supabase
+    .from("incident_media")
+    .select(`
+      id, incident_id, org_id, media_type, title, description,
+      file_name, file_path, file_size, mime_type, storage_bucket,
+      uploaded_by, created_at, updated_at,
+      uploader:profiles!uploaded_by(full_name)
+    `)
+    .eq("incident_id", incidentId)
+    .order("created_at", { ascending: false });
+
+  if (error) throw error;
+
+  return (data || []).map((row: any) => ({
+    id: row.id,
+    incidentId: row.incident_id,
+    orgId: row.org_id,
+    mediaType: row.media_type,
+    title: row.title,
+    description: row.description,
+    fileName: row.file_name,
+    filePath: row.file_path,
+    fileSize: row.file_size != null ? Number(row.file_size) : null,
+    mimeType: row.mime_type,
+    storageBucket: row.storage_bucket,
+    uploadedBy: row.uploaded_by,
+    uploadedByName: (row.uploader as any)?.full_name || null,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+  }));
+}
+
+export async function createIncidentMedia(
+  incidentId: string,
+  orgId: string,
+  data: {
+    mediaType?: string;
+    title?: string;
+    description?: string;
+    fileName: string;
+    filePath: string;
+    fileSize?: number;
+    mimeType?: string;
+  }
+) {
+  const supabase = getSupabaseBrowser();
+
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) throw new Error("Not authenticated");
+
+  const { error } = await supabase.from("incident_media").insert({
+    incident_id: incidentId,
+    org_id: orgId,
+    media_type: data.mediaType || null,
+    title: data.title || null,
+    description: data.description || null,
+    file_name: data.fileName,
+    file_path: data.filePath,
+    file_size: data.fileSize ?? null,
+    mime_type: data.mimeType || null,
+    storage_bucket: "incident-media",
+    uploaded_by: user.id,
+  });
+
+  if (error) throw error;
+}
+
+export async function deleteIncidentMedia(id: string) {
+  const supabase = getSupabaseBrowser();
+
+  // Fetch the media row first to get file_path for storage cleanup
+  const { data: mediaRow } = await supabase
+    .from("incident_media")
+    .select("file_path, storage_bucket")
+    .eq("id", id)
+    .single();
+
+  // Remove from storage if possible
+  if (mediaRow?.file_path) {
+    await supabase.storage
+      .from(mediaRow.storage_bucket || "incident-media")
+      .remove([mediaRow.file_path]);
+  }
+
+  const { error } = await supabase
+    .from("incident_media")
+    .delete()
+    .eq("id", id);
+
+  if (error) throw error;
+}
+
+export async function uploadIncidentMediaFile(
+  incidentId: string,
+  file: File
+): Promise<string> {
+  const supabase = getSupabaseBrowser();
+  const safeName = file.name.replace(/\s+/g, "-");
+  const filePath = `${incidentId}/${Date.now()}-${safeName}`;
+
+  const { error } = await supabase.storage
+    .from("incident-media")
+    .upload(filePath, file);
+
+  if (error) throw error;
+
+  return filePath;
+}

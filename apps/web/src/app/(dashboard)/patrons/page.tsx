@@ -9,11 +9,13 @@ import {
   List,
   MapPin,
   Clock,
+  User,
   Loader2,
   AlertCircle,
 } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { Badge } from "@/components/ui/Badge";
+import { EmptyState } from "@/components/ui/EmptyState";
 import { CreatePatronModal } from "@/components/modals/patrons";
 import { fetchPatrons, createPatron, type PatronRow, type PatronFlag } from "@/lib/queries/patrons";
 import { formatRelativeTime } from "@/lib/utils/time";
@@ -341,10 +343,13 @@ export default function PatronsPage() {
       )}
 
       {filtered.length === 0 && (
-        <div className="surface-card p-8 text-center">
-          <p className="text-[13px] text-[var(--text-tertiary)]">
-            No patrons match your search or filter.
-          </p>
+        <div className="surface-card">
+          <EmptyState
+            icon={<User size={20} />}
+            title="No patrons match your search"
+            description="Try a broader search or clear the current patron filter."
+            action={{ label: "Add Patron", onClick: () => setShowCreateModal(true), variant: "outline" }}
+          />
         </div>
       )}
 

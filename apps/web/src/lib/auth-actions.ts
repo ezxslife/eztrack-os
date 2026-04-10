@@ -3,7 +3,11 @@
 import { redirect } from "next/navigation";
 import { createClient } from "./supabase-server";
 
-export async function signIn(formData: FormData) {
+export interface SignInState {
+  error: string;
+}
+
+export async function signIn(_prevState: SignInState, formData: FormData): Promise<SignInState> {
   const email = formData.get("email") as string;
   const password = formData.get("password") as string;
   const redirectTo = (formData.get("redirectTo") as string) || "/dashboard";

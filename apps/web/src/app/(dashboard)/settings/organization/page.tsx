@@ -3,11 +3,12 @@
 import { useState, useEffect, useCallback } from "react";
 import Link from "next/link";
 import { ArrowLeft, Upload, Building2, Crown, Loader2, AlertCircle } from "lucide-react";
+import { AppPage, PageSection } from "@/components/layout/AppPage";
+import { SettingsLayout } from "@/components/layout/SettingsLayout";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { Select } from "@/components/ui/Select";
 import { Textarea } from "@/components/ui/Textarea";
-import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/Card";
 import { Badge } from "@/components/ui/Badge";
 import { useToast } from "@/components/ui/Toast";
 import { getSupabaseBrowser } from "@/lib/supabase-browser";
@@ -82,48 +83,49 @@ export default function OrganizationSettingsPage() {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center py-20">
-        <Loader2 className="h-6 w-6 animate-spin text-[var(--text-tertiary)]" />
-      </div>
+      <AppPage width="wide">
+        <PageSection className="flex items-center justify-center py-20">
+          <Loader2 className="h-6 w-6 animate-spin text-[var(--text-tertiary)]" />
+        </PageSection>
+      </AppPage>
     );
   }
 
   if (error) {
     return (
-      <div className="flex flex-col items-center justify-center py-20 gap-3">
-        <AlertCircle className="h-6 w-6 text-red-400" />
-        <p className="text-[13px] text-[var(--text-secondary)]">{error}</p>
-        <Button variant="outline" size="sm" onClick={loadOrg}>Retry</Button>
-      </div>
+      <AppPage width="wide">
+        <PageSection className="flex flex-col items-center justify-center gap-3 py-20">
+          <AlertCircle className="h-6 w-6 text-red-400" />
+          <p className="text-[13px] text-[var(--text-secondary)]">{error}</p>
+          <Button variant="outline" size="sm" onClick={loadOrg}>Retry</Button>
+        </PageSection>
+      </AppPage>
     );
   }
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-center gap-3">
-        <Link
-          href="/settings"
-          className="inline-flex items-center gap-1 text-[13px] text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-colors"
-        >
-          <ArrowLeft className="h-3.5 w-3.5" />
-          Settings
+    <SettingsLayout
+      title="Organization Settings"
+      subtitle="Company profile, branding, and preferences."
+      asideTitle="Organization profile"
+      asideDescription="Keep the workspace identity, contact details, and timezone readable and centralized. Subscription and branding stay adjacent, not buried in separate one-off forms."
+      secondaryActions={(
+        <Link href="/settings">
+          <Button variant="ghost" size="sm">
+            <ArrowLeft className="h-3.5 w-3.5" />
+            Settings
+          </Button>
         </Link>
-      </div>
-
-      <div>
-        <h1 className="text-2xl font-semibold text-[var(--text-primary)]">Organization Settings</h1>
-        <p className="text-[13px] text-[var(--text-secondary)] mt-1">Company profile, branding, and preferences</p>
-      </div>
-
-      {/* Subscription Tier */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Subscription</CardTitle>
-        </CardHeader>
-        <CardContent>
+      )}
+    >
+      <div className="space-y-5">
+        <PageSection>
+          <div className="mb-4">
+            <h2 className="text-[15px] font-semibold text-[var(--text-primary)]">Subscription</h2>
+          </div>
           <div className="flex items-center gap-3">
-            <div className="h-10 w-10 rounded-lg bg-[var(--action-primary)] flex items-center justify-center">
-              <Crown className="h-5 w-5 text-white" />
+            <div className="h-10 w-10 rounded-lg bg-[var(--action-primary-fill)] flex items-center justify-center">
+              <Crown className="h-5 w-5 text-[var(--text-on-brand)]" />
             </div>
             <div className="flex-1">
               <div className="flex items-center gap-2">
@@ -136,15 +138,12 @@ export default function OrganizationSettingsPage() {
             </div>
             <Button variant="outline" size="sm">Manage Plan</Button>
           </div>
-        </CardContent>
-      </Card>
+        </PageSection>
 
-      {/* Organization Details */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Organization Details</CardTitle>
-        </CardHeader>
-        <CardContent>
+        <PageSection>
+          <div className="mb-4">
+            <h2 className="text-[15px] font-semibold text-[var(--text-primary)]">Organization Details</h2>
+          </div>
           <div className="space-y-4">
             <Input
               label="Organization Name"
@@ -177,15 +176,12 @@ export default function OrganizationSettingsPage() {
               onChange={(e) => setTimezone(e.target.value)}
             />
           </div>
-        </CardContent>
-      </Card>
+        </PageSection>
 
-      {/* Logo Upload */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Organization Logo</CardTitle>
-        </CardHeader>
-        <CardContent>
+        <PageSection>
+          <div className="mb-4">
+            <h2 className="text-[15px] font-semibold text-[var(--text-primary)]">Organization Logo</h2>
+          </div>
           <div className="flex items-start gap-5">
             <div className="h-20 w-20 rounded-xl border-2 border-dashed border-[var(--border-default)] bg-[var(--surface-secondary)] flex items-center justify-center shrink-0">
               <Building2 className="h-8 w-8 text-[var(--text-tertiary)]" />
@@ -200,16 +196,15 @@ export default function OrganizationSettingsPage() {
               </Button>
             </div>
           </div>
-        </CardContent>
-      </Card>
+        </PageSection>
 
-      {/* Save */}
-      <div className="flex justify-end gap-2">
-        <Button variant="secondary" onClick={loadOrg}>Cancel</Button>
-        <Button onClick={handleSave} disabled={saving}>
-          {saving ? <><Loader2 className="h-3.5 w-3.5 animate-spin" /> Saving...</> : "Save Changes"}
-        </Button>
+        <div className="flex justify-end gap-2">
+          <Button variant="secondary" onClick={loadOrg}>Cancel</Button>
+          <Button onClick={handleSave} disabled={saving}>
+            {saving ? <><Loader2 className="h-3.5 w-3.5 animate-spin" /> Saving...</> : "Save Changes"}
+          </Button>
+        </div>
       </div>
-    </div>
+    </SettingsLayout>
   );
 }

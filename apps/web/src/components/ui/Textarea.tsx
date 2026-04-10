@@ -18,7 +18,7 @@ export const Textarea = forwardRef<HTMLTextAreaElement, TextareaProps>(
         {label && (
           <label
             htmlFor={textareaId}
-            className="block text-[13px] font-medium text-[var(--text-secondary)] mb-1"
+            className="mb-2 block text-[13px] font-semibold tracking-[0.01em] text-[var(--text-secondary)]"
           >
             {label}
           </label>
@@ -32,13 +32,13 @@ export const Textarea = forwardRef<HTMLTextAreaElement, TextareaProps>(
             error ? `${textareaId}-error` : helperText ? `${textareaId}-helper` : undefined
           }
           className={clsx(
-            "w-full min-h-[80px] rounded-lg border bg-[var(--surface-primary)] px-3 py-2 text-[13px] text-[var(--text-primary)]",
+            "w-full min-h-[96px] rounded-[var(--input-radius)] border bg-[var(--surface-primary)] px-[var(--input-padding-x)] py-3 text-[14px] text-[var(--text-primary)] shadow-[var(--shadow-xs)]",
             "placeholder:text-[var(--text-tertiary)]",
             "resize-y",
             "transition-all duration-150 ease-out",
-            "focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--focus-ring)] focus-visible:border-[var(--border-focused)]",
+            "focus:outline-none focus-visible:border-[var(--border-focused)] focus-visible:shadow-[var(--focus-ring)]",
             error
-              ? "border-[var(--status-critical)] focus-visible:ring-[var(--status-critical)]"
+              ? "border-[var(--status-critical)] focus-visible:border-[var(--status-critical)]"
               : "border-[var(--border-default)] hover:border-[var(--border-hover)]",
             "disabled:opacity-50 disabled:cursor-not-allowed",
             className
@@ -46,10 +46,10 @@ export const Textarea = forwardRef<HTMLTextAreaElement, TextareaProps>(
           {...rest}
         />
         {error && (
-          <p id={`${textareaId}-error`} role="alert" className="mt-1 text-xs text-[var(--status-critical)]">{error}</p>
+          <p id={`${textareaId}-error`} role="alert" className="mt-1.5 text-[12px] leading-5 text-[var(--status-critical)]">{error}</p>
         )}
         {!error && helperText && (
-          <p id={`${textareaId}-helper`} className="mt-1 text-xs text-[var(--text-tertiary)]">{helperText}</p>
+          <p id={`${textareaId}-helper`} className="mt-1.5 text-[12px] leading-5 text-[var(--text-tertiary)]">{helperText}</p>
         )}
       </div>
     );

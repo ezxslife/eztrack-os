@@ -1,17 +1,29 @@
 "use client";
 
-import { use, useState, useEffect } from "react";
+import { use, useState, useEffect, useCallback } from "react";
 import { useToast } from "@/components/ui/Toast";
 import Link from "next/link";
 import { ArrowLeft, CheckCircle2, Send } from "lucide-react";
+import { AppPage, PageHeader, PageSection } from "@/components/layout/AppPage";
 import { Button } from "@/components/ui/Button";
 import { Badge } from "@/components/ui/Badge";
+import { EmptyState } from "@/components/ui/EmptyState";
+import { IconButton } from "@/components/ui/IconButton";
 import { Skeleton } from "@/components/ui/Skeleton";
 import { EditBriefingModal, DeleteBriefingModal } from "@/components/modals/briefings";
 import { Avatar } from "@/components/ui/Avatar";
 import { Card, CardContent } from "@/components/ui/Card";
 import { ProgressBar } from "@/components/ui/ProgressBar";
-import { fetchBriefingById, type BriefingDetail } from "@/lib/queries/briefings";
+import { useRouter } from "next/navigation";
+import {
+  fetchBriefingById,
+  acknowledgeBriefing,
+  addBriefingReply,
+  updateBriefing,
+  deleteBriefing,
+  type BriefingDetail,
+} from "@/lib/queries/briefings";
+import { getSupabaseBrowser } from "@/lib/supabase-browser";
 import { formatRelativeTime } from "@/lib/utils/time";
 
 const priorityTone: Record<string, "critical" | "warning" | "info"> = {
@@ -27,48 +39,66 @@ export default function BriefingDetailPage({
 }) {
   const { id } = use(params);
   const { toast } = useToast();
+  const router = useRouter();
 
   const [briefing, setBriefing] = useState<BriefingDetail | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [replyText, setReplyText] = useState("");
-  const [acknowledged, setAcknowledged] = useState(false);
+  const [currentUser, setCurrentUser] = useState<{ id: string; fullName: string | null } | null>(null);
   const [editOpen, setEditOpen] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
 
-  useEffect(() => {
-    async function load() {
-      try {
-        setLoading(true);
-        const data = await fetchBriefingById(id);
-        setBriefing(data);
-      } catch (err) {
-        setError(err instanceof Error ? err.message : "Failed to load briefing");
-      } finally {
-        setLoading(false);
+  const loadData = useCallback(async () => {
+    try {
+      setLoading(true);
+      setError(null);
+      const supabase = getSupabaseBrowser();
+      const { data: { user } } = await supabase.auth.getUser();
+      if (user) {
+        const { data: profile } = await supabase
+          .from("profiles")
+          .select("full_name")
+          .eq("id", user.id)
+          .single();
+        setCurrentUser({ id: user.id, fullName: profile?.full_name ?? null });
+      } else {
+        setCurrentUser(null);
       }
+
+      const data = await fetchBriefingById(id);
+      setBriefing(data);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to load briefing");
+    } finally {
+      setLoading(false);
     }
-    load();
   }, [id]);
+
+  useEffect(() => {
+    loadData();
+  }, [loadData]);
 
   if (loading) {
     return (
-      <div className="space-y-5 max-w-3xl animate-fade-in">
+      <AppPage width="base" className="animate-fade-in">
         <Skeleton className="h-8 w-64" />
         <Skeleton className="h-6 w-48" />
         <Skeleton className="h-48 w-full" />
-      </div>
+      </AppPage>
     );
   }
 
   if (error || !briefing) {
     return (
-      <div className="flex flex-col items-center justify-center h-64 gap-3">
-        <p className="text-[var(--text-secondary)]">{error || "Briefing not found"}</p>
-        <Link href="/briefings">
-          <Button variant="secondary" size="sm">Back to Briefings</Button>
-        </Link>
-      </div>
+      <AppPage width="base">
+        <PageSection className="flex h-64 flex-col items-center justify-center gap-3">
+          <p className="text-[var(--text-secondary)]">{error || "Briefing not found"}</p>
+          <Link href="/briefings">
+            <Button variant="secondary" size="sm">Back to Briefings</Button>
+          </Link>
+        </PageSection>
+      </AppPage>
     );
   }
 
@@ -83,31 +113,30 @@ export default function BriefingDetailPage({
   });
 
   // Recipients — the briefing.recipients field may be a JSON array or string
-  const recipientsList = Array.isArray(briefing.recipients)
-    ? (briefing.recipients as string[])
-    : [];
+  const recipientsList = briefing.recipients.targets;
   const totalStaff = recipientsList.length || 1;
-  const ackCount = acknowledged ? 1 : 0;
+  const ackCount = briefing.recipients.acknowledgments.length;
   const ackPercent = (ackCount / totalStaff) * 100;
+  const yourAcknowledgement = currentUser
+    ? briefing.recipients.acknowledgments.find((entry) => entry.userId === currentUser.id)
+    : null;
+  const acknowledged = Boolean(yourAcknowledgement);
 
   return (
-    <div className="space-y-5 max-w-3xl">
-      {/* ── Back + Title ── */}
-      <div className="flex items-center gap-3">
-        <Link
-          href="/briefings"
-          className="inline-flex items-center justify-center h-8 w-8 rounded-lg hover:bg-[var(--surface-hover)] transition-colors"
-        >
-          <ArrowLeft className="h-4 w-4 text-[var(--text-secondary)]" />
-        </Link>
-        <div className="flex-1">
-          <h1 className="text-xl font-semibold text-[var(--text-primary)]">
-            {briefing.title}
-          </h1>
-        </div>
-      </div>
+    <AppPage width="base">
+      <PageHeader
+        breadcrumbs={
+          <Link
+            href="/briefings"
+            className="inline-flex items-center gap-1.5 text-[13px] font-medium text-[var(--action-primary)] transition-colors hover:text-[var(--action-primary-hover)]"
+          >
+            <ArrowLeft className="h-4 w-4" />
+            Briefings
+          </Link>
+        }
+        title={briefing.title}
+      />
 
-      {/* ── Meta ── */}
       <div className="flex flex-wrap items-center gap-3">
         <Badge tone={priorityTone[briefing.priority] ?? "info"} dot>
           {briefing.priority.charAt(0).toUpperCase() + briefing.priority.slice(1)} Priority
@@ -123,17 +152,15 @@ export default function BriefingDetailPage({
         </span>
       </div>
 
-      {/* ── Action Buttons ── */}
-      <div className="flex items-center gap-2">
-        <Button variant="outline" size="md" onClick={() => setEditOpen(true)}>
+      <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+        <Button variant="outline" size="md" onClick={() => setEditOpen(true)} className="w-full sm:w-auto">
           Edit
         </Button>
-        <Button variant="destructive" size="md" onClick={() => setDeleteOpen(true)}>
+        <Button variant="destructive" size="md" onClick={() => setDeleteOpen(true)} className="w-full sm:w-auto">
           Delete
         </Button>
       </div>
 
-      {/* ── Content ── */}
       <Card>
         <CardContent>
           <div className="space-y-3">
@@ -161,7 +188,6 @@ export default function BriefingDetailPage({
         </CardContent>
       </Card>
 
-      {/* ── Acknowledgment Section ── */}
       <Card>
         <CardContent>
           <div className="space-y-4">
@@ -178,19 +204,36 @@ export default function BriefingDetailPage({
 
             {acknowledged && (
               <div className="flex items-center gap-3 py-2">
-                <Avatar name="You" size="sm" />
+                <Avatar name={yourAcknowledgement?.userName ?? "You"} size="sm" />
                 <div className="flex-1 min-w-0">
                   <span className="text-[13px] font-medium text-[var(--text-primary)]">
-                    You
+                    {yourAcknowledgement?.userName ?? "You"}
                   </span>
                 </div>
-                <span className="text-[11px] text-[var(--text-tertiary)]">Just now</span>
+                <span className="text-[11px] text-[var(--text-tertiary)]">
+                  {yourAcknowledgement
+                    ? formatRelativeTime(yourAcknowledgement.acknowledgedAt)
+                    : "Just now"}
+                </span>
                 <CheckCircle2 className="h-3.5 w-3.5 text-[var(--status-success,#059669)]" />
               </div>
             )}
 
             {!acknowledged && (
-              <Button size="md" onClick={() => setAcknowledged(true)}>
+              <Button
+                size="md"
+                onClick={async () => {
+                  try {
+                    if (!briefing) throw new Error("Briefing not loaded");
+                    if (!currentUser) throw new Error("User profile not loaded");
+                    await acknowledgeBriefing(briefing.id, currentUser.id, currentUser.fullName ?? "You");
+                    await loadData();
+                    toast("Briefing acknowledged", { variant: "success" });
+                  } catch (err: any) {
+                    toast(err.message || "Failed to acknowledge briefing", { variant: "error" });
+                  }
+                }}
+              >
                 <CheckCircle2 className="h-3.5 w-3.5" />
                 Acknowledge
               </Button>
@@ -199,14 +242,42 @@ export default function BriefingDetailPage({
         </CardContent>
       </Card>
 
-      {/* ── Reply Input ── */}
       <Card>
         <CardContent>
           <h3 className="text-[13px] font-semibold text-[var(--text-primary)] mb-4">
             Replies
           </h3>
-          <p className="text-[13px] text-[var(--text-tertiary)] italic mb-4">No replies yet</p>
-          <div className="flex items-center gap-2 pt-4 border-t border-[var(--border-default)]">
+          {briefing.recipients.replies.length === 0 ? (
+            <div className="mb-4">
+              <EmptyState
+                icon={<Send className="h-5 w-5" />}
+                title="No replies yet"
+                description="Replies from recipients will appear here once the discussion starts."
+              />
+            </div>
+          ) : (
+            <div className="space-y-3 mb-4">
+              {briefing.recipients.replies.map((reply) => (
+                <div key={reply.id} className="rounded-lg border border-[var(--border-default)] bg-[var(--surface-secondary)] p-3">
+                  <div className="flex items-center justify-between gap-3">
+                    <div className="flex items-center gap-2 min-w-0">
+                      <Avatar name={reply.userName} size="xs" />
+                      <span className="text-[13px] font-medium text-[var(--text-primary)] truncate">
+                        {reply.userName}
+                      </span>
+                    </div>
+                    <span className="text-[11px] text-[var(--text-tertiary)] whitespace-nowrap">
+                      {formatRelativeTime(reply.createdAt)}
+                    </span>
+                  </div>
+                  <p className="mt-2 text-[13px] text-[var(--text-secondary)] leading-relaxed">
+                    {reply.content}
+                  </p>
+                </div>
+              ))}
+            </div>
+          )}
+          <div className="flex flex-col gap-3 pt-4 border-t border-[var(--border-default)] sm:flex-row sm:items-center">
             <Avatar name="You" size="sm" />
             <div className="flex-1 relative">
               <input
@@ -216,34 +287,62 @@ export default function BriefingDetailPage({
                 onChange={(e) => setReplyText(e.target.value)}
                 className="w-full h-9 rounded-lg border border-[var(--border-default)] bg-[var(--surface-primary)] pl-3 pr-10 text-[13px] text-[var(--text-primary)] placeholder:text-[var(--text-tertiary)] transition-all duration-150 focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--focus-ring)] focus-visible:border-[var(--border-focused)] hover:border-[var(--border-hover)]"
               />
-              <button
-                className="absolute right-2 top-1/2 -translate-y-1/2 p-1 rounded hover:bg-[var(--surface-hover)] text-[var(--action-primary)] disabled:opacity-40"
+              <IconButton
+                className="absolute right-2 top-1/2 h-8 w-8 -translate-y-1/2 rounded-lg text-[var(--action-primary)] shadow-none hover:bg-[var(--action-primary-surface)]"
                 disabled={!replyText.trim()}
-                onClick={() => {
-                  toast("Reply sent", { variant: "success" });
-                  setReplyText("");
+                label="Send reply"
+                onClick={async () => {
+                  try {
+                    if (!briefing) throw new Error("Briefing not loaded");
+                    if (!currentUser) throw new Error("User profile not loaded");
+                    await addBriefingReply(briefing.id, {
+                      userId: currentUser.id,
+                      userName: currentUser.fullName ?? "You",
+                      content: replyText,
+                    });
+                    setReplyText("");
+                    await loadData();
+                    toast("Reply saved", { variant: "success" });
+                  } catch (err: any) {
+                    toast(err.message || "Failed to save reply", { variant: "error" });
+                  }
                 }}
+                size="sm"
+                type="button"
+                variant="ghost"
               >
                 <Send className="h-3.5 w-3.5" />
-              </button>
+              </IconButton>
             </div>
           </div>
         </CardContent>
       </Card>
 
-      {/* ── Modals ── */}
       <EditBriefingModal
         open={editOpen}
         onClose={() => setEditOpen(false)}
-        onSubmit={async () => {
-          toast("Briefing updated successfully", { variant: "success" });
-          setEditOpen(false);
+        onSubmit={async (data: any) => {
+          try {
+            await updateBriefing(id, {
+              title: data.title,
+              content: data.content,
+              priority: data.priority,
+              recipients: data.recipients,
+              linkUrl: data.linkUrl,
+              sourceModule: data.sourceModule,
+            });
+            toast("Briefing updated successfully", { variant: "success" });
+            setEditOpen(false);
+            loadData();
+          } catch (err: any) {
+            toast(err.message || "Failed to update briefing", { variant: "error" });
+          }
         }}
         briefing={{
           title: briefing.title,
           content: briefing.content,
           priority: briefing.priority,
-          recipients: "all_staff",
+          recipients: briefing.recipients.targetValue || "all_staff",
           sourceModule: briefing.sourceModule ?? "manual",
           linkUrl: briefing.linkUrl ?? "",
         }}
@@ -252,10 +351,16 @@ export default function BriefingDetailPage({
         open={deleteOpen}
         onClose={() => setDeleteOpen(false)}
         onConfirm={async () => {
-          toast("Briefing deleted successfully", { variant: "success" });
-          setDeleteOpen(false);
+          try {
+            await deleteBriefing(id);
+            toast("Briefing deleted successfully", { variant: "success" });
+            setDeleteOpen(false);
+            router.push("/briefings");
+          } catch (err: any) {
+            toast(err.message || "Failed to delete briefing", { variant: "error" });
+          }
         }}
       />
-    </div>
+    </AppPage>
   );
 }

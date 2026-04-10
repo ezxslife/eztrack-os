@@ -3,10 +3,13 @@
 import { useState, useEffect, useCallback } from "react";
 import Link from "next/link";
 import { ArrowLeft, Plus, GripVertical, Trash2, ChevronDown, ChevronRight, Loader2, AlertCircle } from "lucide-react";
+import { AppPage, PageSection } from "@/components/layout/AppPage";
+import { SettingsLayout } from "@/components/layout/SettingsLayout";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { Badge } from "@/components/ui/Badge";
-import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/Card";
+import { Card, CardContent } from "@/components/ui/Card";
+import { IconButton } from "@/components/ui/IconButton";
 import { AddDropdownValueModal } from "@/components/modals/settings";
 import { useToast } from "@/components/ui/Toast";
 import { getSupabaseBrowser } from "@/lib/supabase-browser";
@@ -92,39 +95,41 @@ export default function DropdownConfigPage() {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center py-20">
-        <Loader2 className="h-6 w-6 animate-spin text-[var(--text-tertiary)]" />
-      </div>
+      <AppPage width="wide">
+        <PageSection className="flex items-center justify-center py-20">
+          <Loader2 className="h-6 w-6 animate-spin text-[var(--text-tertiary)]" />
+        </PageSection>
+      </AppPage>
     );
   }
 
   if (error) {
     return (
-      <div className="flex flex-col items-center justify-center py-20 gap-3">
-        <AlertCircle className="h-6 w-6 text-red-400" />
-        <p className="text-[13px] text-[var(--text-secondary)]">{error}</p>
-        <Button variant="outline" size="sm" onClick={load}>Retry</Button>
-      </div>
+      <AppPage width="wide">
+        <PageSection className="flex flex-col items-center justify-center gap-3 py-20">
+          <AlertCircle className="h-6 w-6 text-red-400" />
+          <p className="text-[13px] text-[var(--text-secondary)]">{error}</p>
+          <Button variant="outline" size="sm" onClick={load}>Retry</Button>
+        </PageSection>
+      </AppPage>
     );
   }
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-center gap-3">
-        <Link
-          href="/settings"
-          className="inline-flex items-center gap-1 text-[13px] text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-colors"
-        >
-          <ArrowLeft className="h-3.5 w-3.5" />
-          Settings
+    <SettingsLayout
+      title="Dropdown Configuration"
+      subtitle="Manage configurable dropdown values for forms and reports."
+      asideTitle="Shared lists"
+      asideDescription="Dropdowns should stay predictable and lightweight. Categories expand inline so admins can adjust lists without leaving the main settings flow."
+      secondaryActions={(
+        <Link href="/settings">
+          <Button variant="ghost" size="sm">
+            <ArrowLeft className="h-3.5 w-3.5" />
+            Settings
+          </Button>
         </Link>
-      </div>
-
-      <div>
-        <h1 className="text-2xl font-semibold text-[var(--text-primary)]">Dropdown Configuration</h1>
-        <p className="text-[13px] text-[var(--text-secondary)] mt-1">Manage configurable dropdown values for forms and reports</p>
-      </div>
-
+      )}
+    >
       <div className="space-y-3">
         {categories.map((cat) => {
           const isExpanded = expandedId === cat.id;
@@ -156,13 +161,16 @@ export default function DropdownConfigPage() {
                         <GripVertical className="h-3.5 w-3.5 text-[var(--text-tertiary)] opacity-0 group-hover:opacity-100 cursor-grab shrink-0" />
                         <span className="text-[13px] text-[var(--text-primary)] flex-1">{val.label}</span>
                         <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100">
-                          <button
-                            className="text-[var(--text-tertiary)] hover:text-red-400 p-0.5"
+                          <IconButton
+                            className="h-7 w-7 rounded-lg text-[var(--text-secondary)] shadow-none hover:bg-[var(--status-critical-surface)] hover:text-[var(--status-critical)]"
+                            label={`Remove ${val.label}`}
                             onClick={() => removeValue(val.id)}
-                            title="Remove"
+                            size="sm"
+                            type="button"
+                            variant="ghost"
                           >
                             <Trash2 className="h-3 w-3" />
-                          </button>
+                          </IconButton>
                         </div>
                       </div>
                     ))}
@@ -215,6 +223,6 @@ export default function DropdownConfigPage() {
           categories.find((c) => c.id === addValueCategory)?.name
         }
       />
-    </div>
+    </SettingsLayout>
   );
 }

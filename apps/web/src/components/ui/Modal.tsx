@@ -8,13 +8,14 @@ import {
   useState,
 } from "react";
 import { createPortal } from "react-dom";
-import { X } from "lucide-react";
 import clsx from "clsx";
+import { X } from "lucide-react";
+import { IconButton } from "@/components/ui/IconButton";
 
 const sizeMap = {
-  sm: "max-w-[400px]",
-  md: "max-w-[560px]",
-  lg: "max-w-[800px]",
+  sm: "sm:max-w-[var(--modal-width-sm)]",
+  md: "sm:max-w-[var(--modal-width-md)]",
+  lg: "sm:max-w-[var(--modal-width-lg)]",
 } as const;
 
 type ModalSize = keyof typeof sizeMap;
@@ -130,7 +131,8 @@ export function Modal({ open, onClose, size = "md", children }: ModalProps) {
           "shadow-2xl",
           "sm:animate-[scaleIn_200ms_cubic-bezier(0.34,1.56,0.64,1)]",
           "animate-[slideUp_250ms_cubic-bezier(0.34,1.56,0.64,1)]",
-          "max-h-[90vh] overflow-hidden flex flex-col"
+          "max-h-[calc(100dvh-0.75rem)] sm:max-h-[90vh] overflow-hidden flex flex-col",
+          "mx-[var(--page-gutter-mobile)] sm:mx-[var(--page-gutter-tablet)]"
         )}
       >
         {children}
@@ -162,23 +164,21 @@ interface ModalHeaderProps {
 
 export function ModalHeader({ children, onClose }: ModalHeaderProps) {
   return (
-    <div className="flex items-center justify-between px-5 py-3.5 border-b border-[var(--border-default)]">
-      <h2 id="modal-title" className="text-[15px] font-semibold text-[var(--text-primary)]">
+    <div className="flex items-start justify-between gap-3 border-b border-[var(--border-default)] px-[var(--card-padding-sm)] py-3.5 sm:px-[var(--card-padding-md)]">
+      <h2 id="modal-title" className="min-w-0 flex-1 text-[15px] font-semibold text-[var(--text-primary)]">
         {children}
       </h2>
       {onClose && (
-        <button
+        <IconButton
           onClick={onClose}
-          className={clsx(
-            "w-7 h-7 rounded-md flex items-center justify-center",
-            "text-[var(--text-tertiary)] hover:text-[var(--text-primary)]",
-            "hover:bg-[var(--surface-hover)] active:bg-[var(--surface-pressed)]",
-            "transition-colors duration-100 cursor-pointer"
-          )}
-          aria-label="Close"
+          className="h-8 w-8 rounded-lg text-[var(--text-secondary)] shadow-none"
+          label="Close"
+          size="sm"
+          type="button"
+          variant="ghost"
         >
           <X size={16} />
-        </button>
+        </IconButton>
       )}
     </div>
   );
@@ -191,7 +191,7 @@ interface ModalContentProps {
 
 export function ModalContent({ children, className }: ModalContentProps) {
   return (
-    <div className={clsx("px-5 py-4 overflow-y-auto flex-1", className)}>
+    <div className={clsx("flex-1 overflow-y-auto px-[var(--card-padding-sm)] py-[var(--card-padding-sm)] sm:px-[var(--card-padding-md)] sm:py-[var(--card-padding-md)]", className)}>
       {children}
     </div>
   );
@@ -206,7 +206,7 @@ export function ModalFooter({ children, className }: ModalFooterProps) {
   return (
     <div
       className={clsx(
-        "flex items-center justify-end gap-2 px-5 py-3 border-t border-[var(--border-default)]",
+        "flex flex-col-reverse items-stretch gap-2 border-t border-[var(--border-default)] px-[var(--card-padding-sm)] py-3 sm:flex-row sm:items-center sm:justify-end sm:px-[var(--card-padding-md)]",
         className
       )}
     >

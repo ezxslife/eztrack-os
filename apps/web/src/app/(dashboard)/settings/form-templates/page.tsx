@@ -1,48 +1,92 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect, useCallback } from "react";
 import Link from "next/link";
-import { ArrowLeft, Plus, FileText, Pencil } from "lucide-react";
+import { ArrowLeft, Plus, FileText, Pencil, Loader2, AlertCircle } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { Badge } from "@/components/ui/Badge";
 import { Toggle } from "@/components/ui/Toggle";
-import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/Card";
+import { Card, CardContent } from "@/components/ui/Card";
 import { CreateFormTemplateWizard } from "@/components/modals/settings";
 import { useToast } from "@/components/ui/Toast";
+import {
+  fetchFormTemplates,
+  saveFormTemplates,
+} from "@/lib/queries/settings";
+import type { FormTemplateRecord } from "@/lib/settings-shared";
 
-interface FormTemplate {
-  id: string;
-  name: string;
-  description: string;
-  fieldCount: number;
-  lastUpdated: string;
-  active: boolean;
-  builtIn: boolean;
+function formatTemplateDate(value: string) {
+  const parsed = new Date(value);
+  return Number.isNaN(parsed.getTime())
+    ? value
+    : parsed.toLocaleDateString("en-US", {
+        month: "short",
+        day: "numeric",
+        year: "numeric",
+      });
 }
-
-const initialTemplates: FormTemplate[] = [
-  { id: "1", name: "Incident Report", description: "Core incident report with narrative and involved parties", fieldCount: 24, lastUpdated: "Mar 28, 2026", active: true, builtIn: true },
-  { id: "2", name: "Use of Force Report", description: "Detailed use of force documentation", fieldCount: 32, lastUpdated: "Mar 15, 2026", active: true, builtIn: true },
-  { id: "3", name: "Arrest Report", description: "Arrest details, charges, and booking information", fieldCount: 28, lastUpdated: "Mar 10, 2026", active: true, builtIn: true },
-  { id: "4", name: "Trespass Warning", description: "Trespass notice with photo and signature capture", fieldCount: 14, lastUpdated: "Feb 20, 2026", active: true, builtIn: true },
-  { id: "5", name: "Lost & Found Form", description: "Item description, location found, and claim tracking", fieldCount: 16, lastUpdated: "Mar 5, 2026", active: true, builtIn: true },
-  { id: "6", name: "Vehicle Incident", description: "Vehicle accident and damage reporting", fieldCount: 20, lastUpdated: "Jan 18, 2026", active: true, builtIn: true },
-  { id: "7", name: "Injury / Medical", description: "Injury documentation and medical response details", fieldCount: 22, lastUpdated: "Feb 12, 2026", active: true, builtIn: true },
-  { id: "8", name: "Evidence Log", description: "Evidence collection, chain of custody tracking", fieldCount: 12, lastUpdated: "Mar 1, 2026", active: true, builtIn: true },
-  { id: "9", name: "Witness Statement", description: "Witness interview and signed statement", fieldCount: 10, lastUpdated: "Feb 25, 2026", active: true, builtIn: true },
-  { id: "10", name: "Property Damage", description: "Property damage assessment and cost estimation", fieldCount: 18, lastUpdated: "Jan 30, 2026", active: false, builtIn: true },
-];
 
 export default function FormTemplatesPage() {
   const { toast } = useToast();
-  const [templates, setTemplates] = useState(initialTemplates);
+  const [templates, setTemplates] = useState<FormTemplateRecord[]>([]);
   const [createOpen, setCreateOpen] = useState(false);
+  const [editingTemplate, setEditingTemplate] = useState<FormTemplateRecord | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
-  const toggleActive = (id: string, checked: boolean) => {
-    setTemplates((prev) =>
-      prev.map((t) => (t.id === id ? { ...t, active: checked } : t))
-    );
+  const load = useCallback(async () => {
+    try {
+      setLoading(true);
+      setError(null);
+      const data = await fetchFormTemplates();
+      setTemplates(data);
+    } catch (err: any) {
+      setError(err.message || "Failed to load templates");
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    load();
+  }, [load]);
+
+  const persistTemplates = async (nextTemplates: FormTemplateRecord[]) => {
+    await saveFormTemplates(nextTemplates);
+    setTemplates(nextTemplates);
   };
+
+  const toggleActive = async (id: string, checked: boolean) => {
+    const nextTemplates = templates.map((t) =>
+      t.id === id ? { ...t, active: checked, lastUpdated: new Date().toISOString() } : t,
+    );
+    try {
+      await persistTemplates(nextTemplates);
+    } catch (err: any) {
+      toast(err.message || "Failed to update template", { variant: "error" });
+      load();
+    }
+  };
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center py-20">
+        <Loader2 className="h-6 w-6 animate-spin text-[var(--text-tertiary)]" />
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="flex flex-col items-center justify-center py-20 gap-3">
+        <AlertCircle className="h-6 w-6 text-red-400" />
+        <p className="text-[13px] text-[var(--text-secondary)]">{error}</p>
+        <Button variant="outline" size="sm" onClick={load}>
+          Retry
+        </Button>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
@@ -99,7 +143,7 @@ export default function FormTemplatesPage() {
                       </div>
                     </td>
                     <td className="px-5 py-3 text-[var(--text-secondary)]">{tpl.fieldCount} fields</td>
-                    <td className="px-5 py-3 text-[var(--text-tertiary)]">{tpl.lastUpdated}</td>
+                    <td className="px-5 py-3 text-[var(--text-tertiary)]">{formatTemplateDate(tpl.lastUpdated)}</td>
                     <td className="px-5 py-3">
                       <Badge tone={tpl.builtIn ? "info" : "warning"}>
                         {tpl.builtIn ? "Built-in" : "Custom"}
@@ -109,13 +153,20 @@ export default function FormTemplatesPage() {
                       <div className="flex justify-center">
                         <Toggle
                           checked={tpl.active}
-                          onChange={(checked) => toggleActive(tpl.id, checked)}
+                          onChange={(checked) => void toggleActive(tpl.id, checked)}
                           size="sm"
                         />
                       </div>
                     </td>
                     <td className="px-5 py-3">
-                      <Button variant="ghost" size="sm">
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => {
+                          setCreateOpen(false);
+                          setEditingTemplate(tpl);
+                        }}
+                      >
                         <Pencil className="h-3.5 w-3.5" />
                       </Button>
                     </td>
@@ -128,10 +179,64 @@ export default function FormTemplatesPage() {
       </Card>
 
       <CreateFormTemplateWizard
-        open={createOpen}
-        onClose={() => setCreateOpen(false)}
+        open={createOpen || editingTemplate !== null}
+        onClose={() => {
+          setCreateOpen(false);
+          setEditingTemplate(null);
+        }}
+        initialData={editingTemplate}
+        title={editingTemplate ? "Edit Form Template" : "Create Form Template"}
+        submitLabel={editingTemplate ? "Save Template" : "Create Template"}
         onSubmit={async (data) => {
-          toast("Form template created successfully", { variant: "success" });
+          try {
+            const timestamp = new Date().toISOString();
+            const nextTemplate: FormTemplateRecord = editingTemplate
+              ? {
+                  ...editingTemplate,
+                  name: data.name,
+                  description: data.description,
+                  fieldCount: data.fields.length,
+                  lastUpdated: timestamp,
+                  autoAttachTypes: data.autoAttachTypes,
+                  fields: data.fields,
+                }
+              : {
+                  id: crypto.randomUUID(),
+                  name: data.name,
+                  description: data.description,
+                  fieldCount: data.fields.length,
+                  lastUpdated: timestamp,
+                  active: true,
+                  builtIn: false,
+                  autoAttachTypes: data.autoAttachTypes,
+                  fields: data.fields,
+                };
+
+            const nextTemplates = editingTemplate
+              ? templates.map((template) =>
+                  template.id === editingTemplate.id ? nextTemplate : template,
+                )
+              : [...templates, nextTemplate];
+
+            await persistTemplates(nextTemplates);
+            toast(
+              editingTemplate
+                ? "Form template updated successfully"
+                : "Form template created successfully",
+              { variant: "success" },
+            );
+            setEditingTemplate(null);
+            setCreateOpen(false);
+          } catch (err: any) {
+            toast(
+              err.message ||
+                (editingTemplate
+                  ? "Failed to update template"
+                  : "Failed to create template"),
+              { variant: "error" },
+            );
+            throw err;
+          }
         }}
       />
     </div>

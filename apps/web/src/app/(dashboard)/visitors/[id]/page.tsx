@@ -27,7 +27,8 @@ import {
   EditVisitModal,
   CancelVisitModal,
 } from "@/components/modals/visitors";
-import { fetchVisitorById, updateVisitorStatus, type VisitorDetail } from "@/lib/queries/visitors";
+import { fetchVisitorById, updateVisitorStatus, updateVisitor, createVisitor, type VisitorDetail } from "@/lib/queries/visitors";
+import { getSupabaseBrowser } from "@/lib/supabase-browser";
 
 /* ── Purpose Badge ── */
 const PURPOSE_CONFIG: Record<string, { label: string; tone: "info" | "warning" | "success" | "critical" | "attention" }> = {
@@ -340,18 +341,55 @@ export default function VisitorDetailPage({ params }: { params: Promise<{ id: st
       <AddVisitorToVisitModal
         open={addVisitorOpen}
         onClose={() => setAddVisitorOpen(false)}
-        onSubmit={async () => {
-          toast("Visitor added to visit successfully", { variant: "success" });
-          setAddVisitorOpen(false);
+        onSubmit={async (data) => {
+          try {
+            // Create a new visitor record linked to the same org/property
+            await createVisitor({
+              orgId: visitor.orgId,
+              propertyId: visitor.propertyId,
+              firstName: (data as any).firstName || "",
+              lastName: (data as any).lastName || "",
+              purpose: visitor.purpose,
+              hostName: visitor.hostName || undefined,
+              hostDepartment: visitor.hostDepartment || undefined,
+              company: (data as any).organization,
+              email: (data as any).email,
+              phone: (data as any).phone,
+            });
+            toast("Visitor added to visit successfully", { variant: "success" });
+            setAddVisitorOpen(false);
+            loadVisitor();
+          } catch (err: any) {
+            toast(err.message || "Failed to add visitor", { variant: "error" });
+          }
         }}
       />
       <EditVisitModal
         open={editOpen}
         onClose={() => setEditOpen(false)}
-        onSubmit={async () => {
-          toast("Visit updated successfully", { variant: "success" });
-          setEditOpen(false);
-          loadVisitor();
+        onSubmit={async (data) => {
+          try {
+            await updateVisitor(id, {
+              purpose: (data as any).purpose,
+              hostName: (data as any).hostName,
+              hostDepartment: (data as any).hostDepartment,
+              expectedDate: (data as any).expectedDate,
+              expectedTime: (data as any).expectedTime,
+              firstName: (data as any).firstName,
+              lastName: (data as any).lastName,
+              company: (data as any).company,
+              phone: (data as any).phone,
+              email: (data as any).email,
+              idType: (data as any).idType,
+              idNumber: (data as any).idNumber,
+              vehiclePlate: (data as any).vehiclePlate,
+            });
+            toast("Visit updated successfully", { variant: "success" });
+            setEditOpen(false);
+            loadVisitor();
+          } catch (err: any) {
+            toast(err.message || "Failed to update visit", { variant: "error" });
+          }
         }}
         initialData={{
           purpose: visitor.purpose,

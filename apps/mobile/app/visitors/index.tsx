@@ -1,0 +1,216 @@
+import { useRouter } from "expo-router";
+import { useMemo } from "react";
+import {
+  Pressable,
+  StyleSheet,
+  Text,
+  View,
+} from "react-native";
+
+import { ScreenContainer } from "@/components/layout/ScreenContainer";
+import { useIOSNativeSearchHeader } from "@/navigation/useIOSNativeSearchHeader";
+import { Button } from "@/components/ui/Button";
+import { FilterChips } from "@/components/ui/FilterChips";
+import { SearchField } from "@/components/ui/SearchField";
+import { SectionCard } from "@/components/ui/SectionCard";
+import { StatusBadge } from "@/components/ui/StatusBadge";
+import { formatRelativeTimestamp } from "@/lib/format";
+import { useVisitors } from "@/lib/queries/secondary-modules";
+import {
+  defaultFilterState,
+  useFilterStore,
+} from "@/stores/filter-store";
+import { useThemeColors, useThemeTypography } from "@/theme";
+import { useAdaptiveLayout } from "@/theme/layout";
+
+const moduleKey = "visitors";
+const statusFilters = [
+  { label: "All", value: "" },
+  { label: "Pending", value: "pending" },
+  { label: "Signed In", value: "signed_in" },
+  { label: "Signed Out", value: "signed_out" },
+] as const;
+
+export default function VisitorsScreen() {
+  const colors = useThemeColors();
+  const typography = useThemeTypography();
+  const layout = useAdaptiveLayout();
+  const router = useRouter();
+  const visitorsQuery = useVisitors();
+  const rows = visitorsQuery.data ?? [];
+  const filtersState = useFilterStore(
+    (state) => state.filters[moduleKey] ?? defaultFilterState
+  );
+  const setFilter = useFilterStore((state) => state.setFilter);
+  const query = filtersState.search;
+  const selectedStatus = filtersState.status;
+  const selectedStatusLabel =
+    statusFilters.find((filter) => filter.value === selectedStatus)?.label ??
+    "All";
+  const { nativeIOSHeader } = useIOSNativeSearchHeader({
+    placeholder: "Search visitor, host, company, or purpose",
+    query,
+    setQuery: (value) => setFilter(moduleKey, { search: value }),
+    title: "Visitors",
+  });
+  const styles = createStyles(colors, layout, typography);
+
+  const filtered = useMemo(
+    () =>
+      rows.filter((item) => {
+        const matchesQuery =
+          !query ||
+          [
+            item.firstName,
+            item.lastName,
+            item.purpose,
+            item.hostName,
+            item.company,
+          ]
+            .join(" ")
+            .toLowerCase()
+            .includes(query.toLowerCase());
+
+        const matchesStatus = !selectedStatus || item.status === selectedStatus;
+        return matchesQuery && matchesStatus;
+      }),
+    [rows, query, selectedStatus]
+  );
+
+  return (
+    <ScreenContainer
+      accessory={
+        <View style={styles.accessory}>
+          {!nativeIOSHeader ? (
+            <SearchField
+              onChangeText={(value) => setFilter(moduleKey, { search: value })}
+              placeholder="Search visitor, host, company, or purpose"
+              style={styles.searchField}
+              value={query}
+            />
+          ) : null}
+          <FilterChips
+            onSelect={(value) => {
+              const match = statusFilters.find((filter) => filter.label === value);
+              setFilter(moduleKey, { status: match?.value ?? "" });
+            }}
+            options={statusFilters.map((filter) => filter.label)}
+            selected={selectedStatusLabel}
+          />
+          <Button
+            label="New Visitor"
+            onPress={() => router.push("/visitors/new")}
+            variant="secondary"
+          />
+        </View>
+      }
+      iosNativeHeader={nativeIOSHeader}
+      onRefresh={() => {
+        void visitorsQuery.refetch();
+      }}
+      refreshing={visitorsQuery.isRefetching}
+      subtitle="Visitor movement, host assignment, and sign-in state in a concise front-desk queue."
+      title="Visitors"
+    >
+      <SectionCard
+        subtitle={
+          visitorsQuery.isLoading
+            ? "Loading visitor queue"
+            : `${filtered.length} visits visible`
+        }
+        title="Visitor queue"
+      >
+        <View style={styles.list}>
+          {filtered.length ? (
+            filtered.map((item) => (
+              <Pressable
+                key={item.id}
+                onPress={() =>
+                  router.push({
+                    pathname: "/visitors/[id]",
+                    params: { id: item.id },
+                  })
+                }
+                style={styles.card}
+              >
+                <View style={styles.rowBetween}>
+                  <Text style={styles.title}>
+                    {item.firstName} {item.lastName}
+                  </Text>
+                  <StatusBadge status={item.status} />
+                </View>
+                <Text style={styles.copy}>{item.purpose}</Text>
+                <Text style={styles.meta}>
+                  {item.hostName ?? "No host"} · {item.company ?? "No company"}
+                </Text>
+                <Text style={styles.meta}>
+                  {item.checkedInAt
+                    ? `Checked in ${formatRelativeTimestamp(item.checkedInAt)}`
+                    : item.checkedOutAt
+                      ? `Checked out ${formatRelativeTimestamp(item.checkedOutAt)}`
+                      : `${item.expectedDate ?? "Unscheduled"}${item.expectedTime ? ` at ${item.expectedTime}` : ""}`}
+                </Text>
+              </Pressable>
+            ))
+          ) : (
+            <Text style={styles.emptyCopy}>
+              No visitors match the current search and filter.
+            </Text>
+          )}
+        </View>
+      </SectionCard>
+    </ScreenContainer>
+  );
+}
+
+function createStyles(
+  colors: ReturnType<typeof useThemeColors>,
+  layout: ReturnType<typeof useAdaptiveLayout>,
+  typography: ReturnType<typeof useThemeTypography>
+) {
+  return StyleSheet.create({
+    accessory: {
+      flexDirection: "row",
+      flexWrap: "wrap",
+      gap: layout.gridGap,
+    },
+    card: {
+      backgroundColor: colors.surfaceSecondary,
+      borderRadius: 18,
+      gap: 8,
+      padding: layout.listItemPadding,
+    },
+    copy: {
+      ...typography.subheadline,
+      color: colors.textPrimary,
+      fontWeight: "600",
+    },
+    emptyCopy: {
+      ...typography.subheadline,
+      color: colors.textTertiary,
+    },
+    list: {
+      gap: layout.gridGap,
+    },
+    meta: {
+      ...typography.footnote,
+      color: colors.textTertiary,
+    },
+    rowBetween: {
+      alignItems: "flex-start",
+      flexDirection: "row",
+      gap: 12,
+      justifyContent: "space-between",
+    },
+    searchField: {
+      width: "100%",
+    },
+    title: {
+      ...typography.headline,
+      color: colors.textPrimary,
+      fontWeight: "700",
+      flex: 1,
+      paddingRight: 12,
+    },
+  });
+}

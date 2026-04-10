@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback } from "react";
 import Link from "next/link";
-import { ArrowLeft, Plus, MoreHorizontal, Mail, Loader2, AlertCircle } from "lucide-react";
+import { ArrowLeft, Plus, Mail, Loader2, AlertCircle } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { Badge } from "@/components/ui/Badge";
@@ -18,8 +18,9 @@ import {
   fetchOrgUsers,
   updateUserRole,
   deactivateUser as deactivateUserApi,
-  type OrgUserRow,
+  inviteOrgUser,
 } from "@/lib/queries/settings";
+import { formatRoleLabel, mapStaffRoleToUiRole } from "@/lib/settings-shared";
 
 type UserStatus = "active" | "inactive" | "invited";
 
@@ -48,6 +49,7 @@ export default function UserManagementPage() {
   const [editRoleUser, setEditRoleUser] = useState<UserDisplay | null>(null);
   const [deactivateUser, setDeactivateUser] = useState<UserDisplay | null>(null);
   const [isDeactivating, setIsDeactivating] = useState(false);
+  const [resendingUserId, setResendingUserId] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     try {
@@ -172,7 +174,7 @@ export default function UserManagementPage() {
                     <td className="px-5 py-3 font-medium text-[var(--text-primary)]">{user.name}</td>
                     <td className="px-5 py-3 text-[var(--text-secondary)]">{user.email}</td>
                     <td className="px-5 py-3">
-                      <Badge tone="default">{user.role}</Badge>
+                      <Badge tone="default">{formatRoleLabel(user.role)}</Badge>
                     </td>
                     <td className="px-5 py-3">
                       <Badge tone={statusTone[user.status]} dot>
@@ -182,7 +184,29 @@ export default function UserManagementPage() {
                     <td className="px-5 py-3 text-[var(--text-tertiary)]">{user.lastLogin}</td>
                     <td className="px-5 py-3 text-right">
                       {user.status === "invited" ? (
-                        <Button variant="ghost" size="sm">
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          isLoading={resendingUserId === user.id}
+                          onClick={async () => {
+                            const [firstName = "", ...rest] = user.name.split(" ");
+                            setResendingUserId(user.id);
+                            try {
+                              await inviteOrgUser({
+                                email: user.email,
+                                firstName,
+                                lastName: rest.join(" "),
+                                role: mapStaffRoleToUiRole(user.role),
+                                sendWelcomeEmail: true,
+                              });
+                              toast("Invitation email resent", { variant: "success" });
+                            } catch (err: any) {
+                              toast(err.message || "Failed to resend invite", { variant: "error" });
+                            } finally {
+                              setResendingUserId(null);
+                            }
+                          }}
+                        >
                           <Mail className="h-3.5 w-3.5" />
                           Resend
                         </Button>
@@ -216,7 +240,14 @@ export default function UserManagementPage() {
         open={inviteOpen}
         onClose={() => setInviteOpen(false)}
         onSubmit={async (data) => {
-          toast("User invited successfully", { variant: "success" });
+          try {
+            await inviteOrgUser(data);
+            toast("User invited successfully", { variant: "success" });
+            await load();
+          } catch (err: any) {
+            toast(err.message || "Failed to invite user", { variant: "error" });
+            throw err;
+          }
         }}
       />
 
@@ -234,7 +265,7 @@ export default function UserManagementPage() {
             toast(err.message || "Failed to update role", { variant: "error" });
           }
         }}
-        currentRole={editRoleUser?.role?.toLowerCase().replace(/\s+/g, "_")}
+        currentRole={mapStaffRoleToUiRole(editRoleUser?.role ?? "").toLowerCase().replace(/\s+/g, "_")}
         userName={editRoleUser?.name}
       />
 

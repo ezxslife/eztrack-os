@@ -19,11 +19,11 @@ export const STATUS_COLORS: Record<
 
 // ── Priority Colors ───────────────────────────────────────────
 export const PRIORITY_COLORS = {
-  critical: { bg: "#DC2626", text: "#FFFFFF" },
-  high: { bg: "#F97316", text: "#FFFFFF" },
-  medium: { bg: "#EAB308", text: "#1A1A2E" },
-  low: { bg: "#3B82F6", text: "#FFFFFF" },
-  none: { bg: "#F3F4F6", text: "#6B7280" },
+  critical: { bg: "#DC2626", text: "#FFFFFF", border: "#B91C1C" },
+  high: { bg: "#F97316", text: "#071418", border: "#EA580C" },
+  medium: { bg: "#EAB308", text: "#1A1A2E", border: "#CA8A04" },
+  low: { bg: "#3B82F6", text: "#071418", border: "#2563EB" },
+  none: { bg: "#F3F4F6", text: "#4B5563", border: "#D1D5DB" },
 } as const;
 
 // ── Officer Status Colors ─────────────────────────────────────
@@ -76,6 +76,17 @@ export const DISPATCH_CODES = [
   { code: "FIRE", label: "Fire/Hazard", priority: "critical" },
   { code: "SEC", label: "Security", priority: "high" },
   { code: "EVAC", label: "Evacuation", priority: "critical" },
+] as const;
+
+// ── Case Stages ────────────────────────────────────────────────
+export const CASE_STAGES = [
+  { key: "assessment", label: "Assessment", number: 1 },
+  { key: "evidence_collection", label: "Evidence Collection", number: 2 },
+  { key: "detailed_investigation", label: "Detailed Investigation", number: 3 },
+  { key: "outcome", label: "Outcome", number: 4 },
+  { key: "cost_analysis", label: "Cost Analysis", number: 5 },
+  { key: "disposition", label: "Disposition", number: 6 },
+  { key: "resulting_actions", label: "Resulting Actions", number: 7 },
 ] as const;
 
 // ── Role Display Names ────────────────────────────────────────

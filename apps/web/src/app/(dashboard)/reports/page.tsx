@@ -1,26 +1,34 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
 import Link from "next/link";
 import {
   FileText,
   AlertTriangle,
   Radio,
   Briefcase,
-  Link as LinkIcon,
-  Users,
-  GraduationCap,
   DollarSign,
   UserCheck,
   Shield,
   Download,
   Zap,
+  Package,
+  Loader2,
+  AlertCircle,
   type LucideIcon,
 } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { Card, CardContent } from "@/components/ui/Card";
 import { Badge } from "@/components/ui/Badge";
 import { useToast } from "@/components/ui/Toast";
+import { getSupabaseBrowser } from "@/lib/supabase-browser";
+import {
+  buildReportRoute,
+  fetchReportCatalog,
+  getDefaultReportDateRange,
+  type ReportCatalogItem,
+} from "@/lib/queries/reports";
 
 /* ── Report Definition ── */
 interface ReportDef {
@@ -29,7 +37,10 @@ interface ReportDef {
   description: string;
   icon: LucideIcon;
   formats: string[];
-  lastGenerated: string | null;
+  recordCount: number;
+  latestActivity: string | null;
+  category: string;
+  quick?: boolean;
 }
 
 interface ReportCategory {
@@ -37,134 +48,117 @@ interface ReportCategory {
   reports: ReportDef[];
 }
 
-/* ── Report Categories ── */
-const REPORT_CATEGORIES: ReportCategory[] = [
-  {
-    title: "Operations Reports",
-    reports: [
-      {
-        slug: "daily-activity",
-        name: "Daily Activity Summary",
-        description: "All daily log entries for a selected date range",
-        icon: FileText,
-        formats: ["PDF", "CSV", "Excel"],
-        lastGenerated: "Apr 3, 2026",
-      },
-      {
-        slug: "incident-summary",
-        name: "Incident Summary Report",
-        description: "All incidents with classification, status, and response times",
-        icon: AlertTriangle,
-        formats: ["PDF", "CSV", "Excel"],
-        lastGenerated: "Apr 1, 2026",
-      },
-      {
-        slug: "dispatch-performance",
-        name: "Dispatch Performance",
-        description: "Response times, resolution rates, officer workload",
-        icon: Radio,
-        formats: ["PDF", "CSV", "Excel"],
-        lastGenerated: null,
-      },
-    ],
-  },
-  {
-    title: "Investigation Reports",
-    reports: [
-      {
-        slug: "case-status",
-        name: "Case Status Report",
-        description: "Active investigations, stage breakdown, aging",
-        icon: Briefcase,
-        formats: ["PDF", "CSV", "Excel"],
-        lastGenerated: "Mar 28, 2026",
-      },
-      {
-        slug: "evidence-custody",
-        name: "Evidence Chain of Custody",
-        description: "Full chain of custody audit trail",
-        icon: LinkIcon,
-        formats: ["PDF", "CSV"],
-        lastGenerated: null,
-      },
-    ],
-  },
-  {
-    title: "Personnel Reports",
-    reports: [
-      {
-        slug: "shift-coverage",
-        name: "Shift Coverage Report",
-        description: "Staff coverage by zone, shift gaps",
-        icon: Users,
-        formats: ["PDF", "CSV", "Excel"],
-        lastGenerated: "Apr 2, 2026",
-      },
-      {
-        slug: "training-compliance",
-        name: "Training Compliance",
-        description: "Certification status, expiring qualifications",
-        icon: GraduationCap,
-        formats: ["PDF", "Excel"],
-        lastGenerated: null,
-      },
-    ],
-  },
-  {
-    title: "Financial Reports",
-    reports: [
-      {
-        slug: "savings-losses",
-        name: "Savings & Losses Summary",
-        description: "Financial impact across all incidents",
-        icon: DollarSign,
-        formats: ["PDF", "CSV", "Excel"],
-        lastGenerated: "Mar 30, 2026",
-      },
-    ],
-  },
-  {
-    title: "Visitor & Patron Reports",
-    reports: [
-      {
-        slug: "visitor-log",
-        name: "Visitor Log",
-        description: "All visits with sign-in/out times",
-        icon: UserCheck,
-        formats: ["PDF", "CSV", "Excel"],
-        lastGenerated: "Apr 4, 2026",
-      },
-      {
-        slug: "patron-flags",
-        name: "Patron Flags & Bans",
-        description: "Active flags, ban history, watch list",
-        icon: Shield,
-        formats: ["PDF", "CSV"],
-        lastGenerated: null,
-      },
-    ],
-  },
-];
+const ICON_MAP: Record<string, LucideIcon> = {
+  "daily-activity": FileText,
+  "incident-summary": AlertTriangle,
+  "dispatch-performance": Radio,
+  "case-status": Briefcase,
+  "savings-losses": DollarSign,
+  "visitor-log": UserCheck,
+  "patron-flags": Shield,
+  "lost-found-inventory": Package,
+};
 
-/* ── Quick Generate Reports ── */
-const QUICK_REPORTS = [
-  { slug: "daily-activity", name: "Daily Activity Summary", icon: FileText },
-  { slug: "incident-summary", name: "Incident Summary", icon: AlertTriangle },
-  { slug: "shift-coverage", name: "Shift Coverage", icon: Users },
-  { slug: "visitor-log", name: "Visitor Log", icon: UserCheck },
-];
+function formatActivityDate(value: string | null) {
+  if (!value) return "No records available";
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) return value;
+  return parsed.toLocaleDateString("en-US", {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+  });
+}
 
 export default function ReportsPage() {
   const { toast } = useToast();
+  const router = useRouter();
   const [quickLoading, setQuickLoading] = useState<string | null>(null);
+  const [reports, setReports] = useState<ReportDef[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    const loadReports = async () => {
+      try {
+        setLoading(true);
+        setError(null);
+        const supabase = getSupabaseBrowser();
+        const {
+          data: { user },
+        } = await supabase.auth.getUser();
+        if (!user) throw new Error("Not authenticated");
+        const { data: profile, error: profileError } = await supabase
+          .from("profiles")
+          .select("org_id")
+          .eq("id", user.id)
+          .single();
+        if (profileError) throw profileError;
+        if (!profile?.org_id) throw new Error("Organization not found");
+        const catalog = await fetchReportCatalog(profile.org_id);
+        if (cancelled) return;
+        setReports(
+          catalog.map((item: ReportCatalogItem) => ({
+            ...item,
+            icon: ICON_MAP[item.slug] ?? FileText,
+          })),
+        );
+      } catch (err: any) {
+        if (!cancelled) setError(err.message || "Failed to load reports");
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    };
+    void loadReports();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const reportCategories = useMemo<ReportCategory[]>(() => {
+    const grouped = new Map<string, ReportDef[]>();
+    for (const report of reports) {
+      const current = grouped.get(report.category) ?? [];
+      current.push(report);
+      grouped.set(report.category, current);
+    }
+    return Array.from(grouped.entries()).map(([title, groupedReports]) => ({
+      title,
+      reports: groupedReports,
+    }));
+  }, [reports]);
+
+  const quickReports = useMemo(
+    () => reports.filter((report) => report.quick).slice(0, 4),
+    [reports],
+  );
 
   const handleQuickGenerate = (slug: string, name: string) => {
     setQuickLoading(slug);
-    setTimeout(() => {
-      setQuickLoading(null);
-      toast(`${name} generated successfully`, { variant: "success" });
-    }, 1200);
+    router.push(buildReportRoute(slug, getDefaultReportDateRange()));
+    toast(`Opening ${name}`, { variant: "info" });
   };
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center py-20">
+        <Loader2 className="h-6 w-6 animate-spin text-[var(--text-tertiary)]" />
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="flex flex-col items-center justify-center py-20 gap-3">
+        <AlertCircle className="h-6 w-6 text-red-400" />
+        <p className="text-[13px] text-[var(--text-secondary)]">{error}</p>
+        <Button variant="outline" size="sm" onClick={() => router.refresh()}>
+          Retry
+        </Button>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
@@ -186,7 +180,7 @@ export default function ReportsPage() {
             </span>
           </div>
           <div className="flex flex-wrap gap-2">
-            {QUICK_REPORTS.map((r) => (
+            {quickReports.map((r) => (
               <Button
                 key={r.slug}
                 variant="secondary"
@@ -203,7 +197,7 @@ export default function ReportsPage() {
       </Card>
 
       {/* ── Report Categories ── */}
-      {REPORT_CATEGORIES.map((category) => (
+      {reportCategories.map((category) => (
         <div key={category.title} className="space-y-3">
           <h2 className="text-[13px] font-semibold text-[var(--text-secondary)] uppercase tracking-wider">
             {category.title}
@@ -230,11 +224,10 @@ export default function ReportsPage() {
                           </Badge>
                         ))}
                       </div>
-                      <p className="text-[11px] text-[var(--text-tertiary)] mt-2">
-                        {report.lastGenerated
-                          ? `Last generated: ${report.lastGenerated}`
-                          : "Never generated"}
-                      </p>
+                      <div className="mt-2 space-y-0.5 text-[11px] text-[var(--text-tertiary)]">
+                        <p>{report.recordCount.toLocaleString()} records available</p>
+                        <p>Latest activity: {formatActivityDate(report.latestActivity)}</p>
+                      </div>
                     </div>
                   </div>
                   <div className="mt-3 flex justify-end">

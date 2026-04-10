@@ -131,6 +131,47 @@ export async function createVehicle(input: {
   return data;
 }
 
+/* ─── Update a vehicle ─────────────────────────── */
+
+export async function updateVehicle(
+  id: string,
+  updates: {
+    make?: string;
+    model?: string;
+    vehicleType?: string;
+    licensePlate?: string;
+    licenseState?: string;
+    year?: number;
+    color?: string;
+    vin?: string;
+    ownerType?: string;
+    ownerId?: string;
+    notes?: string;
+  }
+) {
+  const supabase = getSupabaseBrowser();
+
+  const payload: Record<string, unknown> = {};
+  if (updates.make !== undefined) payload.make = updates.make;
+  if (updates.model !== undefined) payload.model = updates.model;
+  if (updates.vehicleType !== undefined) payload.vehicle_type = updates.vehicleType;
+  if (updates.licensePlate !== undefined) payload.license_plate = updates.licensePlate;
+  if (updates.licenseState !== undefined) payload.license_state = updates.licenseState;
+  if (updates.year !== undefined) payload.year = updates.year;
+  if (updates.color !== undefined) payload.color = updates.color;
+  if (updates.vin !== undefined) payload.vin = updates.vin;
+  if (updates.ownerType !== undefined) payload.owner_type = updates.ownerType;
+  if (updates.ownerId !== undefined) payload.owner_id = updates.ownerId;
+  if (updates.notes !== undefined) payload.notes = updates.notes;
+
+  const { error } = await supabase
+    .from("vehicles")
+    .update(payload)
+    .eq("id", id);
+
+  if (error) throw error;
+}
+
 /* ─── Soft-delete a vehicle ─────────────────────── */
 
 export async function deleteVehicle(id: string) {

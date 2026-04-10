@@ -200,6 +200,35 @@ export async function createFoundItem(input: {
   return data;
 }
 
+/* ─── Update found item fields ──────────────────── */
+
+export async function updateFoundItem(
+  id: string,
+  updates: {
+    description?: string;
+    category?: string;
+    foundBy?: string;
+    storageLocation?: string;
+    notes?: string;
+  }
+) {
+  const supabase = getSupabaseBrowser();
+
+  const payload: Record<string, unknown> = {};
+  if (updates.description !== undefined) payload.description = updates.description;
+  if (updates.category !== undefined) payload.category = updates.category;
+  if (updates.foundBy !== undefined) payload.found_by = updates.foundBy;
+  if (updates.storageLocation !== undefined) payload.storage_location = updates.storageLocation;
+  if (updates.notes !== undefined) payload.notes = updates.notes;
+
+  const { error } = await supabase
+    .from("found_items")
+    .update(payload)
+    .eq("id", id);
+
+  if (error) throw error;
+}
+
 /* ─── Update found item status ───────────────────── */
 
 export async function updateFoundItemStatus(

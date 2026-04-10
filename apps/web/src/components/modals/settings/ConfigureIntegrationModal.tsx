@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { FormModal } from "@/components/modals/FormModal";
 import { Input } from "@/components/ui/Input";
 import { Toggle } from "@/components/ui/Toggle";
@@ -15,6 +15,11 @@ interface ConfigureIntegrationModalProps {
     enabled: boolean;
   }) => void | Promise<void>;
   integrationName?: string;
+  initialValues?: {
+    apiKey?: string;
+    apiUrl?: string;
+    enabled?: boolean;
+  };
 }
 
 export function ConfigureIntegrationModal({
@@ -22,27 +27,36 @@ export function ConfigureIntegrationModal({
   onClose,
   onSubmit,
   integrationName = "Integration",
+  initialValues,
 }: ConfigureIntegrationModalProps) {
   const [apiKey, setApiKey] = useState("");
   const [apiUrl, setApiUrl] = useState("");
   const [enabled, setEnabled] = useState(false);
-  const [isTesting, setIsTesting] = useState(false);
   const [testResult, setTestResult] = useState<"success" | "error" | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const isValid = apiKey.trim().length > 0;
 
-  const handleTestConnection = async () => {
-    setIsTesting(true);
+  useEffect(() => {
+    if (!open) return;
+    setApiKey(initialValues?.apiKey ?? "");
+    setApiUrl(initialValues?.apiUrl ?? "");
+    setEnabled(Boolean(initialValues?.enabled));
+    setTestResult(null);
+  }, [open, initialValues]);
+
+  const handleValidate = () => {
     setTestResult(null);
     try {
-      // Simulate connection test
-      await new Promise((resolve) => setTimeout(resolve, 1000));
+      if (!apiKey.trim()) {
+        throw new Error("API key is required");
+      }
+      if (apiUrl.trim()) {
+        new URL(apiUrl.trim());
+      }
       setTestResult("success");
     } catch {
       setTestResult("error");
-    } finally {
-      setIsTesting(false);
     }
   };
 
@@ -109,17 +123,16 @@ export function ConfigureIntegrationModal({
           type="button"
           variant="outline"
           size="sm"
-          onClick={handleTestConnection}
-          isLoading={isTesting}
+          onClick={handleValidate}
           disabled={!apiKey.trim()}
         >
-          Test Connection
+          Validate Configuration
         </Button>
         {testResult === "success" && (
-          <span className="text-[12px] text-green-500 font-medium">Connection successful</span>
+          <span className="text-[12px] text-green-500 font-medium">Configuration looks valid</span>
         )}
         {testResult === "error" && (
-          <span className="text-[12px] text-[var(--status-critical)] font-medium">Connection failed</span>
+          <span className="text-[12px] text-[var(--status-critical)] font-medium">Check API key or URL format</span>
         )}
       </div>
 

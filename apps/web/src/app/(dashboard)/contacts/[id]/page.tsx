@@ -19,7 +19,8 @@ import { Button } from "@/components/ui/Button";
 import { Badge } from "@/components/ui/Badge";
 import { Skeleton } from "@/components/ui/Skeleton";
 import { EditContactModal, DeleteContactModal } from "@/components/modals/contacts";
-import { fetchContactById, type ContactDetail } from "@/lib/queries/contacts";
+import { useRouter } from "next/navigation";
+import { fetchContactById, updateContact, deleteContact, type ContactDetail } from "@/lib/queries/contacts";
 
 /* ── Category config ── */
 const CATEGORY_CONFIG: Record<
@@ -54,6 +55,7 @@ export default function ContactDetailPage({
 }) {
   const { id } = use(params);
   const { toast } = useToast();
+  const router = useRouter();
 
   const [contact, setContact] = useState<ContactDetail | null>(null);
   const [loading, setLoading] = useState(true);
@@ -61,19 +63,20 @@ export default function ContactDetailPage({
   const [editOpen, setEditOpen] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
 
-  useEffect(() => {
-    async function load() {
-      try {
-        setLoading(true);
-        const data = await fetchContactById(id);
-        setContact(data);
-      } catch (err) {
-        setError(err instanceof Error ? err.message : "Failed to load contact");
-      } finally {
-        setLoading(false);
-      }
+  async function loadData() {
+    try {
+      setLoading(true);
+      const data = await fetchContactById(id);
+      setContact(data);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to load contact");
+    } finally {
+      setLoading(false);
     }
-    load();
+  }
+
+  useEffect(() => {
+    loadData();
   }, [id]);
 
   if (loading) {
@@ -235,9 +238,29 @@ export default function ContactDetailPage({
       <EditContactModal
         open={editOpen}
         onClose={() => setEditOpen(false)}
-        onSubmit={async () => {
-          toast("Contact updated successfully", { variant: "success" });
-          setEditOpen(false);
+        onSubmit={async (data: any) => {
+          try {
+            await updateContact(id, {
+              firstName: data.firstName,
+              lastName: data.lastName,
+              organizationName: data.organizationName,
+              category: data.category,
+              contactType: data.contactType,
+              title: data.title,
+              phone: data.phone,
+              secondaryPhone: data.secondaryPhone,
+              email: data.email,
+              address: data.address,
+              idType: data.idType,
+              idNumber: data.idNumber,
+              notes: data.notes,
+            });
+            toast("Contact updated successfully", { variant: "success" });
+            await loadData();
+          } catch (err: any) {
+            toast(err.message || "Failed to update contact", { variant: "error" });
+            throw err;
+          }
         }}
         contact={{
           contactType: contact.contactType,
@@ -259,8 +282,14 @@ export default function ContactDetailPage({
         open={deleteOpen}
         onClose={() => setDeleteOpen(false)}
         onConfirm={async () => {
-          toast("Contact deleted successfully", { variant: "success" });
-          setDeleteOpen(false);
+          try {
+            await deleteContact(id);
+            toast("Contact deleted successfully", { variant: "success" });
+            setDeleteOpen(false);
+            router.push("/contacts");
+          } catch (err: any) {
+            toast(err.message || "Failed to delete contact", { variant: "error" });
+          }
         }}
       />
     </div>

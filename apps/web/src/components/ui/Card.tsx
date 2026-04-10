@@ -10,7 +10,7 @@ export function Card({ children, className, hover = false, ...rest }: CardProps)
   return (
     <div
       className={clsx(
-        "bg-[var(--surface-primary)] border border-[var(--border-default)] rounded-xl shadow-sm",
+        "bg-[var(--surface-primary)] border border-[var(--border-default)] rounded-[var(--radius-xl)] shadow-sm",
         "transition-all duration-150 ease-out",
         hover && "hover:shadow-md hover:border-[var(--border-hover)] cursor-pointer",
         className
@@ -30,7 +30,7 @@ interface CardSectionProps {
 
 export function CardHeader({ children, className }: CardSectionProps) {
   return (
-    <div className={clsx("px-3 pt-3 sm:px-5 sm:pt-4 pb-0 flex flex-col gap-1", className)}>
+    <div className={clsx("flex flex-col gap-1 px-[var(--card-padding-sm)] pb-0 pt-[var(--card-padding-sm)] sm:px-[var(--card-padding-md)] sm:pt-[var(--card-padding-md)]", className)}>
       {children}
     </div>
   );
@@ -57,7 +57,7 @@ export function CardDescription({ children, className }: CardSectionProps) {
 /* ── CardContent ── */
 export function CardContent({ children, className }: CardSectionProps) {
   return (
-    <div className={clsx("px-3 py-3 sm:px-5 sm:py-4", className)}>
+    <div className={clsx("px-[var(--card-padding-sm)] py-[var(--card-padding-sm)] sm:px-[var(--card-padding-md)] sm:py-[var(--card-padding-md)]", className)}>
       {children}
     </div>
   );
@@ -68,7 +68,7 @@ export function CardFooter({ children, className }: CardSectionProps) {
   return (
     <div
       className={clsx(
-        "px-3 py-2.5 sm:px-5 sm:py-3 border-t border-[var(--border-default)] flex items-center gap-2",
+        "flex items-center gap-2 border-t border-[var(--border-default)] px-[var(--card-padding-sm)] py-3 sm:px-[var(--card-padding-md)]",
         className
       )}
     >

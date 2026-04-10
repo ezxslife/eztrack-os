@@ -5,6 +5,7 @@ import Link from "next/link";
 import { ArrowLeft, ChevronRight, ChevronDown, Plus, Building, Layers, MapPin, Loader2, AlertCircle } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { Badge } from "@/components/ui/Badge";
+import { EmptyState } from "@/components/ui/EmptyState";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/Card";
 import { AddLocationModal } from "@/components/modals/settings";
 import { useToast } from "@/components/ui/Toast";
@@ -197,7 +198,12 @@ export default function LocationsSettingsPage() {
         <CardContent>
           <div className="space-y-0.5">
             {tree.length === 0 ? (
-              <p className="text-center py-8 text-[var(--text-tertiary)] text-[13px]">No locations yet. Add a property first, then create locations.</p>
+              <EmptyState
+                icon={<MapPin className="h-5 w-5" />}
+                title="No locations yet"
+                description="Add a property first, then create zones and locations beneath it."
+                action={{ label: "Add Location", onClick: () => setAddLocationOpen(true), variant: "outline" }}
+              />
             ) : (
               tree.map((node) => (
                 <LocationNode key={node.id} node={node} />

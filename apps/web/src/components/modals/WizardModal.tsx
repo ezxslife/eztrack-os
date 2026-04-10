@@ -5,6 +5,7 @@ import clsx from "clsx";
 import { Check } from "lucide-react";
 import { Modal, ModalContent, ModalFooter } from "@/components/ui/Modal";
 import { Button } from "@/components/ui/Button";
+import { ProgressBar } from "@/components/ui/ProgressBar";
 
 interface WizardStep {
   id: string;
@@ -48,13 +49,14 @@ export function WizardModal({
 }: WizardModalProps) {
   const isFirstStep = currentIndex === 0;
   const isLastStep = currentIndex === steps.length - 1;
+  const currentStep = steps[currentIndex];
 
   return (
     <Modal open={open} onClose={onClose} size="lg">
       {/* Wizard Header with Step Indicator */}
-      <div className="px-5 pt-4 pb-3 border-b border-[var(--border-default)]">
+      <div className="border-b border-[var(--border-default)] px-4 pb-3 pt-4 sm:px-5">
         <div className="flex items-center justify-between mb-4">
-          <h2 className="text-[15px] font-semibold text-[var(--text-primary)]">
+          <h2 className="min-w-0 pr-3 text-[15px] font-semibold text-[var(--text-primary)]">
             {title}
           </h2>
           <span className="text-[12px] text-[var(--text-tertiary)]">
@@ -62,29 +64,47 @@ export function WizardModal({
           </span>
         </div>
 
-        {/* Step Indicator — iOS 26 style */}
-        <StepIndicator steps={steps} currentIndex={currentIndex} />
+        <div className="md:hidden space-y-2">
+          <div className="flex items-center justify-between gap-3">
+            <span className="text-[12px] font-medium text-[var(--text-primary)]">
+              {currentStep?.label}
+            </span>
+            <span className="text-[11px] text-[var(--text-tertiary)]">
+              {currentIndex + 1}/{steps.length}
+            </span>
+          </div>
+          <ProgressBar
+            value={((currentIndex + 1) / steps.length) * 100}
+            size="sm"
+          />
+        </div>
+
+        <div className="hidden md:block">
+          <StepIndicator steps={steps} currentIndex={currentIndex} />
+        </div>
       </div>
 
       <ModalContent>
         {children}
       </ModalContent>
 
-      <ModalFooter className="justify-between">
+      <ModalFooter className="sm:justify-between">
         <Button
           variant="ghost"
           size="sm"
           onClick={onClose}
           disabled={isSubmitting}
+          className="w-full sm:w-auto"
         >
           Cancel
         </Button>
-        <div className="flex items-center gap-2">
+        <div className="flex w-full flex-col-reverse gap-2 sm:w-auto sm:flex-row sm:items-center">
           <Button
             variant="outline"
             size="sm"
             onClick={onBack}
             disabled={isFirstStep || isSubmitting}
+            className="w-full sm:w-auto"
           >
             Back
           </Button>
@@ -93,6 +113,7 @@ export function WizardModal({
             onClick={onNext}
             isLoading={isSubmitting}
             disabled={!isStepValid || isSubmitting}
+            className="w-full sm:w-auto"
           >
             {isLastStep ? submitLabel : "Next"}
           </Button>

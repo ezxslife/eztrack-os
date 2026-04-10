@@ -24,18 +24,18 @@
   --gray-900: #18181b;
   --gray-950: #09090b;
 
-  /* Brand: EZTrack Primary (Cyan) — 11 stops */
-  --eztrack-primary-50:  #ecfeff;
-  --eztrack-primary-100: #cffafe;
-  --eztrack-primary-200: #a5f3fc;
-  --eztrack-primary-300: #67e8f9;
-  --eztrack-primary-400: #22d3ee;
-  --eztrack-primary-500: #06b6d4;
-  --eztrack-primary-600: #0891b2;
-  --eztrack-primary-700: #0e7490;
-  --eztrack-primary-800: #155e75;
-  --eztrack-primary-900: #164e63;
-  --eztrack-primary-950: #083344;
+  /* Brand: EZTrack Primary (Muted blue-cyan) — 11 stops */
+  --eztrack-primary-50:  #f2f7f9;
+  --eztrack-primary-100: #e2ebf0;
+  --eztrack-primary-200: #c7d6de;
+  --eztrack-primary-300: #a8bdc8;
+  --eztrack-primary-400: #8ca3b0;
+  --eztrack-primary-500: #728b99;
+  --eztrack-primary-600: #5f7684;
+  --eztrack-primary-700: #4d616c;
+  --eztrack-primary-800: #3e4e57;
+  --eztrack-primary-900: #303d44;
+  --eztrack-primary-950: #1a2227;
 
   /* Brand: EZTrack Accent (Amber) — 11 stops */
   --eztrack-accent-50:  #fffbeb;
@@ -79,12 +79,6 @@
   --purple-300: #d8b4fe;  --purple-400: #c084fc;  --purple-500: #a855f7;
   --purple-600: #9333ea;  --purple-700: #7e22ce;  --purple-800: #6b21a8;
   --purple-900: #581c87;
-
-  /* Dispatch Priority */
-  --dispatch-critical: #dc2626;
-  --dispatch-high:     #f59e0b;
-  --dispatch-medium:   #fbbf24;
-  --dispatch-low:      #3b82f6;
 
   /* Patrol Status */
   --patrol-available: #10b981;
@@ -160,6 +154,17 @@
   --sidebar-item-radius:     8px;
   --sidebar-icon-size:       18px;
   --topbar-height:           56px;
+  --page-max-form:           30rem;
+  --page-max-base:           68rem;
+  --page-max-wide:           84rem;
+  --page-max-full:           100%;
+  --page-gutter-mobile:      16px;
+  --page-gutter-tablet:      20px;
+  --page-gutter-desktop:     28px;
+  --page-section-gap:        24px;
+  --toolbar-gap:             12px;
+  --card-padding-sm:         16px;
+  --card-padding-md:         20px;
 
   /* ── Animation (iOS 26 spring physics) ────────────────────── */
   --duration-instant: 100ms;
@@ -233,21 +238,63 @@
   --surface-tertiary:    #e4e4e7;
   --surface-hover:       rgba(0, 0, 0, 0.03);
   --surface-active:      rgba(0, 0, 0, 0.06);
-  --surface-selected:    rgba(6, 182, 212, 0.06);
+  --surface-selected:    rgba(127, 157, 175, 0.08);
 
   /* Border system (light) */
   --border-default:      #e4e4e7;
   --border-subdued:      #f0f0f2;
   --border-hover:        #d4d4d8;
-  --border-focused:      var(--eztrack-primary-500);
+  --border-focused:      var(--action-primary);
 
   /* Text system (light) */
   --text-primary:        #09090b;
   --text-secondary:      #52525b;
   --text-tertiary:       #71717a;
   --text-disabled:       #a1a1aa;
-  --text-on-primary:     #ffffff;
+  --text-on-brand:       #071418;
+  --text-on-primary:     var(--text-on-brand);
+  --text-on-critical:    #ffffff;
   --text-on-dark:        #fafafa;
+
+  /* Action system (light) */
+  --accent-ink:               var(--eztrack-primary-800);
+  --accent-ink-hover:         var(--eztrack-primary-900);
+  --accent-ink-pressed:       var(--eztrack-primary-950);
+  --accent-fill:              var(--eztrack-primary-400);
+  --accent-fill-hover:        var(--eztrack-primary-500);
+  --accent-fill-pressed:      var(--eztrack-primary-600);
+  --accent-surface:           rgba(114, 139, 153, 0.12);
+  --accent-surface-hover:     rgba(114, 139, 153, 0.18);
+  --accent-border:            rgba(77, 97, 108, 0.18);
+  --focus-accent:             var(--accent-ink);
+  --action-primary:           var(--accent-ink);
+  --action-primary-hover:     var(--accent-ink-hover);
+  --action-primary-pressed:   var(--accent-ink-pressed);
+  --action-primary-fill:      var(--accent-fill);
+  --action-primary-fill-hover: var(--accent-fill-hover);
+  --action-primary-fill-pressed: var(--accent-fill-pressed);
+  --action-primary-surface:   var(--accent-surface);
+  --action-primary-surface-hover: var(--accent-surface-hover);
+  --action-primary-border:    var(--accent-border);
+  --action-destructive:       var(--red-600);
+  --action-destructive-hover: var(--red-700);
+  --action-destructive-pressed: var(--red-800);
+
+  /* Status system (light) */
+  --status-success:           var(--green-600);
+  --status-success-surface:   rgba(5, 150, 105, 0.1);
+  --status-success-border:    rgba(5, 150, 105, 0.18);
+  --status-warning:           var(--eztrack-accent-600);
+  --status-warning-surface:   rgba(217, 119, 6, 0.1);
+  --status-warning-border:    rgba(217, 119, 6, 0.18);
+  --status-info:              var(--blue-600);
+  --status-info-surface:      rgba(37, 99, 235, 0.1);
+  --status-info-border:       rgba(37, 99, 235, 0.18);
+  --status-critical:          var(--red-600);
+  --status-critical-hover:    var(--red-700);
+  --status-critical-pressed:  var(--red-800);
+  --status-critical-surface:  rgba(220, 38, 38, 0.1);
+  --status-critical-border:   rgba(220, 38, 38, 0.18);
 
   /* Shadow system (light — Polaris-style layered) */
   --shadow-xs:    0 1px 2px rgba(0,0,0,0.04);
@@ -268,9 +315,9 @@
   --overlay:          rgba(0, 0, 0, 0.3);
 
   /* Interactive state (light) */
-  --interactive:       var(--eztrack-primary-600);
-  --interactive-hover: var(--eztrack-primary-700);
-  --focus-ring:        0 0 0 2px var(--surface-primary), 0 0 0 4px var(--eztrack-primary-500);
+  --interactive:       var(--action-primary);
+  --interactive-hover: var(--action-primary-hover);
+  --focus-ring:        0 0 0 3px color-mix(in srgb, var(--focus-accent) 24%, transparent);
 }
 
 
@@ -305,21 +352,63 @@
   --surface-tertiary:    #27272a;
   --surface-hover:       rgba(255, 255, 255, 0.04);
   --surface-active:      rgba(255, 255, 255, 0.07);
-  --surface-selected:    rgba(6, 182, 212, 0.1);
+  --surface-selected:    rgba(151, 189, 207, 0.14);
 
   /* Border system (dark) */
   --border-default:      rgba(255, 255, 255, 0.08);
   --border-subdued:      rgba(255, 255, 255, 0.04);
   --border-hover:        rgba(255, 255, 255, 0.12);
-  --border-focused:      var(--eztrack-primary-400);
+  --border-focused:      var(--action-primary);
 
   /* Text system (dark) */
   --text-primary:        #fafafa;
   --text-secondary:      #a1a1aa;
   --text-tertiary:       #71717a;
   --text-disabled:       #52525b;
-  --text-on-primary:     #ffffff;
+  --text-on-brand:       #071418;
+  --text-on-primary:     var(--text-on-brand);
+  --text-on-critical:    #ffffff;
   --text-on-dark:        #fafafa;
+
+  /* Action system (dark) */
+  --accent-ink:               #d8e3e9;
+  --accent-ink-hover:         #e6edf1;
+  --accent-ink-pressed:       #f1f5f7;
+  --accent-fill:              #7b95a4;
+  --accent-fill-hover:        #8aa2af;
+  --accent-fill-pressed:      #99afbb;
+  --accent-surface:           rgba(140, 163, 176, 0.18);
+  --accent-surface-hover:     rgba(140, 163, 176, 0.24);
+  --accent-border:            rgba(140, 163, 176, 0.28);
+  --focus-accent:             var(--accent-ink);
+  --action-primary:           var(--accent-ink);
+  --action-primary-hover:     var(--accent-ink-hover);
+  --action-primary-pressed:   var(--accent-ink-pressed);
+  --action-primary-fill:      var(--accent-fill);
+  --action-primary-fill-hover: var(--accent-fill-hover);
+  --action-primary-fill-pressed: var(--accent-fill-pressed);
+  --action-primary-surface:   var(--accent-surface);
+  --action-primary-surface-hover: var(--accent-surface-hover);
+  --action-primary-border:    var(--accent-border);
+  --action-destructive:       var(--red-600);
+  --action-destructive-hover: var(--red-700);
+  --action-destructive-pressed: var(--red-800);
+
+  /* Status system (dark) */
+  --status-success:           var(--green-400);
+  --status-success-surface:   rgba(52, 211, 153, 0.14);
+  --status-success-border:    rgba(52, 211, 153, 0.24);
+  --status-warning:           var(--eztrack-accent-400);
+  --status-warning-surface:   rgba(251, 191, 36, 0.14);
+  --status-warning-border:    rgba(251, 191, 36, 0.24);
+  --status-info:              var(--blue-400);
+  --status-info-surface:      rgba(96, 165, 250, 0.14);
+  --status-info-border:       rgba(96, 165, 250, 0.24);
+  --status-critical:          var(--red-400);
+  --status-critical-hover:    var(--red-300);
+  --status-critical-pressed:  var(--red-500);
+  --status-critical-surface:  rgba(248, 113, 113, 0.14);
+  --status-critical-border:   rgba(248, 113, 113, 0.24);
 
   /* Shadow system (dark — deeper, more diffuse) */
   --shadow-xs:    0 1px 2px rgba(0,0,0,0.4);
@@ -340,9 +429,9 @@
   --overlay:          rgba(0, 0, 0, 0.6);
 
   /* Interactive state (dark) */
-  --interactive:       var(--eztrack-primary-400);
-  --interactive-hover: var(--eztrack-primary-300);
-  --focus-ring:        0 0 0 2px var(--surface-primary), 0 0 0 4px var(--eztrack-primary-400);
+  --interactive:       var(--action-primary);
+  --interactive-hover: var(--action-primary-hover);
+  --focus-ring:        0 0 0 3px color-mix(in srgb, var(--focus-accent) 28%, transparent);
 }
 
 
@@ -394,12 +483,6 @@
   --color-border-default: var(--border-default);
   --color-border-subdued: var(--border-subdued);
   --color-border-hover:   var(--border-hover);
-
-  /* Dispatch */
-  --color-dispatch-critical: var(--dispatch-critical);
-  --color-dispatch-high:     var(--dispatch-high);
-  --color-dispatch-medium:   var(--dispatch-medium);
-  --color-dispatch-low:      var(--dispatch-low);
 
   /* Shadcn compatibility */
   --color-background:             hsl(var(--background));
@@ -468,13 +551,13 @@
 
   /* Selection */
   ::selection {
-    background-color: var(--eztrack-primary-200);
-    color: var(--eztrack-primary-950);
+    background-color: color-mix(in srgb, var(--action-primary-fill) 42%, transparent);
+    color: var(--text-primary);
   }
 
   .dark ::selection {
-    background-color: var(--eztrack-primary-800);
-    color: var(--eztrack-primary-100);
+    background-color: color-mix(in srgb, var(--action-primary-fill) 42%, transparent);
+    color: var(--text-primary);
   }
 
   /* Scrollbar — subtle, iOS-inspired */
@@ -510,6 +593,26 @@
 /* ════════════════════════════════════════════════════════════════
    Utility Classes — iOS 26 Glass System
    ════════════════════════════════════════════════════════════════ */
+
+.page-width-form {
+  width: min(100%, var(--page-max-form));
+  max-width: var(--page-max-form);
+}
+
+.page-width-base {
+  width: min(100%, var(--page-max-base));
+  max-width: var(--page-max-base);
+}
+
+.page-width-wide {
+  width: min(100%, var(--page-max-wide));
+  max-width: var(--page-max-wide);
+}
+
+.page-width-full {
+  width: 100%;
+  max-width: none;
+}
 
 /* Glass card — the hero surface treatment */
 .glass {
@@ -552,46 +655,21 @@
   box-shadow: var(--shadow-md);
 }
 
+.page-toolbar-search {
+  flex: 1 1 18rem;
+  min-width: min(100%, 16rem);
+  max-width: min(100%, 30rem);
+}
+
+.page-toolbar-field {
+  width: 100%;
+}
+
 /* Elevation tiers */
 .elevation-0 { background: var(--surface-bg); }
 .elevation-1 { background: var(--surface-primary); box-shadow: var(--shadow-xs); }
 .elevation-2 { background: var(--surface-secondary); box-shadow: var(--shadow-sm); }
 .elevation-3 { background: var(--surface-tertiary); box-shadow: var(--shadow-md); }
-
-/* Dispatch priority badges */
-.badge-dispatch-critical {
-  background: var(--dispatch-critical);
-  color: white;
-  font-size: 11px;
-  font-weight: 600;
-  padding: 2px 8px;
-  border-radius: var(--radius-full);
-  letter-spacing: 0.03em;
-}
-.badge-dispatch-high {
-  background: var(--dispatch-high);
-  color: white;
-  font-size: 11px;
-  font-weight: 600;
-  padding: 2px 8px;
-  border-radius: var(--radius-full);
-}
-.badge-dispatch-medium {
-  background: var(--dispatch-medium);
-  color: var(--gray-900);
-  font-size: 11px;
-  font-weight: 600;
-  padding: 2px 8px;
-  border-radius: var(--radius-full);
-}
-.badge-dispatch-low {
-  background: var(--dispatch-low);
-  color: white;
-  font-size: 11px;
-  font-weight: 600;
-  padding: 2px 8px;
-  border-radius: var(--radius-full);
-}
 
 /* ── Animation Keyframes ─────────────────────────────────────── */
 @keyframes fade-in {
@@ -618,6 +696,26 @@
   0%, 100% { opacity: 1; }
   50%      { opacity: 0.6; }
 }
+@keyframes auth-orb-slow {
+  0%, 100% { transform: translate3d(0, 0, 0) scale(1); }
+  50% { transform: translate3d(24px, 18px, 0) scale(1.08); }
+}
+@keyframes auth-orb-drift {
+  0%, 100% { transform: translate3d(0, 0, 0) scale(1); }
+  50% { transform: translate3d(-18px, -28px, 0) scale(1.06); }
+}
+@keyframes auth-aurora {
+  0%, 100% { transform: translate3d(0, 0, 0) scale(1) rotate(0deg); }
+  50% { transform: translate3d(20px, 12px, 0) scale(1.06) rotate(-4deg); }
+}
+@keyframes auth-beam {
+  0%, 100% { transform: rotate(18deg) translateY(0); opacity: 0.22; }
+  50% { transform: rotate(15deg) translateY(18px); opacity: 0.32; }
+}
+@keyframes auth-beam-reverse {
+  0%, 100% { transform: rotate(-22deg) translateY(0); opacity: 0.16; }
+  50% { transform: rotate(-18deg) translateY(-16px); opacity: 0.24; }
+}
 @keyframes spin {
   to { transform: rotate(360deg); }
 }
@@ -629,6 +727,11 @@
 .animate-scale-in  { animation: scale-in var(--duration-normal) var(--ease-spring); }
 .animate-shimmer   { animation: shimmer 1.5s infinite linear; background-size: 200% 100%; }
 .animate-pulse-soft { animation: pulse-soft 2s ease-in-out infinite; }
+.animate-auth-aurora { animation: auth-aurora 22s ease-in-out infinite; }
+.animate-auth-orb-slow { animation: auth-orb-slow 18s ease-in-out infinite; }
+.animate-auth-orb-drift { animation: auth-orb-drift 22s ease-in-out infinite; }
+.animate-auth-beam { animation: auth-beam 17s ease-in-out infinite; }
+.animate-auth-beam-reverse { animation: auth-beam-reverse 19s ease-in-out infinite; }
 
 /* Theme transition — smooth mode switch */
 .theme-transition,

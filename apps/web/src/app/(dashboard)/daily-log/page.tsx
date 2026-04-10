@@ -16,7 +16,16 @@ import {
   DeleteDailyLogModal,
 } from "@/components/modals/daily-log";
 import { useToast } from "@/components/ui/Toast";
-import { fetchDailyLogs, type DailyLogRow } from "@/lib/queries/daily-logs";
+import {
+  fetchDailyLogs,
+  fetchDailyLogById,
+  createDailyLog,
+  updateDailyLog,
+  updateDailyLogStatus,
+  type DailyLogRow,
+} from "@/lib/queries/daily-logs";
+import { createIncident } from "@/lib/queries/incidents";
+import { getSupabaseBrowser } from "@/lib/supabase-browser";
 import { formatRelativeTime } from "@/lib/utils/time";
 
 interface DailyLogEntry {
@@ -63,7 +72,8 @@ export default function DailyLogPage() {
   const [quickReportModal, setQuickReportModal] = useState(false);
   const [editModal, setEditModal] = useState<{ open: boolean; data?: any }>({ open: false });
   const [escalateModal, setEscalateModal] = useState<{ open: boolean; entryId?: string }>({ open: false });
-  const [deleteModal, setDeleteModal] = useState<{ open: boolean; entryTitle?: string }>({ open: false });
+  const [deleteModal, setDeleteModal] = useState<{ open: boolean; entryId?: string; entryTitle?: string }>({ open: false });
+  const [userProfile, setUserProfile] = useState<{ orgId: string; propertyId: string | null; fullName: string | null } | null>(null);
 
   const loadLogs = useCallback(async () => {
     try {
@@ -71,6 +81,24 @@ export default function DailyLogPage() {
       setError(null);
       const data = await fetchDailyLogs();
       setLogs(data);
+
+      // Get user profile for org/property context
+      const supabase = getSupabaseBrowser();
+      const { data: { user } } = await supabase.auth.getUser();
+      if (user) {
+        const { data: profile } = await supabase
+          .from("profiles")
+          .select("org_id, property_id, full_name")
+          .eq("id", user.id)
+          .single();
+        if (profile) {
+          setUserProfile({
+            orgId: profile.org_id,
+            propertyId: profile.property_id,
+            fullName: profile.full_name ?? null,
+          });
+        }
+      }
     } catch (err: any) {
       setError(err.message || "Failed to load daily logs");
     } finally {
@@ -193,7 +221,7 @@ export default function DailyLogPage() {
 
       {/* Filter bar */}
       <div className="flex flex-wrap items-end gap-3">
-        <div className="flex-1 min-w-[200px] max-w-sm">
+        <div className="page-toolbar-search">
           <Input
             placeholder="Search logs..."
             value={searchQuery}
@@ -237,9 +265,22 @@ export default function DailyLogPage() {
         open={quickReportModal}
         onClose={() => setQuickReportModal(false)}
         onSubmit={async (data) => {
-          toast("Quick report created", { variant: "success" });
-          setQuickReportModal(false);
-          loadLogs();
+          try {
+            if (!userProfile) throw new Error("User profile not loaded");
+            await createDailyLog({
+              orgId: userProfile.orgId,
+              propertyId: userProfile.propertyId,
+              topic: data.topic,
+              synopsis: data.notes || undefined,
+              priority: data.priority,
+              locationId: data.location || null,
+            });
+            toast("Quick report created", { variant: "success" });
+            setQuickReportModal(false);
+            loadLogs();
+          } catch (err: any) {
+            toast(err.message || "Failed to create daily log", { variant: "error" });
+          }
         }}
       />
 
@@ -247,8 +288,20 @@ export default function DailyLogPage() {
         open={editModal.open}
         onClose={() => setEditModal({ open: false })}
         onSubmit={async (data) => {
-          toast("Daily log updated", { variant: "success" });
-          setEditModal({ open: false });
+          try {
+            if (!editModal.data?.id) throw new Error("No daily log selected");
+            await updateDailyLog(editModal.data.id, {
+              topic: data.topic,
+              synopsis: data.notes || undefined,
+              priority: data.priority,
+              locationId: data.location || null,
+            });
+            toast("Daily log updated", { variant: "success" });
+            setEditModal({ open: false });
+            loadLogs();
+          } catch (err: any) {
+            toast(err.message || "Failed to update daily log", { variant: "error" });
+          }
         }}
         initialData={editModal.data ?? null}
       />
@@ -257,8 +310,39 @@ export default function DailyLogPage() {
         open={escalateModal.open}
         onClose={() => setEscalateModal({ open: false })}
         onConfirm={async (data) => {
-          toast("Incident created from daily log", { variant: "info" });
-          setEscalateModal({ open: false });
+          try {
+            if (!escalateModal.entryId) throw new Error("No daily log selected");
+
+            const log = await fetchDailyLogById(escalateModal.entryId);
+            const incidentType = log.topic.trim().toLowerCase().replace(/[^a-z0-9]+/g, "_").replace(/^_+|_+$/g, "") || "general";
+            const summary = data.autoFill
+              ? log.synopsis?.trim() || log.topic
+              : log.topic;
+            const notes = [
+              `Escalated from daily log ${log.recordNumber}.`,
+              data.reason.trim() ? `Escalation reason: ${data.reason.trim()}` : null,
+              log.synopsis?.trim() ? `Original log synopsis: ${log.synopsis.trim()}` : null,
+            ]
+              .filter(Boolean)
+              .join("\n\n");
+
+            const result = await createIncident({
+              orgId: log.orgId,
+              propertyId: log.propertyId,
+              incidentType,
+              severity: log.priority,
+              locationId: log.location?.id ?? null,
+              synopsis: summary,
+              description: notes || undefined,
+              reportedBy: userProfile?.fullName ?? undefined,
+            });
+
+            toast(`Incident ${result.record_number} created from daily log`, { variant: "success" });
+            setEscalateModal({ open: false });
+            router.push(`/incidents/${result.id}`);
+          } catch (err: any) {
+            toast(err.message || "Failed to escalate daily log", { variant: "error" });
+          }
         }}
       />
 
@@ -266,8 +350,15 @@ export default function DailyLogPage() {
         open={deleteModal.open}
         onClose={() => setDeleteModal({ open: false })}
         onConfirm={async () => {
-          toast("Daily log deleted", { variant: "info" });
-          setDeleteModal({ open: false });
+          try {
+            if (!deleteModal.entryId) throw new Error("No daily log selected");
+            await updateDailyLogStatus(deleteModal.entryId, "archived");
+            toast("Daily log deleted", { variant: "info" });
+            setDeleteModal({ open: false });
+            loadLogs();
+          } catch (err: any) {
+            toast(err.message || "Failed to delete daily log", { variant: "error" });
+          }
         }}
         entryTitle={deleteModal.entryTitle}
       />

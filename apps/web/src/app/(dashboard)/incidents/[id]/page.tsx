@@ -46,6 +46,7 @@ import {
 import { Button } from "@/components/ui/Button";
 import { StatusBadge } from "@/components/ui/Badge";
 import { PriorityBadge } from "@/components/ui/PriorityBadge";
+import { EmptyState } from "@/components/ui/EmptyState";
 import { Tabs } from "@/components/ui/Tabs";
 import { useToast } from "@/components/ui/Toast";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/Card";
@@ -61,6 +62,18 @@ import {
   fetchIncidentShares,
   fetchIncidentForms,
   fetchIncidentDocLog,
+  fetchIncidentMedia,
+  createIncidentNarrative,
+  updateIncidentNarrative,
+  addIncidentParticipant,
+  createIncidentFinancial,
+  createIncidentShare,
+  linkRelatedIncident,
+  updateIncident,
+  updateIncidentStatus,
+  deleteIncident,
+  createIncidentMedia,
+  uploadIncidentMediaFile,
   type IncidentDetail,
   type IncidentNarrative,
   type IncidentParticipant,
@@ -69,6 +82,7 @@ import {
   type IncidentShare,
   type IncidentForm,
   type IncidentDocLogEntry,
+  type IncidentMediaItem,
 } from "@/lib/queries/incidents";
 import { createCase } from "@/lib/queries/cases";
 import { getSupabaseBrowser } from "@/lib/supabase-browser";
@@ -114,6 +128,7 @@ export default function IncidentDetailPage() {
   const [shares, setShares] = useState<IncidentShare[]>([]);
   const [forms, setForms] = useState<IncidentForm[]>([]);
   const [docLog, setDocLog] = useState<IncidentDocLogEntry[]>([]);
+  const [media, setMedia] = useState<IncidentMediaItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -134,31 +149,37 @@ export default function IncidentDetailPage() {
   const [lockModal, setLockModal] = useState(false);
   const [escalationChainModal, setEscalationChainModal] = useState(false);
 
+  // Reusable data loader
+  const loadIncident = async () => {
+    const [inc, narr, parts, fins, related, shareData, formData, logData, mediaData] = await Promise.all([
+      fetchIncidentById(incidentId),
+      fetchIncidentNarratives(incidentId),
+      fetchIncidentParticipants(incidentId),
+      fetchIncidentFinancials(incidentId),
+      fetchRelatedIncidents(incidentId).catch(() => [] as RelatedIncident[]),
+      fetchIncidentShares(incidentId).catch(() => [] as IncidentShare[]),
+      fetchIncidentForms(incidentId).catch(() => [] as IncidentForm[]),
+      fetchIncidentDocLog(incidentId).catch(() => [] as IncidentDocLogEntry[]),
+      fetchIncidentMedia(incidentId).catch(() => [] as IncidentMediaItem[]),
+    ]);
+    setIncident(inc);
+    setNarratives(narr);
+    setParticipants(parts);
+    setFinancials(fins);
+    setRelatedIncidents(related);
+    setShares(shareData);
+    setForms(formData);
+    setDocLog(logData);
+    setMedia(mediaData);
+  };
+
   // Fetch all incident data from Supabase
   useEffect(() => {
     let cancelled = false;
     async function load() {
       try {
         setLoading(true);
-        const [inc, narr, parts, fins, related, shareData, formData, logData] = await Promise.all([
-          fetchIncidentById(incidentId),
-          fetchIncidentNarratives(incidentId),
-          fetchIncidentParticipants(incidentId),
-          fetchIncidentFinancials(incidentId),
-          fetchRelatedIncidents(incidentId).catch(() => [] as RelatedIncident[]),
-          fetchIncidentShares(incidentId).catch(() => [] as IncidentShare[]),
-          fetchIncidentForms(incidentId).catch(() => [] as IncidentForm[]),
-          fetchIncidentDocLog(incidentId).catch(() => [] as IncidentDocLogEntry[]),
-        ]);
-        if (cancelled) return;
-        setIncident(inc);
-        setNarratives(narr);
-        setParticipants(parts);
-        setFinancials(fins);
-        setRelatedIncidents(related);
-        setShares(shareData);
-        setForms(formData);
-        setDocLog(logData);
+        await loadIncident();
       } catch (err: any) {
         if (!cancelled) setError(err.message || "Failed to load incident");
       } finally {
@@ -230,7 +251,7 @@ export default function IncidentDetailPage() {
           Back to Incidents
         </Link>
 
-        <div className="flex items-start justify-between gap-4">
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
           <div className="space-y-1.5">
             <div className="flex items-center gap-3 flex-wrap">
               <h1 className="text-xl font-semibold text-[var(--text-primary)]">
@@ -249,7 +270,7 @@ export default function IncidentDetailPage() {
               <span>Updated {formatDateTime(incident.updatedAt)}</span>
             </div>
           </div>
-          <div className="flex items-center gap-2 shrink-0">
+          <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row sm:items-center shrink-0">
             <Button variant="outline" size="sm">
               <Edit className="h-3.5 w-3.5" />
               Edit
@@ -285,7 +306,7 @@ export default function IncidentDetailPage() {
           <ParticipantsTab participants={participants} onAddParticipant={() => setParticipantWizard(true)} />
         )}
         {activeTab === "media" && (
-          <MediaTab onUploadMedia={() => setMediaModal(true)} />
+          <MediaTab media={media} onUploadMedia={() => setMediaModal(true)} />
         )}
         {activeTab === "related" && (
           <RelatedIncidentsTab relatedIncidents={relatedIncidents} onLinkIncident={() => setLinkModal(true)} />
@@ -314,61 +335,226 @@ export default function IncidentDetailPage() {
       <AddNarrativeModal
         open={narrativeModal}
         onClose={() => setNarrativeModal(false)}
-        onSubmit={async () => { setNarrativeModal(false); }}
+        onSubmit={async (data) => {
+          try {
+            await createIncidentNarrative(incident.id, {
+              title: (data as any).title || "",
+              content: (data as any).content || "",
+            });
+            toast("Narrative added", { variant: "success" });
+            setNarrativeModal(false);
+            await loadIncident();
+          } catch (err: any) {
+            toast(err.message || "Failed to add narrative", { variant: "error" });
+          }
+        }}
       />
       <EditNarrativeModal
         open={editNarrativeModal.open}
         onClose={() => setEditNarrativeModal({ open: false })}
-        onSubmit={async () => { setEditNarrativeModal({ open: false }); }}
+        onSubmit={async (data) => {
+          try {
+            if (!editNarrativeModal.data?.id) throw new Error("No narrative selected");
+            await updateIncidentNarrative(editNarrativeModal.data.id, {
+              title: (data as any).title || "",
+              content: (data as any).content || "",
+            });
+            toast("Narrative updated", { variant: "success" });
+            setEditNarrativeModal({ open: false });
+            await loadIncident();
+          } catch (err: any) {
+            toast(err.message || "Failed to update narrative", { variant: "error" });
+          }
+        }}
         initialTitle={editNarrativeModal.data?.title ?? ""}
         initialContent={editNarrativeModal.data?.content ?? ""}
       />
       <AddParticipantWizard
         open={participantWizard}
         onClose={() => setParticipantWizard(false)}
-        onSubmit={async () => { setParticipantWizard(false); }}
+        onSubmit={async (data) => {
+          try {
+            await addIncidentParticipant(incident.id, {
+              personType: (data as any).personType,
+              firstName: (data as any).firstName || "",
+              lastName: (data as any).lastName || "",
+              phone: (data as any).phone || undefined,
+              email: (data as any).email || undefined,
+              primaryRole: (data as any).primaryRole,
+              secondaryRole: (data as any).secondaryRole || undefined,
+              description: (data as any).description || undefined,
+              policeContacted: (data as any).policeContacted,
+              policeResult: (data as any).policeResult || undefined,
+              medicalAttention: (data as any).medicalAttention,
+              medicalDetails: (data as any).medicalDetails || undefined,
+            });
+            toast("Participant added", { variant: "success" });
+            setParticipantWizard(false);
+            await loadIncident();
+          } catch (err: any) {
+            toast(err.message || "Failed to add participant", { variant: "error" });
+          }
+        }}
       />
       <UploadMediaModal
         open={mediaModal}
         onClose={() => setMediaModal(false)}
-        onSubmit={async () => { setMediaModal(false); }}
+        onSubmit={async (data) => {
+          try {
+            const filePath = await uploadIncidentMediaFile(incident.id, data.file);
+            const mediaType = data.file.type.startsWith("image/")
+              ? "image"
+              : data.file.type.startsWith("video/")
+                ? "video"
+                : data.file.type === "application/pdf"
+                  ? "document"
+                  : "file";
+            await createIncidentMedia(incident.id, incident.orgId, {
+              title: data.title || undefined,
+              description: data.description || undefined,
+              mediaType,
+              fileName: data.file.name,
+              filePath,
+              fileSize: data.file.size,
+              mimeType: data.file.type,
+            });
+            toast("Media uploaded", { variant: "success" });
+            setMediaModal(false);
+            await loadIncident();
+          } catch (err: any) {
+            toast(err.message || "Failed to upload media", { variant: "error" });
+          }
+        }}
       />
       <AddFinancialEntryModal
         open={financialModal}
         onClose={() => setFinancialModal(false)}
-        onSubmit={async () => { setFinancialModal(false); }}
+        onSubmit={async (data) => {
+          try {
+            await createIncidentFinancial(incident.id, {
+              entryType: (data as any).kind || "loss",
+              amount: (data as any).amount,
+              description: (data as any).description || undefined,
+            });
+            toast("Financial entry added", { variant: "success" });
+            setFinancialModal(false);
+            await loadIncident();
+          } catch (err: any) {
+            toast(err.message || "Failed to add financial entry", { variant: "error" });
+          }
+        }}
       />
       <ShareIncidentModal
         open={shareModal}
         onClose={() => setShareModal(false)}
-        onSubmit={async () => { setShareModal(false); }}
+        onSubmit={async (data) => {
+          try {
+            const d = data as any;
+            const permMap: Record<string, string> = { view: "view", contributor: "comment", co_author: "edit" };
+            let expiresAt: string | null = null;
+            if (d.expiry === "specific_date" && d.expiryDate) {
+              expiresAt = new Date(d.expiryDate).toISOString();
+            }
+            await createIncidentShare(incident.id, incident.orgId, {
+              sharedWithUserId: d.targetType === "user" ? d.target : null,
+              sharedWithRole: d.targetType === "role" ? d.target : null,
+              permissionLevel: permMap[d.permission] || "view",
+              expiresAt,
+            });
+            toast("Incident shared", { variant: "success" });
+            setShareModal(false);
+            await loadIncident();
+          } catch (err: any) {
+            toast(err.message || "Failed to share incident", { variant: "error" });
+          }
+        }}
       />
       <LinkIncidentModal
         open={linkModal}
         onClose={() => setLinkModal(false)}
-        onSubmit={async () => { setLinkModal(false); }}
+        onSubmit={async (data) => {
+          try {
+            const d = data as any;
+            const relMap: Record<string, string> = { related: "related_to", parent: "precursor", child: "follow_up", duplicate: "duplicate" };
+            await linkRelatedIncident(incident.id, incident.orgId, {
+              relatedIncidentId: d.linkedIncidentId,
+              relationshipType: relMap[d.relationship] || "related_to",
+              reason: d.notes || undefined,
+            });
+            toast("Incident linked", { variant: "success" });
+            setLinkModal(false);
+            await loadIncident();
+          } catch (err: any) {
+            toast(err.message || "Failed to link incident", { variant: "error" });
+          }
+        }}
       />
       <RiskAssessmentModal
         open={riskModal}
         onClose={() => setRiskModal(false)}
-        onSubmit={async () => { setRiskModal(false); }}
+        onSubmit={async (data) => {
+          try {
+            const d = data as any;
+            const severityMap: Record<string, string> = { critical: "critical", high: "high", medium: "medium", low: "low", informational: "low" };
+            await updateIncident(incident.id, {
+              severity: (severityMap[d.riskLevel] || "medium") as any,
+              disposition: d.notes ? `Risk assessment: ${d.notes}` : incident.disposition,
+            });
+            toast("Risk assessment saved", { variant: "success" });
+            setRiskModal(false);
+            await loadIncident();
+          } catch (err: any) {
+            toast(err.message || "Failed to save risk assessment", { variant: "error" });
+          }
+        }}
       />
       <TransferOwnershipModal
         open={transferModal}
         onClose={() => setTransferModal(false)}
-        onSubmit={async () => { setTransferModal(false); }}
+        onSubmit={async (data) => {
+          try {
+            const d = data as any;
+            // newOwner is a search string — in a real implementation this would resolve to a user ID.
+            // For now, we update created_by with the value provided (expected to be a UUID in production).
+            await updateIncident(incident.id, { created_by: d.newOwner });
+            toast("Ownership transferred", { variant: "success" });
+            setTransferModal(false);
+            await loadIncident();
+          } catch (err: any) {
+            toast(err.message || "Failed to transfer ownership", { variant: "error" });
+          }
+        }}
       />
       <DeleteIncidentModal
         open={deleteModal}
         onClose={() => setDeleteModal(false)}
-        onConfirm={async () => { setDeleteModal(false); }}
+        onConfirm={async () => {
+          try {
+            await deleteIncident(incident.id);
+            toast("Incident deleted", { variant: "success" });
+            setDeleteModal(false);
+            router.push("/incidents");
+          } catch (err: any) {
+            toast(err.message || "Failed to delete incident", { variant: "error" });
+          }
+        }}
         incidentNumber={incident.recordNumber}
       />
       <LockIncidentModal
         open={lockModal}
         onClose={() => setLockModal(false)}
-        onConfirm={async () => { setLockModal(false); }}
-        isLocked={false}
+        onConfirm={async () => {
+          try {
+            const newStatus = incident.status === "closed" ? "open" : "closed";
+            await updateIncidentStatus(incident.id, newStatus as any);
+            toast(`Incident ${newStatus === "closed" ? "locked" : "unlocked"}`, { variant: "success" });
+            setLockModal(false);
+            await loadIncident();
+          } catch (err: any) {
+            toast(err.message || "Failed to update lock status", { variant: "error" });
+          }
+        }}
+        isLocked={incident.status === "closed"}
         incidentNumber={incident.recordNumber}
       />
       <EscalationChainModal
@@ -434,7 +620,7 @@ function ReportDetailsTab({
             <CardTitle>Incident Information</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="grid grid-cols-2 gap-x-6 gap-y-4">
+            <div className="grid grid-cols-1 gap-x-6 gap-y-4 sm:grid-cols-2">
               <FieldRow
                 label="Incident Number"
                 value={
@@ -464,7 +650,7 @@ function ReportDetailsTab({
             <CardTitle>Classification & Status</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="grid grid-cols-2 gap-x-6 gap-y-4">
+            <div className="grid grid-cols-1 gap-x-6 gap-y-4 sm:grid-cols-2">
               <FieldRow label="Status" value={<StatusBadge status={incident.status} dot />} />
               <FieldRow label="Severity" value={<PriorityBadge priority={incident.severity as any} />} />
               <FieldRow label="Owner" value={incident.creator?.fullName || "Unknown"} />
@@ -479,7 +665,7 @@ function ReportDetailsTab({
             <CardTitle>Incident Details</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="grid grid-cols-2 gap-x-6 gap-y-4">
+            <div className="grid grid-cols-1 gap-x-6 gap-y-4 sm:grid-cols-2">
               <FieldRow label="Reported" value={formatDateTime(incident.createdAt)} />
               <FieldRow label="Location" value={incident.location?.name || "Unknown"} />
               <div className="col-span-2">
@@ -494,7 +680,7 @@ function ReportDetailsTab({
 
         {/* Checklist */}
         <Card>
-          <CardHeader className="flex-row items-center justify-between">
+          <CardHeader className="flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <div>
               <CardTitle>Investigation Checklist</CardTitle>
               <p className="text-[12px] text-[var(--text-tertiary)] mt-0.5">
@@ -549,20 +735,20 @@ function ReportDetailsTab({
             <CardTitle>Financial Summary</CardTitle>
           </CardHeader>
           <CardContent className="space-y-3">
-            <div className="flex items-center justify-between">
+            <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
               <span className="text-[12px] text-[var(--text-tertiary)]">Total Losses</span>
               <span className="text-[13px] font-semibold text-red-500">
                 ${totalLosses.toLocaleString("en-US", { minimumFractionDigits: 2 })}
               </span>
             </div>
-            <div className="flex items-center justify-between">
+            <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
               <span className="text-[12px] text-[var(--text-tertiary)]">Total Savings</span>
               <span className="text-[13px] font-semibold text-green-500">
                 ${totalSavings.toLocaleString("en-US", { minimumFractionDigits: 2 })}
               </span>
             </div>
             <div className="h-px bg-[var(--border-default)]" />
-            <div className="flex items-center justify-between">
+            <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
               <span className="text-[12px] font-medium text-[var(--text-secondary)]">Net Impact</span>
               <span className={`text-[13px] font-bold ${totalLosses - totalSavings > 0 ? "text-red-500" : "text-green-500"}`}>
                 {totalLosses - totalSavings > 0 ? "-" : "+"}${Math.abs(totalLosses - totalSavings).toLocaleString("en-US", { minimumFractionDigits: 2 })}
@@ -588,13 +774,13 @@ function ReportDetailsTab({
                 <div className="text-[11px] text-[var(--text-tertiary)]">Document Owner</div>
               </div>
             </div>
-            <div className="flex items-center justify-between">
+            <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
               <span className="text-[12px] text-[var(--text-secondary)]">Exclusive</span>
               <span className="text-[12px] text-[var(--text-tertiary)]">
                 OFF
               </span>
             </div>
-            <div className="flex items-center justify-between">
+            <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
               <span className="text-[12px] text-[var(--text-secondary)]">Global</span>
               <span className="text-[12px] text-[var(--text-tertiary)]">
                 OFF
@@ -635,24 +821,26 @@ function NarrativeTab({
 }) {
   return (
     <div className="max-w-4xl space-y-4">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <h3 className="text-sm font-semibold text-[var(--text-primary)]">
           Narrative Entries ({narratives.length})
         </h3>
-        <Button variant="outline" size="sm" onClick={onAddNarrative}>
+        <Button variant="outline" size="sm" onClick={onAddNarrative} className="w-full sm:w-auto">
           <Plus className="h-3.5 w-3.5" />
           Add Narrative
         </Button>
       </div>
 
       {narratives.length === 0 && (
-        <Card>
-          <CardContent>
-            <p className="text-[13px] text-[var(--text-tertiary)] text-center py-6">
-              No narrative entries yet. Add the first report.
-            </p>
-          </CardContent>
-        </Card>
+        <EmptyState
+          icon={<FileText className="h-5 w-5" />}
+          title="No narrative entries yet"
+          description="Add the first narrative report for this incident."
+          action={{
+            label: "Add Narrative",
+            onClick: onAddNarrative,
+          }}
+        />
       )}
 
       {narratives.map((n) => {
@@ -728,11 +916,11 @@ function ParticipantsTab({ participants, onAddParticipant }: { participants: Inc
 
   return (
     <div className="max-w-5xl space-y-4">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <h3 className="text-sm font-semibold text-[var(--text-primary)]">
           Participants ({participants.length})
         </h3>
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           <Button variant="outline" size="sm">
             <Download className="h-3.5 w-3.5" />
             Export
@@ -747,7 +935,7 @@ function ParticipantsTab({ participants, onAddParticipant }: { participants: Inc
       <Card>
         <CardContent className="p-0">
           <div className="overflow-x-auto">
-            <table className="w-full">
+            <table className="w-full min-w-[760px]">
               <thead>
                 <tr className="bg-[var(--surface-secondary)] border-b border-[var(--border-default)]">
                   <th className="w-8 px-3 h-9" />
@@ -835,7 +1023,7 @@ function ParticipantRow({
       {isExpanded && (
         <tr className="bg-[var(--surface-secondary)]/50">
           <td colSpan={6} className="px-8 py-4">
-            <div className="grid grid-cols-2 gap-4 text-[13px]">
+            <div className="grid grid-cols-1 gap-4 text-[13px] sm:grid-cols-2">
               <div>
                 <span className="text-[11px] font-medium text-[var(--text-tertiary)] uppercase tracking-wider block mb-1">
                   Description
@@ -882,14 +1070,21 @@ function ParticipantRow({
    TAB 4: MEDIA
    ═══════════════════════════════════════════════════════════════ */
 
-function MediaTab({ onUploadMedia }: { onUploadMedia: () => void }) {
+function MediaTab({ media, onUploadMedia }: { media: IncidentMediaItem[]; onUploadMedia: () => void }) {
+  const formatFileSize = (bytes: number | null) => {
+    if (bytes == null) return "—";
+    if (bytes < 1024) return `${bytes} B`;
+    if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+    return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+  };
+
   return (
     <div className="max-w-5xl space-y-4">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <h3 className="text-sm font-semibold text-[var(--text-primary)]">
-          Media
+          Media ({media.length})
         </h3>
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           <Button variant="outline" size="sm" onClick={onUploadMedia}>
             <ImageIcon className="h-3.5 w-3.5" />
             Add Photo
@@ -905,15 +1100,55 @@ function MediaTab({ onUploadMedia }: { onUploadMedia: () => void }) {
         </div>
       </div>
 
-      <Card>
-        <CardContent className="py-12 text-center">
-          <ImageIcon className="h-8 w-8 mx-auto text-[var(--text-tertiary)] opacity-40 mb-3" />
-          <p className="text-[13px] text-[var(--text-secondary)]">No media files yet</p>
-          <p className="text-[12px] text-[var(--text-tertiary)] mt-1">
-            Upload photos, videos, or documents related to this incident
-          </p>
-        </CardContent>
-      </Card>
+      {media.length === 0 ? (
+        <EmptyState
+          icon={<ImageIcon className="h-5 w-5" />}
+          title="No media files yet"
+          description="Upload photos, videos, or documents related to this incident."
+          action={{
+            label: "Upload Media",
+            onClick: onUploadMedia,
+          }}
+        />
+      ) : (
+        <Card>
+          <CardContent className="p-0">
+            <div className="overflow-x-auto">
+              <table className="w-full min-w-[820px] text-[13px]">
+                <thead>
+                  <tr>
+                    <th className="text-left text-[11px] font-semibold text-[var(--text-tertiary)] uppercase tracking-wider px-3 py-2 border-b border-[var(--border-default)]">Type</th>
+                    <th className="text-left text-[11px] font-semibold text-[var(--text-tertiary)] uppercase tracking-wider px-3 py-2 border-b border-[var(--border-default)]">Title</th>
+                    <th className="text-left text-[11px] font-semibold text-[var(--text-tertiary)] uppercase tracking-wider px-3 py-2 border-b border-[var(--border-default)]">Filename</th>
+                    <th className="text-left text-[11px] font-semibold text-[var(--text-tertiary)] uppercase tracking-wider px-3 py-2 border-b border-[var(--border-default)]">Size</th>
+                    <th className="text-left text-[11px] font-semibold text-[var(--text-tertiary)] uppercase tracking-wider px-3 py-2 border-b border-[var(--border-default)]">Uploaded By</th>
+                    <th className="text-left text-[11px] font-semibold text-[var(--text-tertiary)] uppercase tracking-wider px-3 py-2 border-b border-[var(--border-default)]">Date</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {media.map((m) => {
+                    const typeIcon = m.mediaType === "image" || m.mimeType?.startsWith("image/")
+                      ? <ImageIcon className="h-4 w-4 text-[var(--text-tertiary)]" />
+                      : m.mediaType === "video" || m.mimeType?.startsWith("video/")
+                        ? <Video className="h-4 w-4 text-[var(--text-tertiary)]" />
+                        : <File className="h-4 w-4 text-[var(--text-tertiary)]" />;
+                    return (
+                      <tr key={m.id} className="hover:bg-[var(--surface-hover)] transition-colors">
+                        <td className="px-3 py-2.5 border-b border-[var(--border-default)]">{typeIcon}</td>
+                        <td className="px-3 py-2.5 text-[var(--text-primary)] border-b border-[var(--border-default)] font-medium">{m.title || "—"}</td>
+                        <td className="px-3 py-2.5 text-[var(--text-secondary)] border-b border-[var(--border-default)] font-mono text-[12px]">{m.fileName}</td>
+                        <td className="px-3 py-2.5 text-[var(--text-secondary)] border-b border-[var(--border-default)]">{formatFileSize(m.fileSize)}</td>
+                        <td className="px-3 py-2.5 text-[var(--text-secondary)] border-b border-[var(--border-default)]">{m.uploadedByName || "—"}</td>
+                        <td className="px-3 py-2.5 text-[var(--text-tertiary)] border-b border-[var(--border-default)] text-[12px]">{formatDateTime(m.createdAt)}</td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          </CardContent>
+        </Card>
+      )}
     </div>
   );
 }
@@ -925,11 +1160,11 @@ function MediaTab({ onUploadMedia }: { onUploadMedia: () => void }) {
 function RelatedIncidentsTab({ relatedIncidents, onLinkIncident }: { relatedIncidents: RelatedIncident[]; onLinkIncident: () => void }) {
   return (
     <div className="max-w-4xl space-y-4">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <h3 className="text-sm font-semibold text-[var(--text-primary)]">
           Related Incidents ({relatedIncidents.length})
         </h3>
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           <Button variant="outline" size="sm" onClick={onLinkIncident}>
             <Link2 className="h-3.5 w-3.5" />
             Link Incident
@@ -1047,11 +1282,11 @@ function AttachedRecordsTab() {
 function FormsTab({ forms }: { forms: IncidentForm[] }) {
   return (
     <div className="max-w-4xl space-y-4">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <h3 className="text-sm font-semibold text-[var(--text-primary)]">
           Supplemental Forms ({forms.length})
         </h3>
-        <Button variant="outline" size="sm">
+        <Button variant="outline" size="sm" disabled>
           <Plus className="h-3.5 w-3.5" />
           Add Form
         </Button>
@@ -1085,12 +1320,11 @@ function FormsTab({ forms }: { forms: IncidentForm[] }) {
           </Card>
         ))
       ) : (
-        <Card>
-          <CardContent className="py-12 text-center">
-            <ClipboardList className="h-8 w-8 mx-auto text-[var(--text-tertiary)] opacity-40 mb-3" />
-            <p className="text-[13px] text-[var(--text-secondary)]">No forms attached yet</p>
-          </CardContent>
-        </Card>
+        <EmptyState
+          icon={<ClipboardList className="h-5 w-5" />}
+          title="No forms attached yet"
+          description="Attach supplemental forms when additional documentation is needed."
+        />
       )}
 
       <div className="p-4 rounded-lg border border-dashed border-[var(--border-default)] text-center">
@@ -1111,11 +1345,11 @@ function SavingsLossesTab({ financials, totalLosses, totalSavings, onAddEntry }:
 
   return (
     <div className="max-w-4xl space-y-5">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <h3 className="text-sm font-semibold text-[var(--text-primary)]">
           Savings & Losses
         </h3>
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           <Button variant="outline" size="sm">
             <Download className="h-3.5 w-3.5" />
             Download for Insurance
@@ -1165,7 +1399,7 @@ function SavingsLossesTab({ financials, totalLosses, totalSavings, onAddEntry }:
       <Card>
         <CardContent className="p-0">
           <div className="overflow-x-auto">
-            <table className="w-full">
+            <table className="w-full min-w-[760px]">
               <thead>
                 <tr className="bg-[var(--surface-secondary)] border-b border-[var(--border-default)]">
                   <th className="px-4 h-9 text-left text-[11px] font-medium text-[var(--text-tertiary)] uppercase tracking-wider">
@@ -1257,7 +1491,7 @@ function SharingTab({ shares, onShare }: { shares: IncidentShare[]; onShare: () 
 
   return (
     <div className="max-w-4xl space-y-5">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <h3 className="text-sm font-semibold text-[var(--text-primary)]">
           Sharing & Permissions
         </h3>
@@ -1275,7 +1509,7 @@ function SharingTab({ shares, onShare }: { shares: IncidentShare[]; onShare: () 
         {active.map((share) => (
           <Card key={share.id}>
             <CardContent className="p-4">
-              <div className="flex items-start justify-between gap-4">
+              <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
                 <div className="flex items-start gap-3 flex-1 min-w-0">
                   <div className="h-8 w-8 rounded-full bg-[var(--surface-secondary)] flex items-center justify-center shrink-0">
                     {share.sharedWithRole ? (
@@ -1334,7 +1568,7 @@ function SharingTab({ shares, onShare }: { shares: IncidentShare[]; onShare: () 
           {expired.map((share) => (
             <Card key={share.id} className="opacity-60">
               <CardContent className="p-4">
-                <div className="flex items-center justify-between gap-4">
+                <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
                   <div className="flex items-center gap-3">
                     <div className="h-8 w-8 rounded-full bg-[var(--surface-secondary)] flex items-center justify-center">
                       <span className="text-[11px] font-medium text-[var(--text-tertiary)]">
@@ -1389,11 +1623,11 @@ function DocumentControlTab({
 }) {
   return (
     <div className="max-w-3xl space-y-5">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <h3 className="text-sm font-semibold text-[var(--text-primary)]">
           Document Control
         </h3>
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           <Button variant="outline" size="sm" onClick={onRiskAssessment}>
             <Shield className="h-3.5 w-3.5" />
             Risk Assessment
@@ -1415,7 +1649,7 @@ function DocumentControlTab({
           <CardTitle>Ownership</CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
-          <div className="flex items-center justify-between">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <div className="flex items-center gap-3">
               <div className="h-10 w-10 rounded-full bg-[var(--surface-secondary)] flex items-center justify-center text-[13px] font-semibold text-[var(--text-secondary)]">
                 SC
@@ -1445,7 +1679,7 @@ function DocumentControlTab({
           <CardTitle>Exclusive Access</CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
-          <div className="flex items-center justify-between">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <div>
               <p className="text-[13px] text-[var(--text-primary)]">Exclusive Mode</p>
               <p className="text-[11px] text-[var(--text-tertiary)]">
@@ -1480,7 +1714,7 @@ function DocumentControlTab({
           <CardTitle>Global Access</CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
-          <div className="flex items-center justify-between">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <div>
               <div className="flex items-center gap-2">
                 <p className="text-[13px] text-[var(--text-primary)]">Global Visibility</p>
@@ -1514,7 +1748,7 @@ function DocumentControlTab({
           <CardTitle>Archive</CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <FieldRow label="Current Status" value={<StatusBadge status={incident.status} dot />} />
             <FieldRow label="Is Archived" value="No" />
           </div>
@@ -1523,7 +1757,7 @@ function DocumentControlTab({
               Archiving is <strong>irreversible</strong>. The incident becomes permanently read-only for all users including the owner. Available only for CLOSED incidents.
             </p>
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             <Button variant="outline" size="sm" disabled>
               <Archive className="h-3.5 w-3.5" />
               Archive Now
@@ -1549,7 +1783,7 @@ function DocumentControlTab({
 function DocumentLogTab({ docLog }: { docLog: IncidentDocLogEntry[] }) {
   return (
     <div className="max-w-4xl space-y-4">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <h3 className="text-sm font-semibold text-[var(--text-primary)]">
           Document Log ({docLog.length} entries)
         </h3>
@@ -1598,10 +1832,11 @@ function DocumentLogTab({ docLog }: { docLog: IncidentDocLogEntry[] }) {
               </div>
             </div>
           ) : (
-            <div className="py-12 text-center">
-              <Clock className="h-8 w-8 mx-auto text-[var(--text-tertiary)] opacity-40 mb-3" />
-              <p className="text-[13px] text-[var(--text-secondary)]">No activity logged yet</p>
-            </div>
+            <EmptyState
+              icon={<Clock className="h-5 w-5" />}
+              title="No activity logged yet"
+              description="Document activity will appear here automatically as the incident changes."
+            />
           )}
         </CardContent>
       </Card>

@@ -4,7 +4,6 @@ import { useState, useMemo, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import {
   Plus,
-  Search,
   ShieldAlert,
   Stethoscope,
   PackageX,
@@ -20,12 +19,14 @@ import {
   AlertCircle,
 } from "lucide-react";
 import Link from "next/link";
+import { AppPage, PageSection } from "@/components/layout/AppPage";
+import { IndexPageLayout } from "@/components/layout/IndexPageLayout";
 import { Button } from "@/components/ui/Button";
-import { Input } from "@/components/ui/Input";
 import { Select } from "@/components/ui/Select";
 import { DataGrid } from "@/components/ui/DataGrid";
 import { StatusBadge } from "@/components/ui/Badge";
 import { PriorityBadge } from "@/components/ui/PriorityBadge";
+import { SearchInput } from "@/components/ui/SearchInput";
 import { fetchIncidents, type IncidentRow } from "@/lib/queries/incidents";
 import { formatRelativeTime } from "@/lib/utils/time";
 
@@ -217,88 +218,78 @@ export default function IncidentsPage() {
   // Loading state
   if (loading) {
     return (
-      <div className="flex items-center justify-center py-20">
-        <Loader2 className="h-6 w-6 animate-spin text-[var(--text-tertiary)]" />
-        <span className="ml-2 text-[13px] text-[var(--text-tertiary)]">Loading incidents…</span>
-      </div>
+      <AppPage width="full">
+        <PageSection className="flex items-center justify-center py-20">
+          <Loader2 className="h-6 w-6 animate-spin text-[var(--text-tertiary)]" />
+          <span className="ml-2 text-[13px] text-[var(--text-tertiary)]">Loading incidents…</span>
+        </PageSection>
+      </AppPage>
     );
   }
 
   // Error state
   if (error) {
     return (
-      <div className="flex flex-col items-center justify-center py-20 gap-3">
-        <AlertCircle className="h-8 w-8 text-[var(--status-error)]" />
-        <p className="text-[13px] text-[var(--text-secondary)]">{error}</p>
-        <Button variant="outline" size="sm" onClick={() => window.location.reload()}>
-          Retry
-        </Button>
-      </div>
+      <AppPage width="full">
+        <PageSection className="flex flex-col items-center justify-center gap-3 py-20">
+          <AlertCircle className="h-8 w-8 text-[var(--status-error)]" />
+          <p className="text-[13px] text-[var(--text-secondary)]">{error}</p>
+          <Button variant="outline" size="sm" onClick={() => window.location.reload()}>
+            Retry
+          </Button>
+        </PageSection>
+      </AppPage>
     );
   }
 
   return (
-    <div className="space-y-5">
-      {/* ── Page Header ── */}
-      <div className="flex items-start justify-between gap-4">
-        <div>
-          <h1 className="text-xl font-semibold text-[var(--text-primary)]">Incidents</h1>
-          <p className="text-[13px] text-[var(--text-tertiary)] mt-0.5">
-            Track, classify, and manage all security incidents across the venue
-          </p>
-        </div>
+    <IndexPageLayout
+      title="Incidents"
+      subtitle="Track, classify, and manage all security incidents across the venue."
+      primaryAction={
         <Link href="/incidents/new">
           <Button variant="destructive" size="md">
             <Plus className="h-3.5 w-3.5" />
             New Incident
           </Button>
         </Link>
-      </div>
-
-      {/* ── Filter Bar ── */}
-      <div className="flex flex-wrap items-end gap-3">
-        <div className="flex-1 min-w-[200px] max-w-xs">
-          <div className="relative">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-[var(--text-tertiary)]" />
-            <input
-              type="text"
+      }
+      summary={`${filtered.length} incident${filtered.length !== 1 ? "s" : ""}`}
+      toolbar={
+        <div className="flex flex-wrap items-end gap-[var(--toolbar-gap)]">
+          <div className="page-toolbar-search">
+            <SearchInput
+              className="page-toolbar-field"
               placeholder="Search incidents..."
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              className="w-full h-9 rounded-lg border border-[var(--border-default)] bg-[var(--surface-primary)] pl-9 pr-3 text-[13px] text-[var(--text-primary)] placeholder:text-[var(--text-tertiary)] transition-all duration-150 focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--focus-ring)] focus-visible:border-[var(--border-focused)] hover:border-[var(--border-hover)]"
+            />
+          </div>
+          <div className="w-full sm:w-[160px]">
+            <Select
+              options={TYPE_OPTIONS}
+              value={typeFilter}
+              onChange={(e) => setTypeFilter(e.target.value)}
+            />
+          </div>
+          <div className="w-full sm:w-[150px]">
+            <Select
+              options={SEVERITY_OPTIONS}
+              value={severityFilter}
+              onChange={(e) => setSeverityFilter(e.target.value)}
+            />
+          </div>
+          <div className="w-full sm:w-[150px]">
+            <Select
+              options={STATUS_OPTIONS}
+              value={statusFilter}
+              onChange={(e) => setStatusFilter(e.target.value)}
             />
           </div>
         </div>
-        <div className="w-full sm:w-[160px]">
-          <Select
-            options={TYPE_OPTIONS}
-            value={typeFilter}
-            onChange={(e) => setTypeFilter(e.target.value)}
-          />
-        </div>
-        <div className="w-full sm:w-[150px]">
-          <Select
-            options={SEVERITY_OPTIONS}
-            value={severityFilter}
-            onChange={(e) => setSeverityFilter(e.target.value)}
-          />
-        </div>
-        <div className="w-full sm:w-[150px]">
-          <Select
-            options={STATUS_OPTIONS}
-            value={statusFilter}
-            onChange={(e) => setStatusFilter(e.target.value)}
-          />
-        </div>
-      </div>
-
-      {/* ── Count ── */}
-      <p className="text-[12px] text-[var(--text-tertiary)]">
-        {filtered.length} incident{filtered.length !== 1 ? "s" : ""}
-      </p>
-
-      {/* ── Data Grid ── */}
-      <div className="rounded-xl border border-[var(--border-default)] bg-[var(--surface-primary)] overflow-hidden">
+      }
+    >
+      <div className="overflow-hidden rounded-[var(--radius-xl)] border border-[var(--border-default)] bg-[var(--surface-primary)]">
         <DataGrid
           columns={columns}
           data={filtered}
@@ -314,6 +305,6 @@ export default function IncidentsPage() {
           pageSize={20}
         />
       </div>
-    </div>
+    </IndexPageLayout>
   );
 }

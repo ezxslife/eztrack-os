@@ -16,6 +16,7 @@ import {
   Loader2,
   AlertCircle,
 } from "lucide-react";
+import { AppPage, PageHeader, PageSection } from "@/components/layout/AppPage";
 import { Button } from "@/components/ui/Button";
 import {
   fetchDashboardStats,
@@ -113,37 +114,35 @@ export default function DashboardPage() {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center py-20">
-        <Loader2 size={24} className="animate-spin text-[var(--text-tertiary)]" />
-      </div>
+      <AppPage width="wide">
+        <PageSection className="flex items-center justify-center py-20">
+          <Loader2 size={24} className="animate-spin text-[var(--text-tertiary)]" />
+        </PageSection>
+      </AppPage>
     );
   }
 
   if (error) {
     return (
-      <div className="flex flex-col items-center justify-center py-20 gap-3">
-        <AlertCircle size={24} className="text-[var(--status-critical)]" />
-        <p className="text-[13px] text-[var(--text-tertiary)]">{error}</p>
-        <Button variant="outline" size="sm" onClick={loadData}>
-          Retry
-        </Button>
-      </div>
+      <AppPage width="wide">
+        <PageSection className="flex flex-col items-center justify-center gap-3 py-20">
+          <AlertCircle size={24} className="text-[var(--status-critical)]" />
+          <p className="text-[13px] text-[var(--text-tertiary)]">{error}</p>
+          <Button variant="outline" size="sm" onClick={loadData}>
+            Retry
+          </Button>
+        </PageSection>
+      </AppPage>
     );
   }
 
   return (
-    <div className="space-y-6 animate-fade-in">
-      {/* Header */}
-      <div>
-        <h1 className="text-xl font-bold tracking-tight text-[var(--text-primary)]">
-          {greeting}
-        </h1>
-        <p className="mt-0.5 text-[13px] text-[var(--text-tertiary)]">
-          Here&apos;s your operations overview
-        </p>
-      </div>
+    <AppPage width="wide" className="animate-fade-in">
+      <PageHeader
+        title={greeting}
+        subtitle="Here’s your operations overview."
+      />
 
-      {/* Stat Cards */}
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
         {STAT_CONFIG.map((cfg) => {
           const Icon = cfg.icon;
@@ -174,9 +173,8 @@ export default function DashboardPage() {
         })}
       </div>
 
-      {/* Quick Actions */}
-      <div>
-        <h2 className="text-[13px] font-semibold text-[var(--text-secondary)] uppercase tracking-wider mb-3">
+      <PageSection>
+        <h2 className="mb-3 text-[13px] font-semibold uppercase tracking-wider text-[var(--text-secondary)]">
           Quick Actions
         </h2>
         <div className="flex flex-wrap gap-2">
@@ -192,10 +190,9 @@ export default function DashboardPage() {
             );
           })}
         </div>
-      </div>
+      </PageSection>
 
-      {/* Recent Activity */}
-      <div className="surface-card overflow-hidden">
+      <PageSection padding="none" className="overflow-hidden">
         <div className="flex items-center justify-between px-4 py-3 border-b border-[var(--border-default)]">
           <h2 className="text-[13px] font-semibold text-[var(--text-primary)]">
             Recent Activity
@@ -252,7 +249,7 @@ export default function DashboardPage() {
             );
           })}
         </div>
-      </div>
-    </div>
+      </PageSection>
+    </AppPage>
   );
 }

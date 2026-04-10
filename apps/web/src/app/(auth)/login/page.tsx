@@ -1,85 +1,84 @@
 "use client";
 
-import { Suspense, useState, type FormEvent } from "react";
+import { Suspense, useActionState } from "react";
 import { useSearchParams } from "next/navigation";
-import { Shield } from "lucide-react";
+import { ArrowRight, LockKeyhole, Shield } from "lucide-react";
+import { AuthCard, AuthShell } from "@/components/layout/AuthShell";
 import { Input } from "@/components/ui/Input";
 import { Button } from "@/components/ui/Button";
-import { getSupabaseBrowser } from "@/lib/supabase-browser";
+import { signIn } from "@/lib/auth-actions";
 
 function LoginForm() {
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
-  const [error, setError] = useState("");
-  const [loading, setLoading] = useState(false);
   const searchParams = useSearchParams();
   const redirectTo = searchParams.get("redirectTo") || "/dashboard";
-
-  async function handleSubmit(e: FormEvent) {
-    e.preventDefault();
-    setError("");
-    setLoading(true);
-
-    const supabase = getSupabaseBrowser();
-
-    const { error: authError } = await supabase.auth.signInWithPassword({
-      email,
-      password,
-    });
-
-    if (authError) {
-      setError(authError.message);
-      setLoading(false);
-      return;
-    }
-
-    // Full page navigation so middleware picks up the session cookie
-    window.location.href = redirectTo;
-  }
+  const [state, formAction, loading] = useActionState(signIn, { error: "" });
+  const showReturnTarget = redirectTo !== "/dashboard";
 
   return (
-    <div className="w-full max-w-sm px-6 animate-fade-in">
-      {/* Logo / Title */}
-      <div className="mb-8 text-center">
-        <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-2xl bg-[var(--eztrack-primary-500)]">
-          <Shield size={24} className="text-white" />
-        </div>
-        <h1 className="text-2xl font-bold tracking-tight text-[var(--text-primary)]">
-          EZTrack
-        </h1>
-        <p className="mt-1 text-[13px] text-[var(--text-tertiary)]">
-          Operations Platform
-        </p>
-      </div>
-
-      {/* Form card */}
-      <div className="surface-card p-6 shadow-lg">
-        <form onSubmit={handleSubmit} className="space-y-4">
-          {/* Error message */}
-          {error && (
-            <div className="rounded-lg bg-[var(--red-50,#fef2f2)] dark:bg-[var(--red-900,#7f1d1d)]/20 px-3 py-2.5 text-[13px] text-[var(--red-600,#dc2626)] dark:text-[var(--red-400,#f87171)] border border-[var(--red-200,#fecaca)] dark:border-[var(--red-800,#991b1b)]/30">
-              {error}
+    <AuthShell>
+      <AuthCard data-auth-card className="animate-fade-in">
+        <div className="mb-7 flex min-w-0 items-start justify-between gap-3 sm:items-center">
+          <div className="min-w-0">
+            <div className="inline-flex max-w-full items-center gap-2 rounded-full border border-white/8 bg-white/5 px-3 py-1.5 text-[11px] font-semibold uppercase tracking-[0.16em] text-[var(--text-secondary)]">
+              <Shield className="h-3.5 w-3.5 shrink-0" />
+              <span className="truncate">EZTrack</span>
             </div>
-          )}
+          </div>
+          <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl border border-white/10 bg-white/5 text-[var(--action-primary)]">
+            <LockKeyhole className="h-4.5 w-4.5" />
+          </div>
+        </div>
+
+        <div className="mb-6">
+          <h1 className="text-[clamp(1.9rem,5vw,2.35rem)] font-semibold tracking-[-0.05em] text-[var(--text-primary)]">
+            Sign in
+          </h1>
+          <p className="mt-2 text-[14px] leading-6 text-[var(--text-secondary)]">
+            Use your work account to continue.
+          </p>
+          {showReturnTarget ? (
+            <div className="mt-4 inline-flex max-w-full items-center rounded-full border border-white/10 bg-white/5 px-3 py-1.5 text-[12px] text-[var(--text-secondary)]">
+              <span className="truncate">
+                Returning to <span className="font-medium text-[var(--text-primary)]">{redirectTo}</span>
+              </span>
+            </div>
+          ) : null}
+        </div>
+
+        <form action={formAction} className="space-y-4">
+          <input type="hidden" name="redirectTo" value={redirectTo} />
+
+          {state.error ? (
+            <div
+              aria-live="polite"
+              className="rounded-2xl border border-[var(--status-critical-border)] bg-[var(--status-critical-surface)] px-4 py-3 text-[13px] leading-6 text-[var(--status-critical)]"
+            >
+              {state.error}
+            </div>
+          ) : null}
 
           <Input
-            label="Email"
+            autoCapitalize="none"
+            autoComplete="email"
+            autoFocus
             id="email"
-            type="email"
-            required
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
+            inputMode="email"
+            label="Email"
+            name="email"
             placeholder="operator@eztrack.io"
+            required
+            spellCheck={false}
+            type="email"
           />
 
           <Input
-            label="Password"
+            autoComplete="current-password"
             id="password"
-            type="password"
+            label="Password"
+            name="password"
+            placeholder="Enter password"
             required
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            placeholder="Enter your password"
+            type="password"
           />
 
           <Button
@@ -87,28 +86,18 @@ function LoginForm() {
             variant="default"
             size="lg"
             isLoading={loading}
-            className="w-full"
+            className="mt-2 w-full"
           >
-            Sign In
+            <span>{loading ? "Signing in" : "Sign in"}</span>
+            {!loading ? <ArrowRight className="h-4 w-4 shrink-0" /> : null}
           </Button>
         </form>
 
-        {/* Forgot password */}
-        <div className="mt-4 text-center">
-          <a
-            href="#"
-            className="text-[12px] text-[var(--text-tertiary)] transition-colors hover:text-[var(--interactive)]"
-          >
-            Forgot password?
-          </a>
-        </div>
-      </div>
-
-      {/* Footer */}
-      <p className="mt-8 text-center text-[11px] text-[var(--text-disabled)]">
-        Secure operations management
-      </p>
-    </div>
+        <p className="mt-4 text-[12px] leading-5 text-[var(--text-tertiary)]">
+          Need help? Contact your operations admin.
+        </p>
+      </AuthCard>
+    </AuthShell>
   );
 }
 

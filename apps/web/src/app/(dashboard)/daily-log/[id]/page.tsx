@@ -22,6 +22,7 @@ import {
 import { Button } from "@/components/ui/Button";
 import { StatusBadge } from "@/components/ui/Badge";
 import { PriorityBadge } from "@/components/ui/PriorityBadge";
+import { EmptyState } from "@/components/ui/EmptyState";
 import { Tabs } from "@/components/ui/Tabs";
 import { Modal, ModalHeader, ModalContent, ModalFooter } from "@/components/ui/Modal";
 import {
@@ -124,7 +125,7 @@ export default function DailyLogDetailPage({
   return (
     <div className="space-y-5 animate-fade-in">
       {/* Header */}
-      <div className="flex items-start justify-between">
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
         <div className="flex items-center gap-3">
           <Link href="/daily-log">
             <Button variant="ghost" size="sm">
@@ -146,16 +147,16 @@ export default function DailyLogDetailPage({
           </div>
         </div>
 
-        <div className="flex items-center gap-2">
-          <Button variant="outline" size="md" onClick={() => setEditLogModal(true)}>
+        <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row sm:items-center">
+          <Button variant="outline" size="md" onClick={() => setEditLogModal(true)} className="w-full sm:w-auto">
             <Edit size={14} />
             Edit
           </Button>
-          <Button variant="secondary" size="md" onClick={() => setDeleteLogModal(true)}>
+          <Button variant="secondary" size="md" onClick={() => setDeleteLogModal(true)} className="w-full sm:w-auto">
             <XCircle size={14} />
             Close Log
           </Button>
-          <Button variant="destructive" size="md" onClick={() => setEscalateModal(true)}>
+          <Button variant="destructive" size="md" onClick={() => setEscalateModal(true)} className="w-full sm:w-auto">
             <AlertTriangle size={14} />
             Escalate to Incident
           </Button>
@@ -198,9 +199,11 @@ export default function DailyLogDetailPage({
 
                 <div className="space-y-5">
                   {auditEntries.length === 0 && (
-                    <p className="text-[13px] text-[var(--text-tertiary)] text-center py-4">
-                      No timeline entries yet
-                    </p>
+                    <EmptyState
+                      icon={<Clock size={20} />}
+                      title="No timeline entries yet"
+                      description="Activity on this daily log will appear here automatically."
+                    />
                   )}
                   {auditEntries.map((entry) => {
                     const IconComp = entry.action.toLowerCase().includes("creat") ? Plus
@@ -230,32 +233,38 @@ export default function DailyLogDetailPage({
           )}
 
           {activeTab === "notes" && (
-            <div className="surface-card p-8 text-center">
-              <p className="text-[13px] text-[var(--text-tertiary)]">
-                No notes yet
-              </p>
+            <div className="surface-card">
+              <EmptyState
+                icon={<FileText size={20} />}
+                title="No notes yet"
+                description="Private notes and follow-up context will appear here."
+              />
             </div>
           )}
 
           {activeTab === "documents" && (
-            <div className="surface-card p-8 text-center">
-              <p className="text-[13px] text-[var(--text-tertiary)]">
-                No documents attached
-              </p>
+            <div className="surface-card">
+              <EmptyState
+                icon={<FileText size={20} />}
+                title="No documents attached"
+                description="Supporting documents attached to this daily log will appear here."
+              />
             </div>
           )}
 
           {activeTab === "sharing" && (
-            <div className="surface-card p-8 text-center">
-              <p className="text-[13px] text-[var(--text-tertiary)]">
-                This log has not been shared with anyone
-              </p>
+            <div className="surface-card">
+              <EmptyState
+                icon={<UserCheck size={20} />}
+                title="No sharing activity yet"
+                description="People or teams with access to this log will appear here."
+              />
             </div>
           )}
         </div>
 
         {/* Right column (30%) */}
-        <div className="w-full lg:w-auto space-y-4 lg:shrink-0" style={{ flex: "3 1 0%", minWidth: 240 }}>
+        <div className="w-full space-y-4 lg:min-w-[240px] lg:w-auto lg:shrink-0" style={{ flex: "3 1 0%" }}>
           {/* Linked Records */}
           <div className="surface-card p-4">
             <h3 className="text-[12px] font-semibold text-[var(--text-tertiary)] uppercase tracking-wider mb-3">
@@ -322,7 +331,11 @@ export default function DailyLogDetailPage({
             </h3>
             <div className="space-y-2.5">
               {auditEntries.length === 0 && (
-                <p className="text-[12px] text-[var(--text-tertiary)]">No audit entries</p>
+                <EmptyState
+                  icon={<UserCheck size={18} />}
+                  title="No audit entries"
+                  description="Review activity will appear here automatically."
+                />
               )}
               {auditEntries.map((entry) => (
                 <div key={entry.id} className="flex items-start gap-2">

@@ -16,9 +16,11 @@ import {
 import { Button } from "@/components/ui/Button";
 import { Badge } from "@/components/ui/Badge";
 import { StatusBadge } from "@/components/ui/Badge";
+import { EmptyState } from "@/components/ui/EmptyState";
 import { Skeleton } from "@/components/ui/Skeleton";
 import { EditVehicleModal, DeleteVehicleModal } from "@/components/modals/vehicles";
-import { fetchVehicleById, type VehicleDetail } from "@/lib/queries/vehicles";
+import { useRouter } from "next/navigation";
+import { fetchVehicleById, updateVehicle, deleteVehicle, type VehicleDetail } from "@/lib/queries/vehicles";
 import { getSupabaseBrowser } from "@/lib/supabase-browser";
 
 /* ── Vehicle type config ── */
@@ -94,6 +96,7 @@ export default function VehicleDetailPage({
 }) {
   const { id } = use(params);
   const { toast } = useToast();
+  const router = useRouter();
 
   const [vehicle, setVehicle] = useState<VehicleDetail | null>(null);
   const [incidents, setIncidents] = useState<LinkedIncident[]>([]);
@@ -102,46 +105,47 @@ export default function VehicleDetailPage({
   const [editOpen, setEditOpen] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
 
-  useEffect(() => {
-    async function load() {
-      try {
-        setLoading(true);
-        const v = await fetchVehicleById(id);
-        setVehicle(v);
+  async function loadData() {
+    try {
+      setLoading(true);
+      const v = await fetchVehicleById(id);
+      setVehicle(v);
 
-        // Fetch linked incidents via vehicle_incidents junction
-        const supabase = getSupabaseBrowser();
-        const { data: linkedData } = await supabase
-          .from("vehicle_incidents")
-          .select("incident:incidents(id, record_number, incident_type, status, created_at)")
-          .eq("vehicle_id", id);
+      // Fetch linked incidents via vehicle_incidents junction
+      const supabase = getSupabaseBrowser();
+      const { data: linkedData } = await supabase
+        .from("vehicle_incidents")
+        .select("incident:incidents(id, record_number, incident_type, status, created_at)")
+        .eq("vehicle_id", id);
 
-        if (linkedData) {
-          setIncidents(
-            linkedData
-              .filter((r: any) => r.incident)
-              .map((r: any) => ({
-                id: r.incident.id,
-                recordNumber: r.incident.record_number ?? "-",
-                type: r.incident.incident_type ?? "-",
-                date: r.incident.created_at
-                  ? new Date(r.incident.created_at).toLocaleDateString("en-US", {
-                      month: "short",
-                      day: "numeric",
-                      year: "numeric",
-                    })
-                  : "-",
-                status: r.incident.status ?? "open",
-              }))
-          );
-        }
-      } catch (err) {
-        setError(err instanceof Error ? err.message : "Failed to load vehicle");
-      } finally {
-        setLoading(false);
+      if (linkedData) {
+        setIncidents(
+          linkedData
+            .filter((r: any) => r.incident)
+            .map((r: any) => ({
+              id: r.incident.id,
+              recordNumber: r.incident.record_number ?? "-",
+              type: r.incident.incident_type ?? "-",
+              date: r.incident.created_at
+                ? new Date(r.incident.created_at).toLocaleDateString("en-US", {
+                    month: "short",
+                    day: "numeric",
+                    year: "numeric",
+                  })
+                : "-",
+              status: r.incident.status ?? "open",
+            }))
+        );
       }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to load vehicle");
+    } finally {
+      setLoading(false);
     }
-    load();
+  }
+
+  useEffect(() => {
+    loadData();
   }, [id]);
 
   if (loading) {
@@ -173,7 +177,7 @@ export default function VehicleDetailPage({
   return (
     <div className="space-y-5 animate-fade-in">
       {/* Header */}
-      <div className="flex items-start justify-between">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <div className="flex items-center gap-3">
           <Link href="/vehicles">
             <Button variant="ghost" size="sm">
@@ -209,11 +213,11 @@ export default function VehicleDetailPage({
       </div>
 
       {/* Action Buttons */}
-      <div className="flex items-center gap-2">
-        <Button variant="outline" size="md" onClick={() => setEditOpen(true)}>
+      <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+        <Button variant="outline" size="md" onClick={() => setEditOpen(true)} className="w-full sm:w-auto">
           Edit
         </Button>
-        <Button variant="destructive" size="md" onClick={() => setDeleteOpen(true)}>
+        <Button variant="destructive" size="md" onClick={() => setDeleteOpen(true)} className="w-full sm:w-auto">
           Delete
         </Button>
       </div>
@@ -312,9 +316,12 @@ export default function VehicleDetailPage({
             ))}
           </div>
         ) : (
-          <div className="surface-card p-8 text-center">
-            <FileText size={24} className="mx-auto mb-2 text-[var(--text-tertiary)]" />
-            <p className="text-[13px] text-[var(--text-tertiary)]">No linked incidents</p>
+          <div className="surface-card">
+            <EmptyState
+              icon={<FileText size={20} />}
+              title="No linked incidents"
+              description="Incident links involving this vehicle will appear here."
+            />
           </div>
         )}
       </div>
@@ -323,9 +330,27 @@ export default function VehicleDetailPage({
       <EditVehicleModal
         open={editOpen}
         onClose={() => setEditOpen(false)}
-        onSubmit={async () => {
-          toast("Vehicle updated successfully", { variant: "success" });
-          setEditOpen(false);
+        onSubmit={async (data: any) => {
+          try {
+            await updateVehicle(id, {
+              make: data.make,
+              model: data.model,
+              vehicleType: data.vehicleType,
+              licensePlate: data.licensePlate,
+              licenseState: data.licenseState,
+              year: data.year ? Number(data.year) : undefined,
+              color: data.color,
+              vin: data.vin,
+              ownerType: data.ownerType,
+              ownerId: data.ownerId,
+              notes: data.notes,
+            });
+            toast("Vehicle updated successfully", { variant: "success" });
+            setEditOpen(false);
+            loadData();
+          } catch (err: any) {
+            toast(err.message || "Failed to update vehicle", { variant: "error" });
+          }
         }}
         vehicle={{
           make: vehicle.make,
@@ -345,8 +370,14 @@ export default function VehicleDetailPage({
         open={deleteOpen}
         onClose={() => setDeleteOpen(false)}
         onConfirm={async () => {
-          toast("Vehicle deleted successfully", { variant: "success" });
-          setDeleteOpen(false);
+          try {
+            await deleteVehicle(id);
+            toast("Vehicle deleted successfully", { variant: "success" });
+            setDeleteOpen(false);
+            router.push("/vehicles");
+          } catch (err: any) {
+            toast(err.message || "Failed to delete vehicle", { variant: "error" });
+          }
         }}
       />
     </div>

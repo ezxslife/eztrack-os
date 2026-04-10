@@ -24,12 +24,15 @@ import {
   fetchDispatches,
   fetchOnDutyOfficers,
   createDispatch,
+  updateDispatch,
+  updateDispatchStatus,
   assignOfficerToDispatch,
   clearDispatch as clearDispatchApi,
   type DispatchCard as DispatchCardType,
   type OfficerOnDuty,
 } from "@/lib/queries/dispatches";
 import { createIncident } from "@/lib/queries/incidents";
+import { exportCSV } from "@/lib/queries/reports";
 import { getSupabaseBrowser } from "@/lib/supabase-browser";
 import { formatRelativeTime } from "@/lib/utils/time";
 import { useRealtimeSubscription } from "@/hooks/useRealtimeSubscription";
@@ -62,6 +65,7 @@ interface DispatchItem {
   activeSubStatus?: ActiveSubStatus;
   clearCode?: string;
   timeAgo: string;
+  createdAt?: string;
   _realId?: string; // Supabase UUID for API calls
 }
 
@@ -147,6 +151,14 @@ const OFFICER_STATUS_MAP: Record<string, OfficerStatus> = {
   on_scene: "on-scene",
   overdue: "on-scene",
   break_overdue: "on-break",
+};
+
+const BULK_STATUS_MAP: Record<string, string> = {
+  open: "pending",
+  in_progress: "in_progress",
+  resolved: "cleared",
+  closed: "completed",
+  archived: "completed",
 };
 
 /*─── Filter Chip Component ───────────────────────────────────── */
@@ -527,6 +539,7 @@ export default function DispatchPage() {
     status: d.status,
     officer: d.officerName || undefined,
     timeAgo: formatRelativeTime(d.createdAt),
+    createdAt: d.createdAt,
     _realId: d.id, // preserve the UUID for API calls
   } as DispatchItem), []);
 
@@ -582,6 +595,7 @@ export default function DispatchPage() {
       status: (raw.status as string) || "pending",
       officer: (raw.officer_name as string) || undefined,
       timeAgo: formatRelativeTime(raw.created_at as string),
+      createdAt: raw.created_at as string,
       _realId: raw.id as string,
     }),
     [],
@@ -634,6 +648,89 @@ export default function DispatchPage() {
   const pending = filtered.filter((d) => PENDING_STATUSES.includes(d.status));
   const active = filtered.filter((d) => ACTIVE_STATUSES.includes(d.status));
   const cleared = filtered.filter((d) => CLEARED_STATUSES.includes(d.status));
+  const bulkItems = filtered.map((dispatch) => ({
+    id: dispatch._realId || dispatch.id,
+    title: `${dispatch.id} · ${dispatch.code}`,
+  }));
+
+  const handleBulkConfirm = useCallback(
+    async (data: { reason?: string; assignee?: string; status?: string; format?: string }) => {
+      const targets = filtered.filter((dispatch) => dispatch._realId);
+      if (!targets.length) {
+        toast("No dispatches available for bulk actions", { variant: "info" });
+        return;
+      }
+
+      try {
+        if (bulkModal.operation === "export") {
+          const rows = targets.map((dispatch) => ({
+            recordNumber: dispatch.id,
+            dispatchCode: dispatch.code,
+            location: dispatch.location,
+            priority: dispatch.priority,
+            status: dispatch.status,
+            officer: dispatch.officer || "",
+            synopsis: dispatch.synopsis,
+            createdAt: dispatch.createdAt || "",
+          }));
+          exportCSV(rows, `dispatch-bulk-${new Date().toISOString().slice(0, 10)}.csv`);
+          toast("Dispatch export downloaded", { variant: "success" });
+          return;
+        }
+
+        if (bulkModal.operation === "assign" && data.assignee) {
+          await Promise.all(
+            targets.map((dispatch) =>
+              assignOfficerToDispatch(dispatch._realId!, data.assignee!),
+            ),
+          );
+          toast(`Assigned ${targets.length} dispatch${targets.length === 1 ? "" : "es"}`, { variant: "success" });
+          loadData();
+          return;
+        }
+
+        if (bulkModal.operation === "status_change" && data.status) {
+          const nextStatus = BULK_STATUS_MAP[data.status] || data.status;
+          await Promise.all(
+            targets.map((dispatch) => updateDispatchStatus(dispatch._realId!, nextStatus as any)),
+          );
+          toast(`Updated ${targets.length} dispatch${targets.length === 1 ? "" : "es"}`, { variant: "success" });
+          loadData();
+          return;
+        }
+
+        if (bulkModal.operation === "archive") {
+          await Promise.all(
+            targets.map((dispatch) => updateDispatchStatus(dispatch._realId!, "completed" as any)),
+          );
+          toast(`Archived ${targets.length} dispatch${targets.length === 1 ? "" : "es"}`, { variant: "success" });
+          loadData();
+          return;
+        }
+
+        if (bulkModal.operation === "delete") {
+          const supabase = getSupabaseBrowser();
+          await Promise.all(
+            targets.map((dispatch) =>
+              supabase
+                .from("dispatches")
+                .update({ deleted_at: new Date().toISOString() })
+                .eq("id", dispatch._realId!),
+            ),
+          );
+          toast(`Deleted ${targets.length} dispatch${targets.length === 1 ? "" : "es"}`, { variant: "success" });
+          loadData();
+          return;
+        }
+
+        toast("Bulk action completed", { variant: "success" });
+        loadData();
+      } catch (err: any) {
+        toast(err.message || "Failed to complete bulk action", { variant: "error" });
+      }
+    },
+    [bulkModal.operation, filtered, loadData, toast],
+  );
 
   // Loading state
   if (loading) {
@@ -796,8 +893,25 @@ export default function DispatchPage() {
         open={editModal.open}
         onClose={() => setEditModal({ open: false })}
         onSubmit={async (data) => {
-          toast("Dispatch updated", { variant: "success" });
-          setEditModal({ open: false });
+          try {
+            const realId = editModal.data?._realId || editModal.data?.id;
+            if (!realId) throw new Error("No dispatch selected");
+            await updateDispatch(realId, {
+              dispatchCode: (data as any).dispatchCode,
+              priority: (data as any).priority,
+              description: (data as any).synopsis,
+              sublocation: (data as any).sublocation,
+              reporterName: (data as any).reporterName,
+              reporterPhone: (data as any).reporterPhone,
+              anonymous: (data as any).anonymous,
+              callSource: (data as any).callSource,
+            });
+            toast("Dispatch updated", { variant: "success" });
+            setEditModal({ open: false });
+            loadData();
+          } catch (err: any) {
+            toast(err.message || "Failed to update dispatch", { variant: "error" });
+          }
         }}
         initialData={editModal.data ?? null}
       />
@@ -844,8 +958,32 @@ export default function DispatchPage() {
         open={escalateModal.open}
         onClose={() => setEscalateModal({ open: false })}
         onConfirm={async (prefill) => {
-          toast("Incident created from dispatch", { variant: "info" });
-          setEscalateModal({ open: false });
+          try {
+            if (!userProfile) throw new Error("Unable to determine organization");
+            const sourceDispatch = dispatches.find(
+              (dispatch) =>
+                dispatch.id === escalateModal.dispatchId || dispatch._realId === escalateModal.dispatchId,
+            );
+            if (!sourceDispatch) throw new Error("Dispatch not found");
+
+            const result = await createIncident({
+              orgId: userProfile.orgId,
+              propertyId: userProfile.propertyId,
+              incidentType:
+                sourceDispatch.code.trim().toLowerCase().replace(/[^a-z0-9]+/g, "_") || "dispatch",
+              severity: sourceDispatch.priority,
+              locationId: null,
+              synopsis: prefill
+                ? sourceDispatch.synopsis || `Escalated from dispatch ${sourceDispatch.id}`
+                : `Escalated from dispatch ${sourceDispatch.id}`,
+              description: `Escalated from dispatch ${sourceDispatch.id}${sourceDispatch.officer ? ` assigned to ${sourceDispatch.officer}` : ""}.`,
+            });
+            toast(`Incident ${result.record_number} created`, { variant: "success" });
+            setEscalateModal({ open: false });
+            router.push(`/incidents/${result.id}`);
+          } catch (err: any) {
+            toast(err.message || "Failed to create incident", { variant: "error" });
+          }
         }}
       />
 
@@ -874,13 +1012,10 @@ export default function DispatchPage() {
       <BulkOperationModal
         open={bulkModal.open}
         onClose={() => setBulkModal({ open: false, operation: "export" })}
-        onConfirm={async (data) => {
-          toast(`Bulk ${bulkModal.operation} completed`, { variant: "success" });
-          setBulkModal({ open: false, operation: "export" });
-        }}
+        onConfirm={handleBulkConfirm}
         operation={bulkModal.operation}
-        selectedCount={0}
-        selectedItems={[]}
+        selectedCount={bulkItems.length}
+        selectedItems={bulkItems}
         entityType="dispatch"
       />
 

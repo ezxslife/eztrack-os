@@ -5,6 +5,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import clsx from "clsx";
 import { NAV_ITEMS, NAV_BOTTOM_ITEMS } from "@eztrack/shared";
+import { Button } from "@/components/ui/Button";
 import {
   LayoutDashboard,
   ClipboardList,
@@ -87,7 +88,7 @@ export function Sidebar({
         key={`${item.href}-${index}`}
         href={item.href}
         className={clsx(
-          "group relative flex items-center gap-2.5 h-9 px-3 rounded-lg text-[13px] font-medium",
+          "group relative flex min-h-[var(--sidebar-item-height)] items-center gap-2.5 rounded-[var(--sidebar-item-radius)] px-3 text-[13px] font-medium",
           "transition-all duration-[var(--duration-fast)] ease-[var(--ease-default)]",
           isActive
             ? "bg-[var(--surface-selected)] text-[var(--interactive)]"
@@ -128,21 +129,21 @@ export function Sidebar({
   const sidebarContent = (
     <aside
       className={clsx(
-        "flex flex-col h-screen shrink-0",
+        "flex h-[100dvh] flex-col shrink-0",
         "bg-[var(--surface-primary)] border-r border-[var(--border-default)]",
         "transition-[width] duration-[var(--duration-normal)] ease-[var(--ease-default)]",
-        isCollapsed ? "w-16" : "w-60"
+        isCollapsed ? "w-[var(--sidebar-width-collapsed)]" : "w-[var(--sidebar-width)]"
       )}
     >
       {/* Logo */}
       <div
         className={clsx(
-          "flex items-center gap-2.5 h-14 shrink-0 border-b border-[var(--border-subdued)]",
+          "flex h-[var(--sidebar-header-height)] shrink-0 items-center gap-2.5 border-b border-[var(--border-subdued)]",
           isCollapsed ? "justify-center px-0" : "px-4"
         )}
       >
-        <div className="flex items-center justify-center w-8 h-8 rounded-lg bg-[var(--eztrack-primary-500)] shrink-0">
-          <Shield size={18} className="text-white" />
+        <div className="flex items-center justify-center w-8 h-8 rounded-lg bg-[var(--action-primary-fill)] shrink-0">
+          <Shield size={18} className="text-[var(--text-on-brand)]" />
         </div>
         {!isCollapsed && (
           <span className="text-[15px] font-bold text-[var(--text-primary)] tracking-tight">
@@ -172,7 +173,7 @@ export function Sidebar({
         )}
       >
         <div className={clsx("flex items-center", isCollapsed ? "justify-center" : "gap-2.5")}>
-          <div className="h-8 w-8 rounded-full bg-[var(--eztrack-primary-500)]/15 flex items-center justify-center shrink-0 text-[13px] font-semibold text-[var(--eztrack-primary-500)]">
+          <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[var(--action-primary-surface)] text-[13px] font-semibold text-[var(--action-primary)]">
             {userAvatar ? (
               <img
                 src={userAvatar}
@@ -197,21 +198,22 @@ export function Sidebar({
       </div>
 
       {/* Collapse toggle */}
-      <button
+      <Button
         onClick={handleToggle}
         className={clsx(
-          "flex items-center justify-center h-9 border-t border-[var(--border-subdued)]",
-          "text-[var(--text-tertiary)] hover:text-[var(--text-primary)] hover:bg-[var(--surface-hover)]",
-          "transition-colors duration-[var(--duration-fast)]"
+          "h-9 w-full rounded-none border-x-0 border-b-0 border-t border-[var(--border-subdued)] px-0 text-[var(--text-secondary)] shadow-none hover:bg-[var(--surface-hover)] hover:text-[var(--text-primary)]"
         )}
         aria-label={isCollapsed ? "Expand sidebar" : "Collapse sidebar"}
+        size="md"
+        type="button"
+        variant="ghost"
       >
         {isCollapsed ? (
           <ChevronRight size={16} />
         ) : (
           <ChevronLeft size={16} />
         )}
-      </button>
+      </Button>
     </aside>
   );
 

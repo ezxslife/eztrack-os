@@ -20,6 +20,7 @@ export interface CaseDetail {
   recordNumber: string;
   caseType: string;
   status: string;
+  stage: string;
   synopsis: string | null;
   escalationLevel: string | null;
   leadInvestigator: { id: string; fullName: string } | null;
@@ -87,6 +88,7 @@ export async function fetchCaseById(id: string): Promise<CaseDetail> {
     recordNumber: data.record_number,
     caseType: data.case_type,
     status: data.status,
+    stage: data.stage ?? "assessment",
     synopsis: data.synopsis,
     escalationLevel: data.escalation_level,
     leadInvestigator: data.investigator
@@ -165,6 +167,212 @@ export async function deleteCase(id: string) {
     .from("cases")
     .update({ deleted_at: new Date().toISOString() })
     .eq("id", id);
+
+  if (error) throw error;
+}
+
+/* ─── Update case fields (generic partial update) ── */
+
+export async function updateCase(id: string, fields: Record<string, unknown>) {
+  const supabase = getSupabaseBrowser();
+
+  const { error } = await supabase
+    .from("cases")
+    .update(fields)
+    .eq("id", id);
+
+  if (error) throw error;
+}
+
+/* ─── Create case evidence ──────────────────────── */
+
+export async function createCaseEvidence(
+  caseId: string,
+  data: {
+    title: string;
+    description?: string;
+    type: string;
+    status?: string;
+    storageLocation?: string;
+    storageFacility?: string;
+    itemNumber?: string;
+    externalIdentifier?: string;
+  }
+) {
+  const supabase = getSupabaseBrowser();
+
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  const { error } = await supabase.from("case_evidence").insert({
+    case_id: caseId,
+    title: data.title,
+    description: data.description || null,
+    type: data.type,
+    status: data.status || "collected",
+    storage_location: data.storageLocation || null,
+    storage_facility: data.storageFacility || null,
+    item_number: data.itemNumber || null,
+    external_identifier: data.externalIdentifier || null,
+    created_by: user?.id || null,
+  });
+
+  if (error) throw error;
+}
+
+/* ─── Create case task ──────────────────────────── */
+
+export async function createCaseTask(
+  caseId: string,
+  orgId: string,
+  data: {
+    title: string;
+    description?: string;
+    priority?: string;
+    assignedTo?: string | null;
+    dueDate?: string | null;
+    sortOrder?: number;
+  }
+) {
+  const supabase = getSupabaseBrowser();
+
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) throw new Error("Not authenticated");
+
+  const { error } = await supabase.from("case_tasks").insert({
+    case_id: caseId,
+    org_id: orgId,
+    title: data.title,
+    description: data.description || null,
+    priority: (data.priority || "medium") as Enums<"case_task_priority">,
+    status: "pending" as Enums<"case_task_status">,
+    assigned_to: data.assignedTo || null,
+    due_date: data.dueDate || null,
+    sort_order: data.sortOrder ?? 0,
+    created_by: user.id,
+  });
+
+  if (error) throw error;
+}
+
+/* ─── Create case narrative ─────────────────────── */
+
+export async function createCaseNarrative(
+  caseId: string,
+  data: {
+    title: string;
+    content: string;
+  }
+) {
+  const supabase = getSupabaseBrowser();
+
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  const { error } = await supabase.from("case_narratives").insert({
+    case_id: caseId,
+    title: data.title,
+    content: data.content,
+    author_id: user?.id || null,
+  });
+
+  if (error) throw error;
+}
+
+/* ─── Create evidence transfer ──────────────────── */
+
+export async function createEvidenceTransfer(
+  orgId: string,
+  data: {
+    evidenceId: string;
+    transferredToId: string;
+    transferReason: string;
+    notes?: string;
+  }
+) {
+  const supabase = getSupabaseBrowser();
+
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  const { error } = await supabase.from("case_evidence_transfers").insert({
+    evidence_id: data.evidenceId,
+    org_id: orgId,
+    transferred_from_id: user?.id || null,
+    transferred_to_id: data.transferredToId,
+    transfer_reason: data.transferReason as Enums<"evidence_transfer_reason">,
+    notes: data.notes || null,
+    signature_acknowledged: true,
+  });
+
+  if (error) throw error;
+}
+
+/* ─── Create case related record ────────────────── */
+
+export async function createCaseRelatedRecord(
+  caseId: string,
+  orgId: string,
+  data: {
+    relatedRecordId: string;
+    relatedRecordType: string;
+    relationshipDescription?: string;
+  }
+) {
+  const supabase = getSupabaseBrowser();
+
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) throw new Error("Not authenticated");
+
+  const { error } = await supabase.from("case_related_records").insert({
+    case_id: caseId,
+    org_id: orgId,
+    related_record_id: data.relatedRecordId,
+    related_record_type: data.relatedRecordType as Enums<"case_related_record_type">,
+    relationship_description: data.relationshipDescription || null,
+    linked_by: user.id,
+  });
+
+  if (error) throw error;
+}
+
+/* ─── Create case cost ──────────────────────────── */
+
+export async function createCaseCost(
+  caseId: string,
+  orgId: string,
+  data: {
+    costType: string;
+    amount: number;
+    description: string;
+    vendor?: string;
+    paidDate?: string;
+  }
+) {
+  const supabase = getSupabaseBrowser();
+
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) throw new Error("Not authenticated");
+
+  const { error } = await supabase.from("case_costs").insert({
+    case_id: caseId,
+    org_id: orgId,
+    cost_type: data.costType as Enums<"case_cost_type">,
+    amount: data.amount,
+    description: data.description,
+    vendor: data.vendor || null,
+    paid_date: data.paidDate || null,
+    created_by: user.id,
+  });
 
   if (error) throw error;
 }
@@ -400,4 +608,118 @@ export async function fetchCaseAudit(caseId: string) {
     actorName: row.actor?.full_name || null,
     createdAt: row.created_at,
   }));
+}
+
+/* ─── Case Resource types & CRUD ─────────────── */
+
+export interface CaseResource {
+  id: string;
+  caseId: string;
+  orgId: string;
+  profileId: string | null;
+  name: string;
+  alias: string | null;
+  role: string;
+  hourlyRate: number | null;
+  hoursLogged: number;
+  status: string;
+  notes: string | null;
+  createdBy: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export async function fetchCaseResources(caseId: string): Promise<CaseResource[]> {
+  const supabase = getSupabaseBrowser();
+
+  const { data, error } = await supabase
+    .from("case_resources")
+    .select(`
+      id, case_id, org_id, profile_id, name, alias, role,
+      hourly_rate, hours_logged, status, notes, created_by,
+      created_at, updated_at,
+      profile:profiles!profile_id(full_name)
+    `)
+    .eq("case_id", caseId)
+    .order("created_at", { ascending: false });
+
+  if (error) throw error;
+
+  return (data || []).map((row: any) => ({
+    id: row.id,
+    caseId: row.case_id,
+    orgId: row.org_id,
+    profileId: row.profile_id,
+    name: (row.profile as any)?.full_name || row.name,
+    alias: row.alias,
+    role: row.role,
+    hourlyRate: row.hourly_rate != null ? Number(row.hourly_rate) : null,
+    hoursLogged: Number(row.hours_logged ?? 0),
+    status: row.status,
+    notes: row.notes,
+    createdBy: row.created_by,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+  }));
+}
+
+export async function createCaseResource(
+  caseId: string,
+  orgId: string,
+  data: {
+    name: string;
+    alias?: string;
+    role: string;
+    hourlyRate?: number;
+    profileId?: string | null;
+    notes?: string;
+  }
+) {
+  const supabase = getSupabaseBrowser();
+
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) throw new Error("Not authenticated");
+
+  const { error } = await supabase.from("case_resources").insert({
+    case_id: caseId,
+    org_id: orgId,
+    profile_id: data.profileId || null,
+    name: data.name,
+    alias: data.alias || null,
+    role: data.role,
+    hourly_rate: data.hourlyRate ?? null,
+    hours_logged: 0,
+    status: "active",
+    notes: data.notes || null,
+    created_by: user.id,
+  });
+
+  if (error) throw error;
+}
+
+export async function updateCaseResource(
+  id: string,
+  data: Record<string, unknown>
+) {
+  const supabase = getSupabaseBrowser();
+
+  const { error } = await supabase
+    .from("case_resources")
+    .update(data)
+    .eq("id", id);
+
+  if (error) throw error;
+}
+
+export async function deleteCaseResource(id: string) {
+  const supabase = getSupabaseBrowser();
+
+  const { error } = await supabase
+    .from("case_resources")
+    .delete()
+    .eq("id", id);
+
+  if (error) throw error;
 }

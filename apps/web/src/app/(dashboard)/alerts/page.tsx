@@ -4,6 +4,7 @@ import { useState, useEffect, useMemo, useCallback } from "react";
 import { Button } from "@/components/ui/Button";
 import { Card, CardContent } from "@/components/ui/Card";
 import { Badge } from "@/components/ui/Badge";
+import { IconButton } from "@/components/ui/IconButton";
 import { Input } from "@/components/ui/Input";
 import { Select } from "@/components/ui/Select";
 import { Tabs } from "@/components/ui/Tabs";
@@ -400,7 +401,7 @@ export default function AlertsPage() {
 
       {/* Filter bar */}
       <div className="flex items-end gap-2 flex-wrap">
-        <div className="flex-1 min-w-[180px] max-w-[280px]">
+        <div className="page-toolbar-search">
           <div className="relative">
             <Search
               size={14}
@@ -621,12 +622,16 @@ function AlertDetail({
             {alert.title}
           </h2>
         </div>
-        <button
+        <IconButton
           onClick={onClose}
-          className="shrink-0 mt-0.5 p-0.5 rounded hover:bg-[var(--surface-hover)] transition-colors"
+          className="mt-0.5 h-7 w-7 rounded-lg text-[var(--text-secondary)] shadow-none"
+          label="Dismiss alert"
+          size="sm"
+          type="button"
+          variant="ghost"
         >
           <X size={14} style={{ color: "var(--text-tertiary)" }} />
-        </button>
+        </IconButton>
       </div>
 
       {/* Status + badges */}

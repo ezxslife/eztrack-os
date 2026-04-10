@@ -25,7 +25,7 @@ export const Select = forwardRef<HTMLSelectElement, SelectProps>(
         {label && (
           <label
             htmlFor={selectId}
-            className="block text-[13px] font-medium text-[var(--text-secondary)] mb-1"
+            className="mb-2 block text-[13px] font-semibold tracking-[0.01em] text-[var(--text-secondary)]"
           >
             {label}
           </label>
@@ -37,11 +37,11 @@ export const Select = forwardRef<HTMLSelectElement, SelectProps>(
             aria-invalid={error ? true : undefined}
             aria-describedby={error ? `${selectId}-error` : undefined}
             className={clsx(
-              "w-full appearance-none h-9 rounded-lg border bg-[var(--surface-primary)] px-3 pr-8 text-[13px] text-[var(--text-primary)]",
+              "w-full min-h-11 appearance-none rounded-[var(--input-radius)] border bg-[var(--surface-primary)] px-[var(--input-padding-x)] pr-10 text-[14px] text-[var(--text-primary)] shadow-[var(--shadow-xs)]",
               "transition-all duration-150 ease-out",
-              "focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--focus-ring)] focus-visible:border-[var(--border-focused)]",
+              "focus:outline-none focus-visible:border-[var(--border-focused)] focus-visible:shadow-[var(--focus-ring)]",
               error
-                ? "border-[var(--status-critical)] focus-visible:ring-[var(--status-critical)]"
+                ? "border-[var(--status-critical)] focus-visible:border-[var(--status-critical)]"
                 : "border-[var(--border-default)] hover:border-[var(--border-hover)]",
               "disabled:opacity-50 disabled:cursor-not-allowed",
               className
@@ -59,10 +59,10 @@ export const Select = forwardRef<HTMLSelectElement, SelectProps>(
               </option>
             ))}
           </select>
-          <ChevronDown className="absolute right-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-[var(--text-tertiary)] pointer-events-none" />
+          <ChevronDown className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[var(--text-tertiary)]" />
         </div>
         {error && (
-          <p id={`${selectId}-error`} role="alert" className="mt-1 text-xs text-[var(--status-critical)]">{error}</p>
+          <p id={`${selectId}-error`} role="alert" className="mt-1.5 text-[12px] leading-5 text-[var(--status-critical)]">{error}</p>
         )}
       </div>
     );

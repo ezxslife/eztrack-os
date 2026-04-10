@@ -9,7 +9,8 @@ import { Badge } from "@/components/ui/Badge";
 import { Avatar } from "@/components/ui/Avatar";
 import { Card, CardContent, CardFooter } from "@/components/ui/Card";
 import { CreateBriefingModal } from "@/components/modals/briefings";
-import { fetchBriefings, type BriefingRow } from "@/lib/queries/briefings";
+import { fetchBriefings, createBriefing, type BriefingRow } from "@/lib/queries/briefings";
+import { getSupabaseBrowser } from "@/lib/supabase-browser";
 import { formatRelativeTime } from "@/lib/utils/time";
 import { useToast } from "@/components/ui/Toast";
 
@@ -36,6 +37,7 @@ export default function BriefingsPage() {
   const [search, setSearch] = useState("");
   const [priorityFilter, setPriorityFilter] = useState("");
   const [createOpen, setCreateOpen] = useState(false);
+  const [userProfile, setUserProfile] = useState<{ orgId: string; propertyId: string | null } | null>(null);
 
   const loadBriefings = useCallback(async () => {
     try {
@@ -43,6 +45,17 @@ export default function BriefingsPage() {
       setError(null);
       const data = await fetchBriefings();
       setBriefings(data);
+
+      const supabase = getSupabaseBrowser();
+      const { data: { user } } = await supabase.auth.getUser();
+      if (user) {
+        const { data: profile } = await supabase
+          .from("profiles")
+          .select("org_id, property_id")
+          .eq("id", user.id)
+          .single();
+        if (profile) setUserProfile({ orgId: profile.org_id, propertyId: profile.property_id });
+      }
     } catch (err: any) {
       setError(err.message || "Failed to load briefings");
     } finally {
@@ -109,7 +122,7 @@ export default function BriefingsPage() {
 
       {/* ── Filter Bar ── */}
       <div className="flex flex-wrap items-end gap-3">
-        <div className="flex-1 min-w-[200px] max-w-xs">
+        <div className="page-toolbar-search">
           <div className="relative">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-[var(--text-tertiary)]" />
             <input
@@ -192,9 +205,21 @@ export default function BriefingsPage() {
         open={createOpen}
         onClose={() => setCreateOpen(false)}
         onSubmit={async (data) => {
-          toast("Briefing created", { variant: "success" });
-          setCreateOpen(false);
-          loadBriefings();
+          try {
+            if (!userProfile) throw new Error("User profile not loaded");
+            await createBriefing({
+              orgId: userProfile.orgId,
+              propertyId: userProfile.propertyId,
+              title: data.title,
+              content: data.content,
+              priority: data.priority,
+            });
+            toast("Briefing created", { variant: "success" });
+            setCreateOpen(false);
+            loadBriefings();
+          } catch (err: any) {
+            toast(err.message || "Failed to create briefing", { variant: "error" });
+          }
         }}
       />
     </div>

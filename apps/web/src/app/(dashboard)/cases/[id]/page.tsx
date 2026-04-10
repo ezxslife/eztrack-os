@@ -40,6 +40,7 @@ import {
 import { Button } from "@/components/ui/Button";
 import { Badge, StatusBadge } from "@/components/ui/Badge";
 import { PriorityBadge } from "@/components/ui/PriorityBadge";
+import { EmptyState } from "@/components/ui/EmptyState";
 import { useToast } from "@/components/ui/Toast";
 import { Tabs } from "@/components/ui/Tabs";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/Card";
@@ -69,6 +70,7 @@ import { useRouter } from "next/navigation";
 import {
   fetchCaseById,
   updateCaseStatus,
+  updateCase,
   deleteCase,
   fetchCaseEvidence,
   fetchCaseTasks,
@@ -76,6 +78,14 @@ import {
   fetchCaseCosts,
   fetchCaseRelatedRecords,
   fetchCaseAudit,
+  fetchCaseResources,
+  createCaseEvidence,
+  createCaseTask,
+  createCaseNarrative,
+  createEvidenceTransfer,
+  createCaseRelatedRecord,
+  createCaseCost,
+  createCaseResource,
   type CaseDetail,
   type CaseEvidenceItem,
   type CaseTask,
@@ -83,6 +93,7 @@ import {
   type CaseCostEntry,
   type CaseRelatedRecord,
   type CaseAuditEntry,
+  type CaseResource,
 } from "@/lib/queries/cases";
 import { createBriefing } from "@/lib/queries/briefings";
 import { createWorkOrder } from "@/lib/queries/work-orders";
@@ -154,6 +165,7 @@ export default function CaseDetailPage({
   const [costs, setCosts] = useState<CaseCostEntry[]>([]);
   const [relatedRecords, setRelatedRecords] = useState<CaseRelatedRecord[]>([]);
   const [auditLog, setAuditLog] = useState<CaseAuditEntry[]>([]);
+  const [resources, setResources] = useState<CaseResource[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -161,7 +173,7 @@ export default function CaseDetailPage({
     try {
       setLoading(true);
       setError(null);
-      const [data, ev, tk, nr, co, rr, al] = await Promise.all([
+      const [data, ev, tk, nr, co, rr, al, res] = await Promise.all([
         fetchCaseById(id),
         fetchCaseEvidence(id).catch(() => [] as CaseEvidenceItem[]),
         fetchCaseTasks(id).catch(() => [] as CaseTask[]),
@@ -169,6 +181,7 @@ export default function CaseDetailPage({
         fetchCaseCosts(id).catch(() => [] as CaseCostEntry[]),
         fetchCaseRelatedRecords(id).catch(() => [] as CaseRelatedRecord[]),
         fetchCaseAudit(id).catch(() => [] as CaseAuditEntry[]),
+        fetchCaseResources(id).catch(() => [] as CaseResource[]),
       ]);
       setCaseData(data);
       setEvidence(ev);
@@ -177,6 +190,7 @@ export default function CaseDetailPage({
       setCosts(co);
       setRelatedRecords(rr);
       setAuditLog(al);
+      setResources(res);
     } catch (err: any) {
       setError(err.message || "Failed to load case");
     } finally {
@@ -211,7 +225,7 @@ export default function CaseDetailPage({
   const c = {
     id: caseData.recordNumber,
     title: caseData.caseType,
-    stage: "assessment" as const,
+    stage: caseData.stage || "assessment",
     status: caseData.status,
     priority: (caseData.escalationLevel || "medium") as "critical" | "high" | "medium" | "low",
     daysOpen: Math.floor((Date.now() - new Date(caseData.createdAt).getTime()) / 86400000),
@@ -225,7 +239,7 @@ export default function CaseDetailPage({
     evidenceCount: evidence.length,
     taskCount: tasks.length,
     tasksCompleted,
-    resourceCount: 0,
+    resourceCount: resources.length,
     narrativeCount: narratives.length,
   };
   const currentStageIndex = STAGES.findIndex((s) => s.key === c.stage);
@@ -245,7 +259,7 @@ export default function CaseDetailPage({
   return (
     <div className="space-y-5 animate-fade-in">
       {/* ── Header ── */}
-      <div className="flex items-start justify-between">
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
         <div className="flex items-center gap-3">
           <Link href="/cases">
             <Button variant="ghost" size="sm">
@@ -262,13 +276,13 @@ export default function CaseDetailPage({
               <PriorityBadge priority={c.priority} />
               <Badge tone="info">{STAGES[currentStageIndex]?.label}</Badge>
             </div>
-            <p className="mt-0.5 text-[13px] text-[var(--text-tertiary)] max-w-2xl truncate">
+            <p className="mt-0.5 text-[13px] text-[var(--text-tertiary)] truncate">
               {c.title}
             </p>
           </div>
         </div>
 
-        <div className="flex items-center gap-2 shrink-0">
+        <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row sm:items-center shrink-0">
           <Button variant="outline" size="md">
             <Printer size={14} />
             Print
@@ -297,7 +311,7 @@ export default function CaseDetailPage({
 
       {/* ── Tab Content ── */}
       {activeTab === "overview" && <OverviewTab c={c} stageIndex={currentStageIndex} relatedRecords={relatedRecords} auditLog={auditLog} costs={costs} tasks={tasks} />}
-      {activeTab === "resources" && <ResourcesTab onAddResource={() => setAddResourceModal(true)} />}
+      {activeTab === "resources" && <ResourcesTab resources={resources} onAddResource={() => setAddResourceModal(true)} />}
       {activeTab === "related" && <RelatedRecordsTab relatedRecords={relatedRecords} onLinkRecord={() => setLinkRecordModal(true)} />}
       {activeTab === "evidence" && <EvidenceTab evidence={evidence} onAddEvidence={() => setAddEvidenceModal(true)} onTransferCustody={() => setChainOfCustodyModal(true)} />}
       {activeTab === "tasks" && <TasksTab tasks={tasks} onAddTask={() => setAddTaskModal(true)} />}
@@ -311,8 +325,19 @@ export default function CaseDetailPage({
         open={addResourceModal}
         onClose={() => setAddResourceModal(false)}
         onSubmit={async (data) => {
-          toast("Resource added to case", { variant: "success" });
-          setAddResourceModal(false);
+          try {
+            await createCaseResource(caseData.id, caseData.orgId, {
+              name: data.userSearch,
+              alias: data.aliasActive ? data.alias : undefined,
+              role: data.role,
+              hourlyRate: data.hourlyRate ? parseFloat(data.hourlyRate) : undefined,
+            });
+            toast("Resource added to case", { variant: "success" });
+            setAddResourceModal(false);
+            loadCase();
+          } catch (err: any) {
+            toast(err.message || "Failed to add resource", { variant: "error" });
+          }
         }}
       />
 
@@ -320,8 +345,22 @@ export default function CaseDetailPage({
         open={addEvidenceModal}
         onClose={() => setAddEvidenceModal(false)}
         onSubmit={async (data) => {
-          toast("Evidence added to case", { variant: "success" });
-          setAddEvidenceModal(false);
+          try {
+            await createCaseEvidence(caseData.id, {
+              title: (data as any).title,
+              description: (data as any).description,
+              type: (data as any).type,
+              storageLocation: (data as any).storageLocation,
+              storageFacility: (data as any).storageFacility,
+              itemNumber: (data as any).itemNumber,
+              externalIdentifier: (data as any).externalIdentifier,
+            });
+            toast("Evidence added to case", { variant: "success" });
+            setAddEvidenceModal(false);
+            loadCase();
+          } catch (err: any) {
+            toast(err.message || "Failed to add evidence", { variant: "error" });
+          }
         }}
       />
 
@@ -329,8 +368,20 @@ export default function CaseDetailPage({
         open={addTaskModal}
         onClose={() => setAddTaskModal(false)}
         onSubmit={async (data) => {
-          toast("Task added", { variant: "success" });
-          setAddTaskModal(false);
+          try {
+            await createCaseTask(caseData.id, caseData.orgId, {
+              title: (data as any).title,
+              description: (data as any).description,
+              priority: (data as any).priority,
+              assignedTo: (data as any).assignee || null,
+              dueDate: (data as any).dueDate || null,
+            });
+            toast("Task added", { variant: "success" });
+            setAddTaskModal(false);
+            loadCase();
+          } catch (err: any) {
+            toast(err.message || "Failed to add task", { variant: "error" });
+          }
         }}
       />
 
@@ -355,8 +406,17 @@ export default function CaseDetailPage({
         open={addNarrativeModal}
         onClose={() => setAddNarrativeModal(false)}
         onSubmit={async (data) => {
-          toast("Narrative added", { variant: "success" });
-          setAddNarrativeModal(false);
+          try {
+            await createCaseNarrative(caseData.id, {
+              title: (data as any).title,
+              content: (data as any).content,
+            });
+            toast("Narrative added", { variant: "success" });
+            setAddNarrativeModal(false);
+            loadCase();
+          } catch (err: any) {
+            toast(err.message || "Failed to add narrative", { variant: "error" });
+          }
         }}
       />
 
@@ -364,8 +424,23 @@ export default function CaseDetailPage({
         open={chainOfCustodyModal}
         onClose={() => setChainOfCustodyModal(false)}
         onSubmit={async (data) => {
-          toast("Chain of custody transferred", { variant: "success" });
-          setChainOfCustodyModal(false);
+          try {
+            const d = data as any;
+            const selectedItems: string[] = d.selectedItems || [];
+            for (const evidenceId of selectedItems) {
+              await createEvidenceTransfer(caseData.orgId, {
+                evidenceId,
+                transferredToId: d.receivedBy,
+                transferReason: d.transferReason,
+                notes: d.notes || undefined,
+              });
+            }
+            toast("Chain of custody transferred", { variant: "success" });
+            setChainOfCustodyModal(false);
+            loadCase();
+          } catch (err: any) {
+            toast(err.message || "Failed to transfer custody", { variant: "error" });
+          }
         }}
         caseId={c.id}
         evidenceItems={evidence.map((ev) => ({
@@ -379,8 +454,19 @@ export default function CaseDetailPage({
         open={linkRecordModal}
         onClose={() => setLinkRecordModal(false)}
         onSubmit={async (data) => {
-          toast("Record linked to case", { variant: "success" });
-          setLinkRecordModal(false);
+          try {
+            const d = data as any;
+            await createCaseRelatedRecord(caseData.id, caseData.orgId, {
+              relatedRecordId: d.recordId,
+              relatedRecordType: d.recordType,
+              relationshipDescription: d.relationship + (d.notes ? ` — ${d.notes}` : ""),
+            });
+            toast("Record linked to case", { variant: "success" });
+            setLinkRecordModal(false);
+            loadCase();
+          } catch (err: any) {
+            toast(err.message || "Failed to link record", { variant: "error" });
+          }
         }}
       />
 
@@ -388,8 +474,17 @@ export default function CaseDetailPage({
         open={escalateCaseModal}
         onClose={() => setEscalateCaseModal(false)}
         onSubmit={async (data) => {
-          toast("Case escalated", { variant: "success" });
-          setEscalateCaseModal(false);
+          try {
+            const d = data as any;
+            await updateCase(caseData.id, {
+              escalation_level: d.priority || "high",
+            });
+            toast("Case escalated", { variant: "success" });
+            setEscalateCaseModal(false);
+            loadCase();
+          } catch (err: any) {
+            toast(err.message || "Failed to escalate case", { variant: "error" });
+          }
         }}
       />
 
@@ -397,8 +492,14 @@ export default function CaseDetailPage({
         open={closeCaseModal}
         onClose={() => setCloseCaseModal(false)}
         onSubmit={async (data) => {
-          toast("Case closed", { variant: "success" });
-          setCloseCaseModal(false);
+          try {
+            await updateCaseStatus(caseData.id, "closed" as any);
+            toast("Case closed", { variant: "success" });
+            setCloseCaseModal(false);
+            loadCase();
+          } catch (err: any) {
+            toast(err.message || "Failed to close case", { variant: "error" });
+          }
         }}
         openTaskCount={tasks.filter((t) => t.status !== "done").length}
       />
@@ -423,8 +524,20 @@ export default function CaseDetailPage({
         open={advanceStageModal}
         onClose={() => setAdvanceStageModal(false)}
         onConfirm={async (reason) => {
-          toast("Case advanced to next stage", { variant: "success" });
-          setAdvanceStageModal(false);
+          try {
+            const nextStageKey = STAGES[currentStageIndex + 1]?.key;
+            if (!nextStageKey) {
+              toast("Case is already at the final stage.", { variant: "info" });
+              setAdvanceStageModal(false);
+              return;
+            }
+            await updateCase(caseData.id, { stage: nextStageKey });
+            toast(`Case advanced to ${STAGES[currentStageIndex + 1]?.label}`, { variant: "success" });
+            setAdvanceStageModal(false);
+            loadCase();
+          } catch (err: any) {
+            toast(err.message || "Failed to advance stage", { variant: "error" });
+          }
         }}
         currentStage={STAGES[currentStageIndex]?.label ?? ""}
         nextStage={STAGES[currentStageIndex + 1]?.label ?? "Complete"}
@@ -434,8 +547,20 @@ export default function CaseDetailPage({
         open={addFinancialModal}
         onClose={() => setAddFinancialModal(false)}
         onSubmit={async (data) => {
-          toast("Financial entry added", { variant: "success" });
-          setAddFinancialModal(false);
+          try {
+            const d = data as any;
+            await createCaseCost(caseData.id, caseData.orgId, {
+              costType: d.category || "other",
+              amount: parseFloat(d.amount) || 0,
+              description: d.description || d.type || "",
+              vendor: d.type || undefined,
+            });
+            toast("Financial entry added", { variant: "success" });
+            setAddFinancialModal(false);
+            loadCase();
+          } catch (err: any) {
+            toast(err.message || "Failed to add financial entry", { variant: "error" });
+          }
         }}
       />
 
@@ -443,8 +568,24 @@ export default function CaseDetailPage({
         open={transferEvidenceModal}
         onClose={() => setTransferEvidenceModal(false)}
         onSubmit={async (data) => {
-          toast("Evidence transferred", { variant: "success" });
-          setTransferEvidenceModal(false);
+          try {
+            const d = data as any;
+            // The wizard provides newCustodian (name/id) and reason
+            // We create a transfer record for the first evidence item if available
+            if (evidence.length > 0) {
+              await createEvidenceTransfer(caseData.orgId, {
+                evidenceId: evidence[0].id,
+                transferredToId: d.newCustodian,
+                transferReason: "storage",
+                notes: d.reason || d.notes || undefined,
+              });
+            }
+            toast("Evidence transferred", { variant: "success" });
+            setTransferEvidenceModal(false);
+            loadCase();
+          } catch (err: any) {
+            toast(err.message || "Failed to transfer evidence", { variant: "error" });
+          }
         }}
         evidence={null}
       />
@@ -453,8 +594,17 @@ export default function CaseDetailPage({
         open={outcomeModal}
         onClose={() => setOutcomeModal(false)}
         onSubmit={async (data) => {
-          toast("Outcome documented", { variant: "success" });
-          setOutcomeModal(false);
+          try {
+            const d = data as any;
+            await updateCase(caseData.id, {
+              synopsis: d.outcomeNotes || caseData.synopsis,
+            });
+            toast("Outcome documented", { variant: "success" });
+            setOutcomeModal(false);
+            loadCase();
+          } catch (err: any) {
+            toast(err.message || "Failed to document outcome", { variant: "error" });
+          }
         }}
       />
 
@@ -462,8 +612,20 @@ export default function CaseDetailPage({
         open={closureWizardModal}
         onClose={() => setClosureWizardModal(false)}
         onSubmit={async (data) => {
-          toast("Case closure completed", { variant: "success" });
-          setClosureWizardModal(false);
+          try {
+            const d = data as any;
+            await updateCase(caseData.id, {
+              status: "closed",
+              synopsis: d.closureNotes
+                ? `${caseData.synopsis || ""}\n\n[Closure Notes] ${d.closureNotes}`.trim()
+                : caseData.synopsis,
+            });
+            toast("Case closure completed", { variant: "success" });
+            setClosureWizardModal(false);
+            loadCase();
+          } catch (err: any) {
+            toast(err.message || "Failed to close case", { variant: "error" });
+          }
         }}
       />
 
@@ -564,7 +726,7 @@ function MetricCard({ icon: Icon, label, value, sub }: { icon: typeof Clock; lab
 function TableWrapper({ children }: { children: React.ReactNode }) {
   return (
     <div className="overflow-x-auto">
-      <table className="w-full text-[13px]">
+      <table className="w-full min-w-[720px] text-[13px]">
         {children}
       </table>
     </div>
@@ -602,46 +764,47 @@ function OverviewTab({ c, stageIndex, relatedRecords, auditLog, costs, tasks }: 
           <CardTitle>Investigation Progress</CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="flex items-center gap-1">
-            {STAGES.map((stage, i) => {
-              const isComplete = i < stageIndex;
-              const isCurrent = i === stageIndex;
-              const isFuture = i > stageIndex;
+          <div className="overflow-x-auto pb-1">
+            <div className="flex min-w-[760px] items-center gap-1">
+              {STAGES.map((stage, i) => {
+                const isComplete = i < stageIndex;
+                const isCurrent = i === stageIndex;
 
-              return (
-                <div key={stage.key} className="flex items-center flex-1 min-w-0">
-                  <div className="flex flex-col items-center gap-1.5 flex-1 min-w-0">
-                    <div
-                      className={`w-7 h-7 rounded-full flex items-center justify-center text-[11px] font-bold shrink-0 border-2 transition-colors ${
-                        isComplete
-                          ? "bg-[var(--status-success,#059669)] border-[var(--status-success,#059669)] text-white"
-                          : isCurrent
-                          ? "bg-[var(--action-primary)] border-[var(--action-primary)] text-white"
-                          : "bg-[var(--surface-secondary)] border-[var(--border-default)] text-[var(--text-tertiary)]"
-                      }`}
-                    >
-                      {isComplete ? <CheckCircle2 size={14} /> : stage.number}
+                return (
+                  <div key={stage.key} className="flex items-center flex-1 min-w-0">
+                    <div className="flex flex-col items-center gap-1.5 flex-1 min-w-0">
+                      <div
+                          className={`w-7 h-7 rounded-full flex items-center justify-center text-[11px] font-bold shrink-0 border-2 transition-colors ${
+                            isComplete
+                              ? "bg-[var(--status-success,#059669)] border-[var(--status-success,#059669)] text-[var(--text-on-brand)]"
+                              : isCurrent
+                              ? "bg-[var(--action-primary-fill)] border-[var(--action-primary-fill)] text-[var(--text-on-brand)]"
+                              : "bg-[var(--surface-secondary)] border-[var(--border-default)] text-[var(--text-tertiary)]"
+                          }`}
+                      >
+                        {isComplete ? <CheckCircle2 size={14} /> : stage.number}
+                      </div>
+                      <span
+                        className={`text-[10px] text-center leading-tight truncate w-full ${
+                          isCurrent ? "font-semibold text-[var(--text-primary)]" : "text-[var(--text-tertiary)]"
+                        }`}
+                      >
+                        {stage.label}
+                      </span>
                     </div>
-                    <span
-                      className={`text-[10px] text-center leading-tight truncate w-full ${
-                        isCurrent ? "font-semibold text-[var(--text-primary)]" : "text-[var(--text-tertiary)]"
-                      }`}
-                    >
-                      {stage.label}
-                    </span>
+                    {i < STAGES.length - 1 && (
+                      <div
+                        className={`h-0.5 flex-1 min-w-3 mx-1 rounded-full mt-[-18px] ${
+                          i < stageIndex
+                            ? "bg-[var(--status-success,#059669)]"
+                            : "bg-[var(--border-default)]"
+                        }`}
+                      />
+                    )}
                   </div>
-                  {i < STAGES.length - 1 && (
-                    <div
-                      className={`h-0.5 flex-1 min-w-3 mx-1 rounded-full mt-[-18px] ${
-                        i < stageIndex
-                          ? "bg-[var(--status-success,#059669)]"
-                          : "bg-[var(--border-default)]"
-                      }`}
-                    />
-                  )}
-                </div>
-              );
-            })}
+                );
+              })}
+            </div>
           </div>
           <div className="mt-3">
             <ProgressBar
@@ -711,7 +874,7 @@ function OverviewTab({ c, stageIndex, relatedRecords, auditLog, costs, tasks }: 
         </div>
 
         {/* Right sidebar */}
-        <div className="w-full lg:w-auto space-y-4 lg:shrink-0" style={{ flex: "3 1 0%", minWidth: 240 }}>
+        <div className="w-full space-y-4 lg:min-w-[240px] lg:w-auto lg:shrink-0" style={{ flex: "3 1 0%" }}>
           <div className="surface-card p-4">
             <h3 className="text-[12px] font-semibold text-[var(--text-tertiary)] uppercase tracking-wider mb-3">
               Quick Stats
@@ -777,24 +940,67 @@ function OverviewTab({ c, stageIndex, relatedRecords, auditLog, costs, tasks }: 
    2. RESOURCES TAB
    ================================================================ */
 
-function ResourcesTab({ onAddResource }: { onAddResource: () => void }) {
+function ResourcesTab({ resources, onAddResource }: { resources: CaseResource[]; onAddResource: () => void }) {
   return (
     <Card>
-      <CardHeader className="flex-row items-center justify-between">
-        <CardTitle>Assigned Resources</CardTitle>
+      <CardHeader className="flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <CardTitle>Assigned Resources ({resources.length})</CardTitle>
         <Button variant="outline" size="sm" onClick={onAddResource}>
           <Plus size={13} />
           Add Resource
         </Button>
       </CardHeader>
-      <CardContent>
-        <div className="flex flex-col items-center justify-center py-12 text-center">
-          <Users size={32} className="text-[var(--text-tertiary)] mb-3" />
-          <p className="text-[13px] font-medium text-[var(--text-secondary)]">No resources assigned yet</p>
-          <p className="text-[12px] text-[var(--text-tertiary)] mt-1">
-            Assign team members and investigators to this case
-          </p>
-        </div>
+      <CardContent className="p-0">
+        {resources.length === 0 ? (
+          <EmptyState
+            icon={<Users size={20} />}
+            title="No resources assigned yet"
+            description="Assign team members and investigators to this case."
+            action={{ label: "Add Resource", onClick: onAddResource, variant: "outline" }}
+          />
+        ) : (
+          <TableWrapper>
+            <thead>
+              <tr>
+                <Th>Name</Th>
+                <Th>Alias</Th>
+                <Th>Role</Th>
+                <Th>Hourly Rate</Th>
+                <Th>Hours Logged</Th>
+                <Th>Total Cost</Th>
+                <Th>Status</Th>
+              </tr>
+            </thead>
+            <tbody>
+              {resources.map((r) => {
+                const totalCost = (r.hourlyRate ?? 0) * r.hoursLogged;
+                return (
+                  <tr key={r.id} className="hover:bg-[var(--surface-hover)] transition-colors">
+                    <Td>
+                      <span className="font-medium">{r.name}</span>
+                    </Td>
+                    <Td>
+                      <span className="text-[12px] text-[var(--text-secondary)]">{r.alias || "—"}</span>
+                    </Td>
+                    <Td>
+                      <span className="capitalize text-[12px]">{r.role.replace(/_/g, " ")}</span>
+                    </Td>
+                    <Td>
+                      {r.hourlyRate != null ? `$${r.hourlyRate.toFixed(2)}` : "—"}
+                    </Td>
+                    <Td>{r.hoursLogged.toFixed(1)}</Td>
+                    <Td>
+                      <span className="font-medium">${totalCost.toFixed(2)}</span>
+                    </Td>
+                    <Td>
+                      <StatusBadge status={r.status} dot />
+                    </Td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </TableWrapper>
+        )}
       </CardContent>
     </Card>
   );
@@ -813,7 +1019,7 @@ function RelatedRecordsTab({ relatedRecords, onLinkRecord }: { relatedRecords: C
 
   return (
     <Card>
-      <CardHeader className="flex-row items-center justify-between">
+      <CardHeader className="flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <CardTitle>Linked Records</CardTitle>
         <Button variant="outline" size="sm" onClick={onLinkRecord}>
           <Link2 size={13} />
@@ -822,11 +1028,12 @@ function RelatedRecordsTab({ relatedRecords, onLinkRecord }: { relatedRecords: C
       </CardHeader>
       <CardContent className="p-0">
         {relatedRecords.length === 0 ? (
-          <div className="flex flex-col items-center justify-center py-12 text-center">
-            <Link2 size={32} className="text-[var(--text-tertiary)] mb-3" />
-            <p className="text-[13px] font-medium text-[var(--text-secondary)]">No linked records</p>
-            <p className="text-[12px] text-[var(--text-tertiary)] mt-1">Link incidents, dispatches, or other records to this case</p>
-          </div>
+          <EmptyState
+            icon={<Link2 size={20} />}
+            title="No linked records"
+            description="Link incidents, dispatches, or other records to this case."
+            action={{ label: "Link Record", onClick: onLinkRecord, variant: "outline" }}
+          />
         ) : (
           <>
             <TableWrapper>
@@ -892,9 +1099,9 @@ function EvidenceTab({ evidence, onAddEvidence, onTransferCustody }: { evidence:
 
   return (
     <Card>
-      <CardHeader className="flex-row items-center justify-between">
+      <CardHeader className="flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <CardTitle>Evidence Items</CardTitle>
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           <Button variant="outline" size="sm">
             <Download size={13} />
             Export
@@ -907,11 +1114,12 @@ function EvidenceTab({ evidence, onAddEvidence, onTransferCustody }: { evidence:
       </CardHeader>
       <CardContent className="p-0">
         {evidence.length === 0 ? (
-          <div className="flex flex-col items-center justify-center py-12 text-center">
-            <Package size={32} className="text-[var(--text-tertiary)] mb-3" />
-            <p className="text-[13px] font-medium text-[var(--text-secondary)]">No evidence logged</p>
-            <p className="text-[12px] text-[var(--text-tertiary)] mt-1">Log physical or digital evidence items for this case</p>
-          </div>
+          <EmptyState
+            icon={<Package size={20} />}
+            title="No evidence logged"
+            description="Log physical or digital evidence items for this case."
+            action={{ label: "Log Evidence", onClick: onAddEvidence, variant: "outline" }}
+          />
         ) : (
           <>
             <TableWrapper>
@@ -987,7 +1195,7 @@ function TasksTab({ tasks, onAddTask }: { tasks: CaseTask[]; onAddTask: () => vo
       </div>
 
       <Card>
-        <CardHeader className="flex-row items-center justify-between">
+        <CardHeader className="flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <CardTitle>Task List</CardTitle>
           <Button variant="outline" size="sm" onClick={onAddTask}>
             <Plus size={13} />
@@ -996,11 +1204,12 @@ function TasksTab({ tasks, onAddTask }: { tasks: CaseTask[]; onAddTask: () => vo
         </CardHeader>
         <CardContent className="p-0">
           {tasks.length === 0 ? (
-            <div className="flex flex-col items-center justify-center py-12 text-center">
-              <ListChecks size={32} className="text-[var(--text-tertiary)] mb-3" />
-              <p className="text-[13px] font-medium text-[var(--text-secondary)]">No tasks created</p>
-              <p className="text-[12px] text-[var(--text-tertiary)] mt-1">Create tasks to track investigation activities</p>
-            </div>
+            <EmptyState
+              icon={<ListChecks size={20} />}
+              title="No tasks created"
+              description="Create tasks to track investigation activities."
+              action={{ label: "Add Task", onClick: onAddTask, variant: "outline" }}
+            />
           ) : (
             <div className="divide-y divide-[var(--border-default)]">
               {tasks.map((task) => (
@@ -1060,7 +1269,7 @@ function TasksTab({ tasks, onAddTask }: { tasks: CaseTask[]; onAddTask: () => vo
 function NarrativesTab({ narratives, onAddNarrative }: { narratives: CaseNarrativeItem[]; onAddNarrative: () => void }) {
   return (
     <Card>
-      <CardHeader className="flex-row items-center justify-between">
+      <CardHeader className="flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <CardTitle>Investigation Narratives</CardTitle>
         <Button variant="outline" size="sm" onClick={onAddNarrative}>
           <Plus size={13} />
@@ -1069,11 +1278,12 @@ function NarrativesTab({ narratives, onAddNarrative }: { narratives: CaseNarrati
       </CardHeader>
       <CardContent className="p-0">
         {narratives.length === 0 ? (
-          <div className="flex flex-col items-center justify-center py-12 text-center">
-            <StickyNote size={32} className="text-[var(--text-tertiary)] mb-3" />
-            <p className="text-[13px] font-medium text-[var(--text-secondary)]">No narratives written</p>
-            <p className="text-[12px] text-[var(--text-tertiary)] mt-1">Document investigation findings and observations</p>
-          </div>
+          <EmptyState
+            icon={<StickyNote size={20} />}
+            title="No narratives written"
+            description="Document investigation findings and observations."
+            action={{ label: "Add Narrative", onClick: onAddNarrative, variant: "outline" }}
+          />
         ) : (
           <>
             <div className="divide-y divide-[var(--border-default)]">
@@ -1123,7 +1333,7 @@ function FinancialTab({ costs, onAddEntry }: { costs: CaseCostEntry[]; onAddEntr
   return (
     <div className="space-y-4">
       {/* Summary Cards */}
-      <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
         <MetricCard icon={DollarSign} label="Total Costs" value={`$${totalAmount.toLocaleString()}`} sub={`${costs.length} entries`} />
         <MetricCard icon={BarChart3} label="Entries" value={costs.length} />
         <MetricCard icon={TrendingUp} label="Avg per Entry" value={costs.length > 0 ? `$${Math.round(totalAmount / costs.length).toLocaleString()}` : "$0"} />
@@ -1131,9 +1341,9 @@ function FinancialTab({ costs, onAddEntry }: { costs: CaseCostEntry[]; onAddEntr
 
       {/* Entries table */}
       <Card>
-        <CardHeader className="flex-row items-center justify-between">
+        <CardHeader className="flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <CardTitle>Financial Entries</CardTitle>
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             <Button variant="outline" size="sm">
               <Download size={13} />
               Export
@@ -1146,11 +1356,12 @@ function FinancialTab({ costs, onAddEntry }: { costs: CaseCostEntry[]; onAddEntr
         </CardHeader>
         <CardContent className="p-0">
           {costs.length === 0 ? (
-            <div className="flex flex-col items-center justify-center py-12 text-center">
-              <DollarSign size={32} className="text-[var(--text-tertiary)] mb-3" />
-              <p className="text-[13px] font-medium text-[var(--text-secondary)]">No financial entries</p>
-              <p className="text-[12px] text-[var(--text-tertiary)] mt-1">Track costs, recoveries, and other financial data</p>
-            </div>
+            <EmptyState
+              icon={<DollarSign size={20} />}
+              title="No financial entries"
+              description="Track costs, recoveries, and other financial data."
+              action={{ label: "Add Entry", onClick: onAddEntry, variant: "outline" }}
+            />
           ) : (
             <>
               <TableWrapper>
@@ -1200,8 +1411,6 @@ function FinancialTab({ costs, onAddEntry }: { costs: CaseCostEntry[]; onAddEntr
    ================================================================ */
 
 function OutcomeTab({ onDocumentOutcome }: { onDocumentOutcome: () => void }) {
-  const outcomeTypes = ["founded", "unfounded", "inconclusive", "unresolved"];
-
   return (
     <div className="space-y-4">
       <Card>
@@ -1213,17 +1422,12 @@ function OutcomeTab({ onDocumentOutcome }: { onDocumentOutcome: () => void }) {
             <FieldRow label="Outcome Type">
               <div className="space-y-2">
                 <span className="text-[12px] text-[var(--text-tertiary)] italic">Not yet determined</span>
-                <div className="flex gap-2 flex-wrap">
-                  {outcomeTypes.map((t) => (
-                    <button
-                      key={t}
-                      className="px-2.5 py-1 text-[11px] rounded-md border border-[var(--border-default)] text-[var(--text-secondary)] hover:bg-[var(--surface-hover)] transition-colors capitalize"
-                      onClick={onDocumentOutcome}
-                    >
-                      {t}
-                    </button>
-                  ))}
-                </div>
+                <Button size="sm" onClick={onDocumentOutcome}>
+                  Document Outcome
+                </Button>
+                <p className="text-[11px] text-[var(--text-tertiary)]">
+                  Select the outcome type and classification in the documentation flow.
+                </p>
               </div>
             </FieldRow>
             <FieldRow label="Classification" value="—" />
@@ -1263,7 +1467,7 @@ function OutcomeTab({ onDocumentOutcome }: { onDocumentOutcome: () => void }) {
 function AuditLogTab({ auditLog }: { auditLog: CaseAuditEntry[] }) {
   return (
     <Card>
-      <CardHeader className="flex-row items-center justify-between">
+      <CardHeader className="flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <CardTitle>Audit Trail</CardTitle>
         <Button variant="outline" size="sm">
           <Download size={13} />
@@ -1272,11 +1476,11 @@ function AuditLogTab({ auditLog }: { auditLog: CaseAuditEntry[] }) {
       </CardHeader>
       <CardContent className="p-0">
         {auditLog.length === 0 ? (
-          <div className="flex flex-col items-center justify-center py-12 text-center">
-            <History size={32} className="text-[var(--text-tertiary)] mb-3" />
-            <p className="text-[13px] font-medium text-[var(--text-secondary)]">No audit entries</p>
-            <p className="text-[12px] text-[var(--text-tertiary)] mt-1">Activity will be logged here automatically</p>
-          </div>
+          <EmptyState
+            icon={<History size={20} />}
+            title="No audit entries"
+            description="Activity will be logged here automatically as the case changes."
+          />
         ) : (
           <>
             <div className="relative">

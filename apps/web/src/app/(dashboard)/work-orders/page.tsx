@@ -10,7 +10,8 @@ import { DataGrid } from "@/components/ui/DataGrid";
 import { StatusBadge, Badge } from "@/components/ui/Badge";
 import { PriorityBadge } from "@/components/ui/PriorityBadge";
 import { CreateWorkOrderModal } from "@/components/modals/work-orders";
-import { fetchWorkOrders, type WorkOrderRow } from "@/lib/queries/work-orders";
+import { fetchWorkOrders, createWorkOrder, type WorkOrderRow } from "@/lib/queries/work-orders";
+import { getSupabaseBrowser } from "@/lib/supabase-browser";
 import { formatRelativeTime } from "@/lib/utils/time";
 import { useToast } from "@/components/ui/Toast";
 
@@ -44,6 +45,36 @@ export default function WorkOrdersPage() {
   const [sortKey, setSortKey] = useState("woNumber");
   const [sortDir, setSortDir] = useState<"asc" | "desc">("desc");
   const [showCreateModal, setShowCreateModal] = useState(false);
+  const [userProfile, setUserProfile] = useState<{ orgId: string; propertyId: string | null } | null>(null);
+
+  const resolveUserProfile = useCallback(async () => {
+    const supabase = getSupabaseBrowser();
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+
+    if (!user) {
+      throw new Error("Not authenticated");
+    }
+
+    const { data: profile, error } = await supabase
+      .from("profiles")
+      .select("org_id, property_id")
+      .eq("id", user.id)
+      .single();
+
+    if (error || !profile?.org_id) {
+      throw new Error("Unable to determine organization");
+    }
+
+    const resolved = {
+      orgId: profile.org_id,
+      propertyId: profile.property_id,
+    };
+
+    setUserProfile(resolved);
+    return resolved;
+  }, []);
 
   const loadWorkOrders = useCallback(async () => {
     try {
@@ -51,12 +82,13 @@ export default function WorkOrdersPage() {
       setError(null);
       const data = await fetchWorkOrders();
       setWorkOrders(data);
+      await resolveUserProfile();
     } catch (err: any) {
       setError(err.message || "Failed to load work orders");
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [resolveUserProfile]);
 
   useEffect(() => {
     loadWorkOrders();
@@ -81,7 +113,7 @@ export default function WorkOrdersPage() {
       return sortDir === "asc" ? cmp : -cmp;
     });
     return items;
-  }, [search, categoryFilter, sortKey, sortDir]);
+  }, [workOrders, search, categoryFilter, sortKey, sortDir]);
 
   const columns = [
     {
@@ -167,7 +199,7 @@ export default function WorkOrdersPage() {
 
       {/* ── Filter Bar ── */}
       <div className="flex flex-wrap items-end gap-3">
-        <div className="flex-1 min-w-[200px] max-w-xs">
+        <div className="page-toolbar-search">
           <div className="relative">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-[var(--text-tertiary)]" />
             <input
@@ -215,9 +247,27 @@ export default function WorkOrdersPage() {
         open={showCreateModal}
         onClose={() => setShowCreateModal(false)}
         onSubmit={async (data) => {
-          toast("Work order created", { variant: "success" });
-          setShowCreateModal(false);
-          loadWorkOrders();
+          try {
+            const profile = userProfile ?? (await resolveUserProfile());
+            await createWorkOrder({
+              orgId: profile.orgId,
+              propertyId: profile.propertyId,
+              title: data.title,
+              description: data.description || undefined,
+              category: data.category,
+              priority: data.priority,
+              locationId: data.location || null,
+              assignedTo: data.assignTo || null,
+              dueDate: data.dueDate || undefined,
+              scheduledDate: data.scheduledDate || undefined,
+              estimatedCost: data.estimatedCost || undefined,
+            });
+            toast("Work order created", { variant: "success" });
+            setShowCreateModal(false);
+            await loadWorkOrders();
+          } catch (err: any) {
+            toast(err.message || "Failed to create work order", { variant: "error" });
+          }
         }}
       />
     </div>
