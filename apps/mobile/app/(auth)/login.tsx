@@ -1,24 +1,25 @@
 import { useRouter } from "expo-router";
-import { useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import {
-  KeyboardAvoidingView,
-  Platform,
   Pressable,
-  ScrollView,
   StyleSheet,
   Text,
+  type TextInputProps,
   View,
 } from "react-native";
 import {
-  SafeAreaView,
-  useSafeAreaInsets,
-} from "react-native-safe-area-context";
-
+  BottomSheetBackdrop,
+  BottomSheetModal,
+  BottomSheetTextInput,
+  BottomSheetView,
+  type BottomSheetBackdropProps,
+} from "@gorhom/bottom-sheet";
 import { Ionicons } from "@expo/vector-icons";
+import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { Button } from "@/components/ui/Button";
+import { GlassSheet } from "@/components/ui/glass/GlassSheet";
 import { MaterialSurface } from "@/components/ui/MaterialSurface";
-import { TextField } from "@/components/ui/TextField";
 import { signInWithPassword } from "@/lib/auth";
 import { getPreviewMessage } from "@/lib/env";
 import { useAuthStore } from "@/stores/auth-store";
@@ -63,6 +64,8 @@ const DEMO_ACCOUNTS = [
   },
 ] as const;
 
+const DEMO_PASSWORD_ENV = process.env.EXPO_PUBLIC_DEMO_PASSWORD?.trim() ?? "";
+
 function getLogoutMessage(reason: string | null) {
   switch (reason) {
     case "manual_sign_out":
@@ -78,14 +81,6 @@ function getLogoutMessage(reason: string | null) {
     default:
       return null;
   }
-}
-
-function getPreviewSummary(previewMessage: string | null) {
-  if (!previewMessage) {
-    return null;
-  }
-
-  return "Preview mode is available on this build.";
 }
 
 function formatRoleLabel(role: string) {
@@ -116,27 +111,69 @@ export default function LoginScreen() {
       state.pendingActions.filter((action) => action.syncState === "dead_letter")
         .length
   );
-  const previewMessage = getPreviewMessage();
-  const previewSummary = getPreviewSummary(previewMessage);
+
+  const signInSheetRef = useRef<BottomSheetModal>(null);
+  const getStartedSheetRef = useRef<BottomSheetModal>(null);
+  const debugSheetRef = useRef<BottomSheetModal>(null);
+  const tapCountRef = useRef(0);
+  const tapTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
   const logoutMessage = getLogoutMessage(lastLogoutReason);
+  const previewMessage = getPreviewMessage();
   const hasStatusBanner =
     !isOnline || processing || pendingCount > 0 || deadLetterCount > 0;
+
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [demoPassword, setDemoPassword] = useState(DEMO_PASSWORD_ENV);
+  const [debugUnlocked, setDebugUnlocked] = useState(false);
+  const [localError, setLocalError] = useState<string | null>(null);
+  const [submitting, setSubmitting] = useState(false);
+
+  const getStartedSnapPoints = useMemo(() => ["42%"], []);
+  const signInSnapPoints = useMemo(() => ["62%"], []);
+  const debugSnapPoints = useMemo(() => ["64%"], []);
+
   const styles = createStyles({
-    bottomInset: Math.max(insets.bottom, 20),
+    bottomInset: Math.max(insets.bottom, 18),
     colors,
     hasStatusBanner,
     horizontalPadding: layout.horizontalPadding,
-    typography,
     topInset: Math.max(insets.top, 18),
+    typography,
   });
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
-  const [demoPickerOpen, setDemoPickerOpen] = useState(false);
-  const [localError, setLocalError] = useState<string | null>(null);
-  const [submitting, setSubmitting] = useState(false);
-  const normalizedEmail = email.trim().toLowerCase();
-  const selectedDemoAccount =
-    DEMO_ACCOUNTS.find((account) => account.email === normalizedEmail) ?? null;
+
+  const statusMessage =
+    localError ||
+    authError ||
+    logoutMessage ||
+    (!authEnabled ? "Live sign in is unavailable on this build." : null);
+
+  const renderBackdrop = (props: BottomSheetBackdropProps) => (
+    <BottomSheetBackdrop
+      {...props}
+      appearsOnIndex={0}
+      disappearsOnIndex={-1}
+      opacity={0.24}
+      pressBehavior="close"
+    />
+  );
+
+  const presentSignInSheet = () => {
+    getStartedSheetRef.current?.dismiss();
+    debugSheetRef.current?.dismiss();
+    setTimeout(() => {
+      signInSheetRef.current?.present();
+    }, 160);
+  };
+
+  const presentGetStartedSheet = () => {
+    signInSheetRef.current?.dismiss();
+    debugSheetRef.current?.dismiss();
+    setTimeout(() => {
+      getStartedSheetRef.current?.present();
+    }, 160);
+  };
 
   const handleSignIn = async () => {
     if (!email.trim() || !password) {
@@ -159,76 +196,152 @@ export default function LoginScreen() {
     }
   };
 
-  const handlePreview = () => {
+  const handleEnterPreview = () => {
+    debugSheetRef.current?.dismiss();
+    signInSheetRef.current?.dismiss();
+    getStartedSheetRef.current?.dismiss();
     enterPreviewMode();
     router.replace("/dashboard");
   };
 
   const handleSelectDemoAccount = (account: (typeof DEMO_ACCOUNTS)[number]) => {
     setEmail(account.email);
-    setDemoPickerOpen(false);
+    if (demoPassword.trim()) {
+      setPassword(demoPassword.trim());
+    }
     setLocalError(null);
+    debugSheetRef.current?.dismiss();
+    setTimeout(() => {
+      signInSheetRef.current?.present();
+    }, 160);
   };
 
-  const handleEmailChange = (value: string) => {
-    setEmail(value);
-    setDemoPickerOpen(false);
-  };
+  const handleBrandTap = () => {
+    tapCountRef.current += 1;
 
-  const statusMessage = localError || authError || logoutMessage;
-  const isErrorState = Boolean(localError || authError);
+    if (tapTimerRef.current) {
+      clearTimeout(tapTimerRef.current);
+    }
+
+    tapTimerRef.current = setTimeout(() => {
+      tapCountRef.current = 0;
+    }, 1200);
+
+    if (tapCountRef.current >= 5) {
+      tapCountRef.current = 0;
+      setDebugUnlocked(true);
+      debugSheetRef.current?.present();
+    }
+  };
 
   return (
     <SafeAreaView edges={["left", "right"]} style={styles.safeArea}>
       <View pointerEvents="none" style={styles.backdrop}>
         <View style={styles.primaryOrb} />
-        <View style={styles.accentOrb} />
+        <View style={styles.secondaryOrb} />
         <View style={styles.backdropBeam} />
       </View>
-      <KeyboardAvoidingView
-        behavior={Platform.OS === "ios" ? "padding" : undefined}
-        style={styles.keyboard}
-      >
-        <ScrollView
-          contentContainerStyle={styles.content}
-          contentInsetAdjustmentBehavior="automatic"
-          keyboardDismissMode="on-drag"
-          keyboardShouldPersistTaps="handled"
-          showsVerticalScrollIndicator={false}
-        >
-          <View style={styles.shell}>
-            <MaterialSurface intensity={90} padding={22} style={styles.card} variant="panel">
-              <View style={styles.headerRow}>
-                <View style={styles.brandBadge}>
-                  <Text style={styles.brandBadgeText}>EZTRACK</Text>
-                </View>
-                <View style={styles.headerIcon}>
-                  <Ionicons
-                    color={colors.primaryInk}
-                    name="shield-checkmark-outline"
-                    size={20}
-                  />
-                </View>
-              </View>
 
-              <View style={styles.header}>
-                <Text style={styles.title}>Sign in</Text>
-                <Text style={styles.subtitle}>
-                  Use your EZTrack work account to continue.
-                </Text>
-              </View>
+      <View style={styles.page}>
+        <View style={styles.hero}>
+          <Pressable
+            accessibilityRole="button"
+            onPress={handleBrandTap}
+            style={({ pressed }) => [
+              styles.brandPressable,
+              pressed ? styles.brandPressed : null,
+            ]}
+          >
+            <MaterialSurface padding={0} style={styles.brandPill} variant="grouped">
+              <Text style={styles.brandText}>EZTRACK</Text>
+            </MaterialSurface>
+          </Pressable>
+          <Text style={styles.heroTitle}>Your events, simplified.</Text>
+          <Text style={styles.heroCopy}>
+            Access EZTrack with the work account your team issued.
+          </Text>
+        </View>
+
+        <View style={styles.footer}>
+          <Button
+            label="Get Started"
+            onPress={presentGetStartedSheet}
+            style={styles.footerButton}
+          />
+          <Button
+            label="Sign In"
+            onPress={presentSignInSheet}
+            style={styles.footerButton}
+            variant="secondary"
+          />
+          <Text style={styles.footerMeta}>Terms of Use · Privacy</Text>
+        </View>
+      </View>
+
+      <BottomSheetModal
+        backdropComponent={renderBackdrop}
+        backgroundStyle={styles.transparentSheetBackground}
+        enablePanDownToClose
+        handleComponent={() => null}
+        keyboardBehavior="interactive"
+        keyboardBlurBehavior="restore"
+        ref={getStartedSheetRef}
+        snapPoints={getStartedSnapPoints}
+      >
+        <BottomSheetView style={styles.sheetViewport}>
+          <GlassSheet>
+            <SheetHeader
+              onClose={() => getStartedSheetRef.current?.dismiss()}
+              title="Get started"
+            />
+            <View style={styles.sheetSection}>
+              <Text style={styles.sheetBodyCopy}>
+                EZTrack accounts are provisioned by your operations admin. If you already have
+                credentials, continue to sign in.
+              </Text>
+              <Button
+                label="Continue with Work Account"
+                onPress={presentSignInSheet}
+                style={styles.sheetButton}
+              />
+              <Text style={styles.sheetHint}>
+                Need access? Contact your operations admin.
+              </Text>
+            </View>
+          </GlassSheet>
+        </BottomSheetView>
+      </BottomSheetModal>
+
+      <BottomSheetModal
+        backdropComponent={renderBackdrop}
+        backgroundStyle={styles.transparentSheetBackground}
+        enablePanDownToClose
+        handleComponent={() => null}
+        keyboardBehavior="interactive"
+        keyboardBlurBehavior="restore"
+        ref={signInSheetRef}
+        snapPoints={signInSnapPoints}
+      >
+        <BottomSheetView style={styles.sheetViewport}>
+          <GlassSheet>
+            <SheetHeader
+              onClose={() => signInSheetRef.current?.dismiss()}
+              title="Sign in to EZTRACK"
+            />
+            <View style={styles.sheetSection}>
+              <Text style={styles.sheetBodyCopy}>Use your work email and password.</Text>
 
               {statusMessage ? (
                 <View
                   style={[
                     styles.message,
-                    isErrorState ? styles.messageError : styles.messageNeutral,
+                    localError || authError ? styles.messageError : styles.messageNeutral,
                   ]}
                 >
                   <Text
                     style={[
                       styles.messageText,
-                      isErrorState ? styles.messageErrorText : null,
+                      localError || authError ? styles.messageErrorText : null,
                     ]}
                   >
                     {statusMessage}
@@ -236,116 +349,204 @@ export default function LoginScreen() {
                 </View>
               ) : null}
 
-              <View style={styles.form}>
-                <View style={styles.fieldGroup}>
-                  <Text style={styles.fieldLabel}>Demo login</Text>
+              <SheetField
+                autoCapitalize="none"
+                autoComplete="email"
+                keyboardType="email-address"
+                label="Email"
+                onChangeText={setEmail}
+                placeholder="name@eztrack.io"
+                value={email}
+              />
+              <SheetField
+                autoComplete="password"
+                label="Password"
+                onChangeText={setPassword}
+                placeholder="Enter password"
+                secureTextEntry
+                value={password}
+              />
+              <Button
+                disabled={!authEnabled}
+                label="Sign In"
+                loading={submitting}
+                onPress={handleSignIn}
+                style={styles.sheetButton}
+              />
+              {debugUnlocked ? (
+                <Pressable
+                  accessibilityRole="button"
+                  onPress={() => debugSheetRef.current?.present()}
+                  style={({ pressed }) => [pressed ? styles.linkPressed : null]}
+                >
+                  <Text style={styles.debugLink}>Demo tools</Text>
+                </Pressable>
+              ) : (
+                <Text style={styles.sheetHint}>Need help? Contact your operations admin.</Text>
+              )}
+            </View>
+          </GlassSheet>
+        </BottomSheetView>
+      </BottomSheetModal>
+
+      <BottomSheetModal
+        backdropComponent={renderBackdrop}
+        backgroundStyle={styles.transparentSheetBackground}
+        enablePanDownToClose
+        handleComponent={() => null}
+        keyboardBehavior="interactive"
+        keyboardBlurBehavior="restore"
+        ref={debugSheetRef}
+        snapPoints={debugSnapPoints}
+      >
+        <BottomSheetView style={styles.sheetViewport}>
+          <GlassSheet>
+            <SheetHeader
+              onClose={() => debugSheetRef.current?.dismiss()}
+              title="Debug tools"
+            />
+            <View style={styles.sheetSection}>
+              <Text style={styles.sheetBodyCopy}>
+                Select a demo account to autofill sign-in. If a shared demo password is available,
+                it will fill too.
+              </Text>
+              <SheetField
+                autoCapitalize="none"
+                autoCorrect={false}
+                label="Demo password"
+                onChangeText={setDemoPassword}
+                placeholder="Shared demo password"
+                secureTextEntry
+                value={demoPassword}
+              />
+              <View style={styles.demoList}>
+                {DEMO_ACCOUNTS.map((account) => (
                   <Pressable
                     accessibilityRole="button"
-                    onPress={() => setDemoPickerOpen((current) => !current)}
+                    key={account.email}
+                    onPress={() => handleSelectDemoAccount(account)}
                     style={({ pressed }) => [
-                      styles.demoPicker,
-                      pressed ? styles.pressed : null,
+                      styles.demoRow,
+                      pressed ? styles.rowPressed : null,
                     ]}
                   >
-                    <View style={styles.demoPickerCopy}>
-                      <Text style={styles.demoPickerTitle}>
-                        {selectedDemoAccount
-                          ? selectedDemoAccount.name
-                          : "Select a temporary demo login"}
-                      </Text>
-                      <Text style={styles.demoPickerSubtitle}>
-                        {selectedDemoAccount
-                          ? `${selectedDemoAccount.email} | ${formatRoleLabel(selectedDemoAccount.role)}`
-                          : "Fills email only"}
-                      </Text>
+                    <View style={styles.demoRowBody}>
+                      <Text style={styles.demoRowName}>{account.name}</Text>
+                      <Text style={styles.demoRowEmail}>{account.email}</Text>
                     </View>
-                    <Ionicons
-                      color={colors.textSecondary}
-                      name={demoPickerOpen ? "chevron-up" : "chevron-down"}
-                      size={18}
-                    />
+                    <Text style={styles.demoRowRole}>{formatRoleLabel(account.role)}</Text>
                   </Pressable>
-                  {demoPickerOpen ? (
-                    <MaterialSurface padding={8} style={styles.demoMenu} variant="grouped">
-                      {DEMO_ACCOUNTS.map((account, index) => {
-                        const selected = account.email === selectedDemoAccount?.email;
-
-                        return (
-                          <Pressable
-                            accessibilityRole="button"
-                            key={account.email}
-                            onPress={() => handleSelectDemoAccount(account)}
-                            style={({ pressed }) => [
-                              styles.demoOption,
-                              index < DEMO_ACCOUNTS.length - 1
-                                ? styles.demoOptionBorder
-                                : null,
-                              selected ? styles.demoOptionSelected : null,
-                              pressed ? styles.pressed : null,
-                            ]}
-                          >
-                            <View style={styles.demoOptionHeader}>
-                              <Text style={styles.demoOptionName}>{account.name}</Text>
-                              <Text style={styles.demoOptionRole}>
-                                {formatRoleLabel(account.role)}
-                              </Text>
-                            </View>
-                            <Text style={styles.demoOptionEmail}>{account.email}</Text>
-                          </Pressable>
-                        );
-                      })}
-                    </MaterialSurface>
-                  ) : null}
-                </View>
-
-                <TextField
-                  autoCapitalize="none"
-                  autoComplete="email"
-                  keyboardType="email-address"
-                  label="Email"
-                  onChangeText={handleEmailChange}
-                  placeholder="name@eztrack.io"
-                  value={email}
-                />
-                <TextField
-                  autoComplete="password"
-                  label="Password"
-                  onChangeText={setPassword}
-                  placeholder="Enter password"
-                  secureTextEntry
-                  value={password}
-                />
+                ))}
+              </View>
+              {previewMessage ? (
                 <Button
-                  disabled={!authEnabled}
-                  label="Sign In"
-                  loading={submitting}
-                  onPress={handleSignIn}
-                  style={styles.primaryButton}
+                  label="Continue in Preview"
+                  onPress={handleEnterPreview}
+                  style={styles.sheetButton}
+                  variant="secondary"
                 />
-              </View>
-
-              <View style={styles.footer}>
-                {previewSummary ? (
-                  <View style={styles.previewBlock}>
-                    <Text style={styles.previewEyebrow}>Preview</Text>
-                    <Text style={styles.previewCopy}>{previewSummary}</Text>
-                    <Button
-                      label="Continue in Preview"
-                      onPress={handlePreview}
-                      style={styles.previewButton}
-                      variant="secondary"
-                    />
-                  </View>
-                ) : null}
-                <Text style={styles.helpText}>
-                  Need help? Contact your operations admin.
-                </Text>
-              </View>
-            </MaterialSurface>
-          </View>
-        </ScrollView>
-      </KeyboardAvoidingView>
+              ) : null}
+            </View>
+          </GlassSheet>
+        </BottomSheetView>
+      </BottomSheetModal>
     </SafeAreaView>
+  );
+}
+
+function SheetField({
+  label,
+  style,
+  ...props
+}: TextInputProps & { label: string }) {
+  const colors = useThemeColors();
+  const typography = useThemeTypography();
+  const [focused, setFocused] = useState(false);
+  const styles = StyleSheet.create({
+    field: {
+      gap: 8,
+    },
+    input: {
+      ...typography.body,
+      backgroundColor: colors.input,
+      borderColor: focused ? colors.primaryStrong : colors.borderSubtle,
+      borderRadius: 16,
+      borderWidth: 1,
+      color: colors.textPrimary,
+      minHeight: 54,
+      paddingHorizontal: 16,
+      paddingVertical: 14,
+    },
+    label: {
+      ...typography.subheadline,
+      color: focused ? colors.primaryInk : colors.textPrimary,
+      fontWeight: "600",
+    },
+  });
+
+  return (
+    <View style={styles.field}>
+      <Text style={styles.label}>{label}</Text>
+      <BottomSheetTextInput
+        onBlur={() => setFocused(false)}
+        onFocus={() => setFocused(true)}
+        placeholderTextColor={colors.textTertiary}
+        selectionColor={colors.primaryStrong}
+        style={[styles.input, style]}
+        {...props}
+      />
+    </View>
+  );
+}
+
+function SheetHeader({
+  onClose,
+  title,
+}: {
+  onClose: () => void;
+  title: string;
+}) {
+  const colors = useThemeColors();
+  const typography = useThemeTypography();
+  const styles = StyleSheet.create({
+    closeButton: {
+      alignItems: "center",
+      backgroundColor: colors.surfaceOverlay,
+      borderColor: colors.borderSubtle,
+      borderRadius: 999,
+      borderWidth: 1,
+      height: 40,
+      justifyContent: "center",
+      width: 40,
+    },
+    row: {
+      alignItems: "center",
+      flexDirection: "row",
+      justifyContent: "space-between",
+    },
+    title: {
+      ...typography.title1,
+      color: colors.textPrimary,
+      fontWeight: "700",
+      letterSpacing: -0.4,
+    },
+  });
+
+  return (
+    <View style={styles.row}>
+      <Text style={styles.title}>{title}</Text>
+      <Pressable
+        accessibilityLabel="Close sheet"
+        accessibilityRole="button"
+        onPress={onClose}
+        style={({ pressed }) => [
+          styles.closeButton,
+          pressed ? { opacity: 0.76 } : null,
+        ]}
+      >
+        <Ionicons color={colors.textPrimary} name="close" size={18} />
+      </Pressable>
+    </View>
   );
 }
 
@@ -365,16 +566,6 @@ function createStyles({
   typography: ReturnType<typeof useThemeTypography>;
 }) {
   return StyleSheet.create({
-    accentOrb: {
-      backgroundColor: colors.warning,
-      borderRadius: 999,
-      bottom: 72,
-      height: 220,
-      left: -88,
-      opacity: 0.08,
-      position: "absolute",
-      width: 220,
-    },
     backdrop: {
       ...StyleSheet.absoluteFillObject,
       overflow: "hidden",
@@ -385,65 +576,69 @@ function createStyles({
       height: 420,
       opacity: 0.08,
       position: "absolute",
-      right: -64,
-      top: 110,
-      transform: [{ rotate: "-26deg" }],
-      width: 140,
+      right: -84,
+      top: 142,
+      transform: [{ rotate: "-24deg" }],
+      width: 160,
     },
-    brandBadge: {
-      backgroundColor: colors.surfaceOverlay,
-      borderColor: colors.borderSubtle,
+    brandPill: {
+      alignItems: "center",
       borderRadius: 999,
-      borderWidth: 1,
-      paddingHorizontal: 12,
-      paddingVertical: 7,
-    },
-    brandBadgeText: {
-      color: colors.accentSoft,
-      fontSize: 11,
-      fontWeight: "700",
-      letterSpacing: 0.9,
-      textTransform: "uppercase",
-    },
-    card: {
-      gap: 20,
-    },
-    content: {
-      flexGrow: 1,
-      paddingBottom: bottomInset + 28,
-      paddingHorizontal: horizontalPadding,
-      paddingTop: topInset + (hasStatusBanner ? 94 : 44),
-    },
-    demoMenu: {
-      gap: 0,
-      marginTop: 6,
-    },
-    demoOption: {
-      gap: 6,
-      paddingHorizontal: 12,
+      justifyContent: "center",
+      minWidth: 132,
+      paddingHorizontal: 18,
       paddingVertical: 12,
     },
-    demoOptionBorder: {
-      borderBottomColor: colors.borderSubtle,
-      borderBottomWidth: 1,
+    brandPressed: {
+      opacity: 0.82,
     },
-    demoOptionEmail: {
+    brandPressable: {
+      alignSelf: "center",
+    },
+    brandText: {
+      color: colors.accentSoft,
+      fontSize: 12,
+      fontWeight: "700",
+      letterSpacing: 1.6,
+      textTransform: "uppercase",
+    },
+    debugLink: {
+      color: colors.primaryInk,
+      fontSize: 13,
+      fontWeight: "600",
+      lineHeight: 18,
+    },
+    demoList: {
+      gap: 10,
+    },
+    demoRow: {
+      alignItems: "center",
+      backgroundColor: colors.input,
+      borderColor: colors.borderSubtle,
+      borderRadius: 18,
+      borderWidth: 1,
+      flexDirection: "row",
+      justifyContent: "space-between",
+      paddingHorizontal: 14,
+      paddingVertical: 14,
+    },
+    demoRowBody: {
+      flex: 1,
+      gap: 3,
+      paddingRight: 12,
+    },
+    demoRowEmail: {
       color: colors.textSecondary,
       fontSize: 13,
       lineHeight: 18,
     },
-    demoOptionHeader: {
-      alignItems: "center",
-      flexDirection: "row",
-      justifyContent: "space-between",
-    },
-    demoOptionName: {
+    demoRowName: {
       color: colors.textPrimary,
       fontSize: 15,
       fontWeight: "600",
       lineHeight: 20,
     },
-    demoOptionRole: {
+    demoRowRole: {
       color: colors.primaryInk,
       fontSize: 11,
       fontWeight: "700",
@@ -451,81 +646,43 @@ function createStyles({
       lineHeight: 14,
       textTransform: "uppercase",
     },
-    demoOptionSelected: {
-      backgroundColor: colors.primarySoft,
-      borderRadius: 14,
-    },
-    demoPicker: {
-      alignItems: "center",
-      backgroundColor: colors.input,
-      borderColor: colors.borderSubtle,
-      borderRadius: 18,
-      borderWidth: 1,
-      flexDirection: "row",
-      gap: 12,
-      justifyContent: "space-between",
-      minHeight: 56,
-      paddingHorizontal: 14,
-      paddingVertical: 12,
-    },
-    demoPickerCopy: {
-      flex: 1,
-      gap: 2,
-    },
-    demoPickerSubtitle: {
-      color: colors.textSecondary,
-      fontSize: 13,
-      lineHeight: 18,
-    },
-    demoPickerTitle: {
-      color: colors.textPrimary,
-      fontSize: 15,
-      fontWeight: "600",
-      lineHeight: 20,
-    },
-    fieldGroup: {
-      gap: 8,
-    },
-    fieldLabel: {
-      ...typography.caption1,
-      color: colors.textPrimary,
-      fontWeight: "700",
-      letterSpacing: 0.2,
-    },
     footer: {
       gap: 12,
+      paddingBottom: bottomInset,
     },
-    form: {
-      gap: 14,
+    footerButton: {
+      width: "100%",
     },
-    header: {
-      gap: 8,
-    },
-    headerIcon: {
-      alignItems: "center",
-      backgroundColor: colors.primarySoft,
-      borderColor: colors.borderSubtle,
-      borderRadius: 16,
-      borderWidth: 1,
-      height: 42,
-      justifyContent: "center",
-      width: 42,
-    },
-    headerRow: {
-      alignItems: "center",
-      flexDirection: "row",
-      justifyContent: "space-between",
-    },
-    helpText: {
+    footerMeta: {
       color: colors.textTertiary,
       fontSize: 12,
       lineHeight: 16,
+      textAlign: "center",
     },
-    keyboard: {
-      flex: 1,
+    hero: {
+      alignItems: "center",
+      gap: 16,
+      paddingTop: 48,
+    },
+    heroCopy: {
+      ...typography.body,
+      color: colors.textSecondary,
+      maxWidth: 280,
+      textAlign: "center",
+    },
+    heroTitle: {
+      color: colors.textPrimary,
+      fontSize: 34,
+      fontWeight: "800",
+      letterSpacing: -1,
+      lineHeight: 38,
+      textAlign: "center",
+    },
+    linkPressed: {
+      opacity: 0.72,
     },
     message: {
-      borderRadius: 18,
+      borderRadius: 16,
       borderWidth: 1,
       paddingHorizontal: 14,
       paddingVertical: 12,
@@ -544,70 +701,64 @@ function createStyles({
     messageText: {
       color: colors.textSecondary,
       fontSize: 13,
-      lineHeight: 19,
+      lineHeight: 18,
     },
-    previewBlock: {
-      backgroundColor: colors.surfaceOverlay,
-      borderColor: colors.borderSubtle,
-      borderRadius: 20,
-      borderWidth: 1,
-      gap: 8,
-      paddingHorizontal: 14,
-      paddingVertical: 12,
-    },
-    previewButton: {
-      width: "100%",
-    },
-    previewCopy: {
-      color: colors.textSecondary,
-      fontSize: 14,
-      lineHeight: 20,
-    },
-    previewEyebrow: {
-      color: colors.primaryInk,
-      fontSize: 11,
-      fontWeight: "700",
-      letterSpacing: 0.6,
-      textTransform: "uppercase",
-    },
-    pressed: {
-      opacity: 0.82,
-    },
-    primaryButton: {
-      marginTop: 4,
-      width: "100%",
+    page: {
+      flex: 1,
+      justifyContent: "space-between",
+      paddingBottom: 16,
+      paddingHorizontal: horizontalPadding,
+      paddingTop: topInset + (hasStatusBanner ? 104 : 56),
     },
     primaryOrb: {
       backgroundColor: colors.primaryStrong,
       borderRadius: 999,
-      height: 280,
-      opacity: 0.12,
+      height: 336,
+      opacity: 0.16,
       position: "absolute",
-      right: -70,
-      top: 36,
-      width: 280,
+      right: -102,
+      top: 20,
+      width: 336,
+    },
+    rowPressed: {
+      opacity: 0.82,
     },
     safeArea: {
       backgroundColor: colors.background,
       flex: 1,
     },
-    shell: {
-      alignSelf: "center",
-      maxWidth: 440,
+    secondaryOrb: {
+      backgroundColor: colors.warning,
+      borderRadius: 999,
+      bottom: 116,
+      height: 220,
+      left: -112,
+      opacity: 0.08,
+      position: "absolute",
+      width: 220,
+    },
+    sheetBodyCopy: {
+      ...typography.callout,
+      color: colors.textSecondary,
+      lineHeight: 22,
+    },
+    sheetButton: {
       width: "100%",
     },
-    subtitle: {
-      color: colors.textSecondary,
-      fontSize: 16,
-      lineHeight: 24,
-      maxWidth: 320,
+    sheetHint: {
+      color: colors.textTertiary,
+      fontSize: 12,
+      lineHeight: 16,
     },
-    title: {
-      color: colors.textPrimary,
-      fontSize: 34,
-      fontWeight: "800",
-      letterSpacing: -1.1,
-      lineHeight: 38,
+    sheetSection: {
+      gap: 16,
+    },
+    sheetViewport: {
+      paddingBottom: bottomInset,
+      paddingHorizontal: horizontalPadding,
+    },
+    transparentSheetBackground: {
+      backgroundColor: "transparent",
     },
   });
 }
