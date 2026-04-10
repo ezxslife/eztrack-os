@@ -65,6 +65,7 @@ const DEMO_ACCOUNTS = [
 ] as const;
 
 const DEMO_PASSWORD_ENV = process.env.EXPO_PUBLIC_DEMO_PASSWORD?.trim() ?? "";
+const SHOW_TEST_TOOLS = __DEV__ || Boolean(DEMO_PASSWORD_ENV);
 
 function getLogoutMessage(reason: string | null) {
   switch (reason) {
@@ -178,6 +179,13 @@ export default function LoginScreen() {
   const handleSignIn = async () => {
     if (!email.trim() || !password) {
       setLocalError("Enter both email and password.");
+      return;
+    }
+
+    if (!authEnabled) {
+      setLocalError(
+        "Live sign in is not configured on this local build. Add the mobile Supabase env vars to test real auth."
+      );
       return;
     }
 
@@ -331,6 +339,16 @@ export default function LoginScreen() {
             <View style={styles.sheetSection}>
               <Text style={styles.sheetBodyCopy}>Use your work email and password.</Text>
 
+              {SHOW_TEST_TOOLS ? (
+                <Pressable
+                  accessibilityRole="button"
+                  onPress={() => debugSheetRef.current?.present()}
+                  style={({ pressed }) => [pressed ? styles.linkPressed : null]}
+                >
+                  <Text style={styles.debugLink}>Use test account</Text>
+                </Pressable>
+              ) : null}
+
               {statusMessage ? (
                 <View
                   style={[
@@ -367,13 +385,12 @@ export default function LoginScreen() {
                 value={password}
               />
               <Button
-                disabled={!authEnabled}
                 label="Sign In"
                 loading={submitting}
                 onPress={handleSignIn}
                 style={styles.sheetButton}
               />
-              {debugUnlocked ? (
+              {debugUnlocked && !SHOW_TEST_TOOLS ? (
                 <Pressable
                   accessibilityRole="button"
                   onPress={() => debugSheetRef.current?.present()}
