@@ -1,6 +1,7 @@
 import type { Profile } from "@eztrack/shared";
 
 import { appEnv } from "@/lib/env";
+import { deactivateDeviceRegistration } from "@/lib/push-registration";
 import { getSupabase } from "@/lib/supabase";
 import { clearUserScopedAppData } from "@/lib/user-scoped-data";
 import { useAuthStore } from "@/stores/auth-store";
@@ -58,6 +59,11 @@ export async function signOutCurrentUser() {
   useAuthStore.getState().setLogoutIntent("manual_sign_out");
 
   const supabase = getSupabase();
+  try {
+    await deactivateDeviceRegistration();
+  } catch (error) {
+    console.warn("[Push] Failed to deactivate device registration during sign-out.", error);
+  }
   const { error } = await supabase.auth.signOut();
 
   if (error) {

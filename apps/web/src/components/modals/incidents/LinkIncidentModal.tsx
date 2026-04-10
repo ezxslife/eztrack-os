@@ -2,8 +2,8 @@
 
 import { useState } from "react";
 import { Search, FileText, Clock, ArrowRight } from "lucide-react";
-import clsx from "clsx";
 import { FormModal } from "@/components/modals/FormModal";
+import { SelectionTile } from "@/components/ui/SelectionTile";
 import { Select } from "@/components/ui/Select";
 import { Textarea } from "@/components/ui/Textarea";
 
@@ -129,60 +129,59 @@ export function LinkIncidentModal({
       </div>
 
       {/* Search results list */}
-      <div className="border border-[var(--border-default)] rounded-xl overflow-hidden divide-y divide-[var(--border-default)]">
+      <div className="space-y-2">
         {filteredResults.map((result) => (
-          <button
+          <SelectionTile
             key={result.id}
-            type="button"
             onClick={() => setSelectedId(result.id)}
-            className={clsx(
-              "w-full flex items-start gap-3 px-3 py-2.5 text-left transition-colors",
-              selectedId === result.id
-                ? "bg-[var(--eztrack-primary-500,#6366f1)]/5"
-                : "hover:bg-[var(--surface-secondary)]"
-            )}
-          >
-            <div
-              className={clsx(
-                "h-8 w-8 rounded-lg flex items-center justify-center shrink-0 mt-0.5",
-                selectedId === result.id
-                  ? "bg-[var(--eztrack-primary-500,#6366f1)] text-white"
-                  : "bg-[var(--surface-tertiary)] text-[var(--text-tertiary)]"
-              )}
-            >
-              <FileText className="h-4 w-4" />
-            </div>
-            <div className="flex-1 min-w-0">
-              <div className="flex items-center gap-2">
-                <p className="text-[13px] font-medium text-[var(--text-primary)]">
+            selected={selectedId === result.id}
+            selectedLabel="Selected"
+            leading={
+              <div
+                className={`mt-0.5 flex h-8 w-8 items-center justify-center rounded-lg ${
+                  selectedId === result.id
+                    ? "bg-[var(--action-primary-fill)] text-[var(--text-on-brand)]"
+                    : "bg-[var(--surface-tertiary)] text-[var(--text-tertiary)]"
+                }`}
+              >
+                <FileText className="h-4 w-4" />
+              </div>
+            }
+            title={
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="text-[13px] font-medium text-[var(--text-primary)]">
                   {result.number}
-                </p>
+                </span>
                 <span
-                  className={clsx(
-                    "text-[10px] px-1.5 py-0.5 rounded-full font-medium",
-                    result.status === "Open" &&
-                      "bg-blue-500/10 text-blue-600",
-                    result.status === "Under Investigation" &&
-                      "bg-yellow-500/10 text-yellow-600",
-                    result.status === "Resolved" &&
-                      "bg-green-500/10 text-green-600"
-                  )}
+                  className={`rounded-full px-1.5 py-0.5 text-[10px] font-medium ${
+                    result.status === "Open"
+                      ? "bg-blue-500/10 text-blue-600"
+                      : result.status === "Under Investigation"
+                        ? "bg-yellow-500/10 text-yellow-600"
+                        : "bg-green-500/10 text-green-600"
+                  }`}
                 >
                   {result.status}
                 </span>
               </div>
-              <p className="text-[12px] text-[var(--text-secondary)] truncate mt-0.5">
-                {result.title}
-              </p>
-              <div className="flex items-center gap-1 mt-1 text-[11px] text-[var(--text-tertiary)]">
-                <Clock className="h-3 w-3" />
-                <span>{result.date}</span>
+            }
+            description={
+              <div className="space-y-1">
+                <p className="truncate text-[12px] text-[var(--text-secondary)]">
+                  {result.title}
+                </p>
+                <div className="flex items-center gap-1 text-[11px] text-[var(--text-tertiary)]">
+                  <Clock className="h-3 w-3" />
+                  <span>{result.date}</span>
+                </div>
               </div>
-            </div>
-            {selectedId === result.id && (
-              <ArrowRight className="h-4 w-4 text-[var(--eztrack-primary-500,#6366f1)] mt-1 shrink-0" />
-            )}
-          </button>
+            }
+            trailing={
+              selectedId === result.id ? (
+                <ArrowRight className="mt-1 h-4 w-4 shrink-0 text-[var(--action-primary)]" />
+              ) : null
+            }
+          />
         ))}
       </div>
 

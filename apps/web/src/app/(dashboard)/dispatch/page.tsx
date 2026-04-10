@@ -19,6 +19,7 @@ import {
 import { Button } from "@/components/ui/Button";
 import { Badge } from "@/components/ui/Badge";
 import { Avatar } from "@/components/ui/Avatar";
+import { FilterChipGroup } from "@/components/ui/FilterChipGroup";
 import dynamic from "next/dynamic";
 import {
   fetchDispatches,
@@ -36,6 +37,8 @@ import { exportCSV } from "@/lib/queries/reports";
 import { getSupabaseBrowser } from "@/lib/supabase-browser";
 import { formatRelativeTime } from "@/lib/utils/time";
 import { useRealtimeSubscription } from "@/hooks/useRealtimeSubscription";
+import { PRIORITY_COLORS } from "@eztrack/shared";
+import { PriorityBadge } from "@/components/ui/PriorityBadge";
 
 const CreateDispatchModal = dynamic(() => import("@/components/modals/dispatch/CreateDispatchModal").then(m => ({ default: m.CreateDispatchModal })), { ssr: false });
 const AssignOfficerModal = dynamic(() => import("@/components/modals/dispatch/AssignOfficerModal").then(m => ({ default: m.AssignOfficerModal })), { ssr: false });
@@ -75,36 +78,10 @@ interface Officer {
   rank?: string;
 }
 
-/* ─── Priority Config ─────────────────────────────────────────── */
-
-const PRIORITY_CONFIG: Record<
-  Priority,
-  { border: string; badge: string; badgeText: string; label: string }
-> = {
-  critical: {
-    border: "var(--dispatch-critical)",
-    badge: "badge-dispatch-critical",
-    badgeText: "Critical",
-    label: "Critical",
-  },
-  high: {
-    border: "var(--dispatch-high)",
-    badge: "badge-dispatch-high",
-    badgeText: "High",
-    label: "High",
-  },
-  medium: {
-    border: "var(--dispatch-medium)",
-    badge: "badge-dispatch-medium",
-    badgeText: "Medium",
-    label: "Medium",
-  },
-  low: {
-    border: "var(--dispatch-low)",
-    badge: "badge-dispatch-low",
-    badgeText: "Low",
-    label: "Low",
-  },
+type PriorityPalette = {
+  bg: string;
+  border?: string;
+  text: string;
 };
 
 /* ─── Officer Status Config ───────────────────────────────────── */
@@ -161,56 +138,11 @@ const BULK_STATUS_MAP: Record<string, string> = {
   archived: "completed",
 };
 
-/*─── Filter Chip Component ───────────────────────────────────── */
-
-function FilterChip({
-  label,
-  active,
-  onClick,
-  color,
-}: {
-  label: string;
-  active: boolean;
-  onClick: () => void;
-  color?: string;
-}) {
-  return (
-    <button
-      onClick={onClick}
-      className="inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-[12px] font-medium transition-all duration-150 ease-out whitespace-nowrap"
-      style={{
-        backgroundColor: active
-          ? color
-            ? `color-mix(in srgb, ${color} 15%, transparent)`
-            : "var(--surface-selected)"
-          : "var(--surface-secondary)",
-        color: active
-          ? color || "var(--interactive)"
-          : "var(--text-secondary)",
-        borderWidth: "1px",
-        borderStyle: "solid",
-        borderColor: active
-          ? color
-            ? `color-mix(in srgb, ${color} 30%, transparent)`
-            : "var(--eztrack-primary-300)"
-          : "var(--border-default)",
-      }}
-    >
-      {color && (
-        <span
-          className="inline-block h-1.5 w-1.5 rounded-full shrink-0"
-          style={{ backgroundColor: color }}
-        />
-      )}
-      {label}
-    </button>
-  );
-}
-
 /* ─── Dispatch Card Component ─────────────────────────────────── */
 
 const DispatchCard = React.memo(function DispatchCard({ dispatch, onClick }: { dispatch: DispatchItem; onClick?: () => void }) {
-  const priority = PRIORITY_CONFIG[dispatch.priority];
+  const priorityMap = PRIORITY_COLORS as Record<Priority, PriorityPalette>;
+  const priority = priorityMap[dispatch.priority] ?? priorityMap.low;
   const isActive = ACTIVE_STATUSES.includes(dispatch.status);
   const isCleared = CLEARED_STATUSES.includes(dispatch.status);
 
@@ -225,7 +157,7 @@ const DispatchCard = React.memo(function DispatchCard({ dispatch, onClick }: { d
     <div
       className="surface-card overflow-hidden group cursor-pointer"
       style={{
-        borderLeft: `3px solid ${priority.border}`,
+        borderLeft: `3px solid ${priority.border ?? priority.bg}`,
         borderRadius: "var(--radius-lg)",
         padding: "var(--space-3)",
       }}
@@ -239,7 +171,7 @@ const DispatchCard = React.memo(function DispatchCard({ dispatch, onClick }: { d
         >
           {dispatch.id}
         </span>
-        <span className={priority.badge}>{priority.badgeText}</span>
+        <PriorityBadge priority={dispatch.priority} />
       </div>
 
       {/* Dispatch code */}
@@ -792,34 +724,17 @@ export default function DispatchPage() {
           style={{ color: "var(--text-tertiary)" }}
           className="shrink-0"
         />
-        <FilterChip
-          label="All"
-          active={priorityFilter === "all"}
-          onClick={() => setPriorityFilter("all")}
-        />
-        <FilterChip
-          label="Critical"
-          active={priorityFilter === "critical"}
-          onClick={() => setPriorityFilter("critical")}
-          color="var(--dispatch-critical)"
-        />
-        <FilterChip
-          label="High"
-          active={priorityFilter === "high"}
-          onClick={() => setPriorityFilter("high")}
-          color="var(--dispatch-high)"
-        />
-        <FilterChip
-          label="Medium"
-          active={priorityFilter === "medium"}
-          onClick={() => setPriorityFilter("medium")}
-          color="var(--dispatch-medium)"
-        />
-        <FilterChip
-          label="Low"
-          active={priorityFilter === "low"}
-          onClick={() => setPriorityFilter("low")}
-          color="var(--dispatch-low)"
+        <FilterChipGroup
+          ariaLabel="Filter dispatches by priority"
+          options={[
+            { value: "all", label: "All" },
+            { value: "critical", label: "Critical", accentColor: PRIORITY_COLORS.critical.bg, dotColor: PRIORITY_COLORS.critical.bg },
+            { value: "high", label: "High", accentColor: PRIORITY_COLORS.high.bg, dotColor: PRIORITY_COLORS.high.bg },
+            { value: "medium", label: "Medium", accentColor: PRIORITY_COLORS.medium.bg, dotColor: PRIORITY_COLORS.medium.bg },
+            { value: "low", label: "Low", accentColor: PRIORITY_COLORS.low.bg, dotColor: PRIORITY_COLORS.low.bg },
+          ]}
+          value={priorityFilter}
+          onChange={setPriorityFilter}
         />
       </div>
 

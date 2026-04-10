@@ -26,7 +26,13 @@ import { Select } from "@/components/ui/Select";
 import { DataGrid } from "@/components/ui/DataGrid";
 import { useToast } from "@/components/ui/Toast";
 import { getSupabaseBrowser } from "@/lib/supabase-browser";
-import { fetchReportData, exportCSV, type ReportResult } from "@/lib/queries/reports";
+import {
+  exportCSV,
+  fetchReportData,
+  getDefaultReportDateRange,
+  getReportDefinition,
+  type ReportResult,
+} from "@/lib/queries/reports";
 import { exportReportPDF } from "@/lib/export-pdf";
 
 /* ── Report Metadata ── */
@@ -110,13 +116,21 @@ const FLAG_TYPE_OPTIONS = [
 /* ── Main Component ── */
 export default function ReportViewerPage({ params }: { params: Promise<{ type: string }> }) {
   const { type } = use(params);
-  const meta = REPORT_META[type] || { name: type.replace(/-/g, " ").replace(/\b\w/g, (c) => c.toUpperCase()), description: "Report details", icon: FileText };
+  const definition = getReportDefinition(type);
+  const meta = REPORT_META[type] || {
+    description: definition?.description ?? "Report details",
+    icon: FileText,
+    name:
+      definition?.name ??
+      type.replace(/-/g, " ").replace(/\b\w/g, (c) => c.toUpperCase()),
+  };
   const IconComponent = meta.icon;
+  const defaultRange = getDefaultReportDateRange(definition?.defaultRangeDays ?? 7);
 
   const { toast } = useToast();
 
-  const [dateFrom, setDateFrom] = useState("2026-03-29");
-  const [dateTo, setDateTo] = useState("2026-04-05");
+  const [dateFrom, setDateFrom] = useState(defaultRange.dateFrom);
+  const [dateTo, setDateTo] = useState(defaultRange.dateTo);
   const [property, setProperty] = useState("");
   const [extraFilter, setExtraFilter] = useState("");
   const [generated, setGenerated] = useState(false);
@@ -149,7 +163,12 @@ export default function ReportViewerPage({ params }: { params: Promise<{ type: s
     }
     setLoading(true);
     try {
-      const data = await fetchReportData(orgId, type, { dateFrom, dateTo });
+      const data = await fetchReportData(orgId, type, {
+        dateFrom,
+        dateTo,
+        extraFilterValue: extraFilter || undefined,
+        propertyId: property || undefined,
+      });
       setReportData(data);
       setGenerated(true);
       toast("Report generated successfully", { variant: "success" });
@@ -158,7 +177,7 @@ export default function ReportViewerPage({ params }: { params: Promise<{ type: s
     } finally {
       setLoading(false);
     }
-  }, [orgId, type, dateFrom, dateTo, toast]);
+  }, [dateFrom, dateTo, extraFilter, orgId, property, toast, type]);
 
   const handleExportCSV = () => {
     if (!reportData || !reportData.rows.length) {
@@ -206,20 +225,15 @@ export default function ReportViewerPage({ params }: { params: Promise<{ type: s
 
   /* ── Extra filter selector based on report type ── */
   const extraFilterConfig = useMemo(() => {
-    switch (type) {
-      case "incident-summary":
-        return { options: PRIORITY_OPTIONS, label: "Priority" };
-      case "dispatch-performance":
-      case "shift-coverage":
-        return { options: ZONE_OPTIONS, label: "Zone" };
-      case "training-compliance":
-        return { options: SHIFT_OPTIONS, label: "Shift" };
-      case "patron-flags":
-        return { options: FLAG_TYPE_OPTIONS, label: "Flag Type" };
-      default:
-        return null;
+    if (!definition?.extraFilter) {
+      return null;
     }
-  }, [type]);
+
+    return {
+      label: definition.extraFilter.label,
+      options: definition.extraFilter.options.map((option) => ({ ...option })),
+    };
+  }, [definition]);
 
   return (
     <div className="space-y-5">

@@ -25,6 +25,12 @@ export interface PersonnelDetail {
   updatedAt: string;
 }
 
+export interface PersonnelActivityEntry {
+  action: string;
+  createdAt: string;
+  id: string;
+}
+
 async function fetchPersonnel(orgId: string): Promise<PersonnelRow[]> {
   const supabase = getSupabase();
   const { data, error } = await supabase
@@ -73,6 +79,26 @@ async function fetchPersonnelById(id: string): Promise<PersonnelDetail> {
   };
 }
 
+async function fetchPersonnelActivity(id: string): Promise<PersonnelActivityEntry[]> {
+  const supabase = getSupabase();
+  const { data, error } = await supabase
+    .from("activity_log")
+    .select("id, action, created_at")
+    .eq("actor_id", id)
+    .order("created_at", { ascending: false })
+    .limit(20);
+
+  if (error) {
+    throw error;
+  }
+
+  return (data ?? []).map((row: any) => ({
+    action: row.action ?? "Unknown activity",
+    createdAt: row.created_at,
+    id: row.id,
+  }));
+}
+
 export function usePersonnel() {
   const { canAccessProtected, orgId } = useSessionContext();
 
@@ -90,5 +116,15 @@ export function usePersonnelDetail(id: string) {
     enabled: canAccessProtected && Boolean(id),
     queryFn: () => fetchPersonnelById(id),
     queryKey: ["personnel", "detail", id],
+  });
+}
+
+export function usePersonnelActivity(id: string) {
+  const { canAccessProtected } = useSessionContext();
+
+  return useQuery({
+    enabled: canAccessProtected && Boolean(id),
+    queryFn: () => fetchPersonnelActivity(id),
+    queryKey: ["personnel", "activity", id],
   });
 }

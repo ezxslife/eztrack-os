@@ -13,6 +13,27 @@ import {
 import type { BriefingListRow } from "@/lib/queries/secondary-modules";
 import { getSupabase } from "@/lib/supabase";
 
+export interface BriefingAcknowledgment {
+  acknowledgedAt: string;
+  userId: string;
+  userName: string;
+}
+
+export interface BriefingReply {
+  content: string;
+  createdAt: string;
+  id: string;
+  userId: string;
+  userName: string;
+}
+
+export interface BriefingRecipientsMeta {
+  acknowledgments: BriefingAcknowledgment[];
+  replies: BriefingReply[];
+  targetValue: string;
+  targets: string[];
+}
+
 export interface BriefingDetail {
   content: string;
   createdAt: string;
@@ -22,7 +43,7 @@ export interface BriefingDetail {
   orgId: string;
   priority: string;
   propertyId: string | null;
-  recipients: unknown;
+  recipients: BriefingRecipientsMeta;
   sourceModule: string | null;
   title: string;
   updatedAt: string;
@@ -38,6 +59,87 @@ export interface CreateBriefingInput {
 
 export interface UpdateBriefingInput extends CreateBriefingInput {}
 
+function normalizeBriefingRecipients(raw: unknown): BriefingRecipientsMeta {
+  if (typeof raw === "string") {
+    return {
+      acknowledgments: [],
+      replies: [],
+      targetValue: raw,
+      targets: raw ? [raw] : [],
+    };
+  }
+
+  if (Array.isArray(raw)) {
+    const targets = raw.filter((value): value is string => typeof value === "string");
+    return {
+      acknowledgments: [],
+      replies: [],
+      targetValue: targets[0] ?? "",
+      targets,
+    };
+  }
+
+  if (raw && typeof raw === "object") {
+    const payload = raw as Record<string, unknown>;
+    const targetValue =
+      typeof payload.targetValue === "string"
+        ? payload.targetValue
+        : typeof payload.target === "string"
+          ? payload.target
+          : "";
+    const targets = Array.isArray(payload.targets)
+      ? payload.targets.filter((value): value is string => typeof value === "string")
+      : targetValue
+        ? [targetValue]
+        : [];
+    const acknowledgments = Array.isArray(payload.acknowledgments)
+      ? payload.acknowledgments
+          .filter((entry): entry is Record<string, unknown> => !!entry && typeof entry === "object")
+          .map((entry) => ({
+            acknowledgedAt:
+              typeof entry.acknowledgedAt === "string"
+                ? entry.acknowledgedAt
+                : new Date().toISOString(),
+            userId: typeof entry.userId === "string" ? entry.userId : "",
+            userName: typeof entry.userName === "string" ? entry.userName : "Unknown",
+          }))
+          .filter((entry) => entry.userId)
+      : [];
+    const replies = Array.isArray(payload.replies)
+      ? payload.replies
+          .filter((entry): entry is Record<string, unknown> => !!entry && typeof entry === "object")
+          .map((entry) => ({
+            content: typeof entry.content === "string" ? entry.content : "",
+            createdAt:
+              typeof entry.createdAt === "string"
+                ? entry.createdAt
+                : new Date().toISOString(),
+            id:
+              typeof entry.id === "string"
+                ? entry.id
+                : `reply_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
+            userId: typeof entry.userId === "string" ? entry.userId : "",
+            userName: typeof entry.userName === "string" ? entry.userName : "Unknown",
+          }))
+          .filter((entry) => entry.userId && entry.content.trim())
+      : [];
+
+    return {
+      acknowledgments,
+      replies,
+      targetValue,
+      targets,
+    };
+  }
+
+  return {
+    acknowledgments: [],
+    replies: [],
+    targetValue: "",
+    targets: [],
+  };
+}
+
 function mapPreviewDetail(id: string): BriefingDetail {
   const match = previewBriefings.find((row) => row.id === id) ?? previewBriefings[0];
 
@@ -50,7 +152,7 @@ function mapPreviewDetail(id: string): BriefingDetail {
     orgId: "preview-org",
     priority: match?.priority ?? "medium",
     propertyId: "preview-property",
-    recipients: [],
+    recipients: normalizeBriefingRecipients([]),
     sourceModule: null,
     title: match?.title ?? "Preview briefing",
     updatedAt: new Date().toISOString(),
@@ -107,7 +209,7 @@ async function fetchBriefingById(
     orgId: data.org_id,
     priority: data.priority,
     propertyId: data.property_id ?? null,
-    recipients: data.recipients ?? [],
+    recipients: normalizeBriefingRecipients(data.recipients),
     sourceModule: data.source_module ?? null,
     title: data.title,
     updatedAt: data.updated_at,
@@ -179,6 +281,97 @@ async function deleteBriefingRecord(id: string) {
   if (error) {
     throw error;
   }
+}
+
+async function acknowledgeBriefingRecord(
+  id: string,
+  input: { userId: string; userName: string }
+) {
+  const supabase = getSupabase();
+  const { data, error } = await supabase
+    .from("briefings")
+    .select("recipients")
+    .eq("id", id)
+    .single();
+
+  if (error) {
+    throw error;
+  }
+
+  const current = normalizeBriefingRecipients(data?.recipients);
+  if (current.acknowledgments.some((entry) => entry.userId === input.userId)) {
+    return current;
+  }
+
+  const next: BriefingRecipientsMeta = {
+    ...current,
+    acknowledgments: [
+      ...current.acknowledgments,
+      {
+        acknowledgedAt: new Date().toISOString(),
+        userId: input.userId,
+        userName: input.userName,
+      },
+    ],
+  };
+
+  const { error: updateError } = await supabase
+    .from("briefings")
+    .update({ recipients: next as any })
+    .eq("id", id);
+
+  if (updateError) {
+    throw updateError;
+  }
+
+  return next;
+}
+
+async function addBriefingReplyRecord(
+  id: string,
+  input: { userId: string; userName: string; content: string }
+) {
+  const content = input.content.trim();
+  if (!content) {
+    throw new Error("Reply cannot be empty");
+  }
+
+  const supabase = getSupabase();
+  const { data, error } = await supabase
+    .from("briefings")
+    .select("recipients")
+    .eq("id", id)
+    .single();
+
+  if (error) {
+    throw error;
+  }
+
+  const current = normalizeBriefingRecipients(data?.recipients);
+  const next: BriefingRecipientsMeta = {
+    ...current,
+    replies: [
+      ...current.replies,
+      {
+        content,
+        createdAt: new Date().toISOString(),
+        id: `reply_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
+        userId: input.userId,
+        userName: input.userName,
+      },
+    ],
+  };
+
+  const { error: updateError } = await supabase
+    .from("briefings")
+    .update({ recipients: next as any })
+    .eq("id", id);
+
+  if (updateError) {
+    throw updateError;
+  }
+
+  return next;
 }
 
 export function useBriefingDetail(id: string) {
@@ -312,6 +505,75 @@ export function useDeleteBriefingMutation(id: string) {
       }
 
       await queryClient.invalidateQueries({ queryKey: ["briefings"] });
+    },
+  });
+}
+
+export function useAcknowledgeBriefingMutation(id: string) {
+  const queryClient = useQueryClient();
+  const { profile, usePreviewData } = useSessionContext();
+
+  return useMutation({
+    mutationFn: async () => {
+      if (!profile) {
+        throw new Error("A live operator profile is required to acknowledge a briefing.");
+      }
+
+      if (usePreviewData) {
+        return normalizeBriefingRecipients([]);
+      }
+
+      return acknowledgeBriefingRecord(id, {
+        userId: profile.id,
+        userName: profile.full_name ?? profile.email ?? "Unknown",
+      });
+    },
+    onSuccess: (recipients) => {
+      queryClient.setQueryData<BriefingDetail | undefined>(
+        ["briefings", "detail", id, usePreviewData ? "preview" : profile?.org_id ?? "preview"],
+        (current) =>
+          current
+            ? {
+                ...current,
+                recipients,
+              }
+            : current
+      );
+    },
+  });
+}
+
+export function useAddBriefingReplyMutation(id: string) {
+  const queryClient = useQueryClient();
+  const { profile, usePreviewData } = useSessionContext();
+
+  return useMutation({
+    mutationFn: async (content: string) => {
+      if (!profile) {
+        throw new Error("A live operator profile is required to reply to a briefing.");
+      }
+
+      if (usePreviewData) {
+        return normalizeBriefingRecipients([]);
+      }
+
+      return addBriefingReplyRecord(id, {
+        content,
+        userId: profile.id,
+        userName: profile.full_name ?? profile.email ?? "Unknown",
+      });
+    },
+    onSuccess: (recipients) => {
+      queryClient.setQueryData<BriefingDetail | undefined>(
+        ["briefings", "detail", id, usePreviewData ? "preview" : profile?.org_id ?? "preview"],
+        (current) =>
+          current
+            ? {
+                ...current,
+                recipients,
+              }
+            : current
+      );
     },
   });
 }

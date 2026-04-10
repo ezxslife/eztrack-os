@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { Sun, Moon } from "lucide-react";
 import clsx from "clsx";
+import { IconButton } from "@/components/ui/IconButton";
 
 const STORAGE_KEY = "eztrack-theme";
 
@@ -42,23 +43,24 @@ export function ThemeToggle() {
 
   if (!mounted) {
     return (
-      <button
-        className="w-7 h-7 rounded-md bg-[var(--surface-secondary)] border border-[var(--border-default)] flex items-center justify-center"
+      <div
+        className="h-10 w-10 rounded-xl border border-[var(--border-default)] bg-[var(--surface-secondary)]"
         aria-label="Toggle theme"
       />
     );
   }
 
   return (
-    <button
+    <IconButton
       onClick={toggle}
       className={clsx(
-        "relative w-7 h-7 rounded-md flex items-center justify-center",
-        "bg-[var(--surface-secondary)] border border-[var(--border-default)]",
-        "hover:bg-[var(--surface-hover)] active:bg-[var(--surface-pressed)]",
-        "transition-colors duration-150 cursor-pointer"
+        "relative bg-[var(--surface-secondary)] text-[var(--text-primary)]",
+        "hover:bg-[var(--surface-hover)]"
       )}
-      aria-label={isDark ? "Switch to light mode" : "Switch to dark mode"}
+      label={isDark ? "Switch to light mode" : "Switch to dark mode"}
+      size="md"
+      type="button"
+      variant="outline"
     >
       <div className="relative w-4 h-4">
         <Sun
@@ -69,7 +71,6 @@ export function ThemeToggle() {
               ? "opacity-0 rotate-90 scale-0"
               : "opacity-100 rotate-0 scale-100"
           )}
-          style={{ color: "var(--text-primary)" }}
         />
         <Moon
           size={16}
@@ -79,9 +80,8 @@ export function ThemeToggle() {
               ? "opacity-100 rotate-0 scale-100"
               : "opacity-0 -rotate-90 scale-0"
           )}
-          style={{ color: "var(--text-primary)" }}
         />
       </div>
-    </button>
+    </IconButton>
   );
 }

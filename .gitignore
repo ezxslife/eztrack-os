@@ -6,6 +6,8 @@ node_modules/
 .next-out/
 dist/
 out/
+test-results/
+*.tsbuildinfo
 
 # Environment variables
 .env
@@ -31,3 +33,6 @@ Thumbs.db
 # Debug
 npm-debug.log*
 pnpm-debug.log*
+
+# Local QA artifacts
+.tmp-qa/

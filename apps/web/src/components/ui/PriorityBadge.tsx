@@ -11,17 +11,18 @@ interface PriorityBadgeProps {
 }
 
 export function PriorityBadge({ priority, className }: PriorityBadgeProps) {
-  const colors = PRIORITY_COLORS[priority] ?? PRIORITY_COLORS.low;
+  const colors = PRIORITY_COLORS[priority] ?? PRIORITY_COLORS.none;
   const label = priority.charAt(0).toUpperCase() + priority.slice(1);
 
   return (
     <span
       className={clsx(
-        "inline-flex items-center gap-1 rounded-full px-1.5 text-[11px] font-medium leading-5 whitespace-nowrap",
+        "inline-flex items-center gap-1 rounded-full border px-1.5 text-[11px] font-medium leading-5 whitespace-nowrap",
         className
       )}
       style={{
         backgroundColor: colors.bg,
+        borderColor: colors.border,
         color: colors.text,
       }}
     >

@@ -38,7 +38,7 @@ export async function GET(
   }
 
   try {
-    const { supabase, orgId } = await getRequestContext();
+    const { supabase, orgId } = await getRequestContext(request);
 
     if (section === "roles") {
       const { data, error } = await supabase
@@ -91,7 +91,7 @@ export async function PATCH(
   }
 
   try {
-    const { supabase, orgId, role } = await getRequestContext();
+    const { supabase, orgId, role } = await getRequestContext(request);
     if (!canManageSettings(role)) {
       return NextResponse.json({ error: "You do not have permission to update settings" }, { status: 403 });
     }

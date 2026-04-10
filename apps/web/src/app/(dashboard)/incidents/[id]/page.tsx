@@ -44,10 +44,12 @@ import {
   Archive,
 } from "lucide-react";
 import { Button } from "@/components/ui/Button";
+import { IconButton } from "@/components/ui/IconButton";
 import { StatusBadge } from "@/components/ui/Badge";
 import { PriorityBadge } from "@/components/ui/PriorityBadge";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { Tabs } from "@/components/ui/Tabs";
+import { Toggle } from "@/components/ui/Toggle";
 import { useToast } from "@/components/ui/Toast";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/Card";
 import { ProgressBar } from "@/components/ui/ProgressBar";
@@ -626,12 +628,15 @@ function ReportDetailsTab({
                 value={
                   <span className="inline-flex items-center gap-1.5">
                     {incident.recordNumber}
-                    <button
+                    <IconButton
                       onClick={() => navigator.clipboard.writeText(incident.recordNumber)}
-                      className="text-[var(--text-tertiary)] hover:text-[var(--text-secondary)] transition-colors"
+                      className="h-7 w-7 text-[var(--text-tertiary)] hover:text-[var(--text-secondary)]"
+                      label="Copy incident number"
+                      size="sm"
+                      variant="ghost"
                     >
                       <Copy className="h-3 w-3" />
-                    </button>
+                    </IconButton>
                   </span>
                 }
               />
@@ -696,10 +701,12 @@ function ReportDetailsTab({
             <ProgressBar value={total > 0 ? (completed / total) * 100 : 0} size="sm" />
             <div className="space-y-1.5 mt-3">
               {checklist.map((item) => (
-                <button
+                <Button
                   key={item.id}
                   onClick={() => onToggle(item.id)}
-                  className="flex items-center gap-2.5 w-full text-left group py-1"
+                  className="h-auto min-h-0 w-full justify-start gap-2.5 px-0 py-1 text-left shadow-none hover:bg-transparent"
+                  variant="ghost"
+                  size="sm"
                 >
                   {item.checked ? (
                     <CheckSquare className="h-4 w-4 text-[var(--status-success,#059669)] shrink-0" />
@@ -720,7 +727,7 @@ function ReportDetailsTab({
                       {item.completedBy} · {item.completedAt}
                     </span>
                   )}
-                </button>
+                </Button>
               ))}
             </div>
           </CardContent>
@@ -883,15 +890,24 @@ function NarrativeTab({
                   </div>
                 </div>
                 <div className="flex items-center gap-1">
-                  <button
-                    className="h-7 w-7 rounded-md hover:bg-[var(--surface-secondary)] flex items-center justify-center transition-colors"
+                  <IconButton
                     onClick={() => onEditNarrative({ id: n.id, title: n.title, content: n.content })}
+                    className="h-7 w-7"
+                    label="Edit narrative"
+                    size="sm"
+                    variant="ghost"
                   >
                     <Edit className="h-3.5 w-3.5 text-[var(--text-tertiary)]" />
-                  </button>
-                  <button className="h-7 w-7 rounded-md hover:bg-[var(--surface-secondary)] flex items-center justify-center transition-colors">
+                  </IconButton>
+                  <IconButton
+                    className="h-7 w-7"
+                    disabled
+                    label="Delete narrative"
+                    size="sm"
+                    variant="ghost"
+                  >
                     <Trash2 className="h-3.5 w-3.5 text-[var(--text-tertiary)]" />
-                  </button>
+                  </IconButton>
                 </div>
               </div>
             </CardHeader>
@@ -1452,9 +1468,15 @@ function SavingsLossesTab({ financials, totalLosses, totalSavings, onAddEntry }:
                         {f.createdBy || "—"}
                       </td>
                       <td className="px-4 h-10">
-                        <button className="h-7 w-7 rounded-md hover:bg-[var(--surface-secondary)] flex items-center justify-center transition-colors">
+                        <IconButton
+                          className="h-7 w-7"
+                          disabled
+                          label="Financial entry actions"
+                          size="sm"
+                          variant="ghost"
+                        >
                           <MoreHorizontal className="h-3.5 w-3.5 text-[var(--text-tertiary)]" />
-                        </button>
+                        </IconButton>
                       </td>
                     </tr>
                   );
@@ -1686,7 +1708,7 @@ function DocumentControlTab({
                 When enabled, only listed users/roles can view this incident
               </p>
             </div>
-            <ToggleSwitch enabled={false} />
+            <Toggle checked={false} disabled onChange={() => {}} />
           </div>
 
           {false && (
@@ -1726,7 +1748,7 @@ function DocumentControlTab({
                 When enabled, visible across all organizations
               </p>
             </div>
-            <ToggleSwitch enabled={false} />
+            <Toggle checked={false} disabled onChange={() => {}} />
           </div>
 
           {false && (
@@ -1982,21 +2004,5 @@ function PermissionBadge({ level }: { level: string }) {
     <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-medium ${p.bg} ${p.text}`}>
       {p.label}
     </span>
-  );
-}
-
-function ToggleSwitch({ enabled }: { enabled: boolean }) {
-  return (
-    <button
-      className={`relative w-10 h-[22px] rounded-full transition-colors ${
-        enabled ? "bg-[var(--action-primary)]" : "bg-[var(--surface-tertiary)]"
-      }`}
-    >
-      <span
-        className={`absolute top-[2px] h-[18px] w-[18px] rounded-full bg-white shadow-sm transition-transform ${
-          enabled ? "left-[20px]" : "left-[2px]"
-        }`}
-      />
-    </button>
   );
 }

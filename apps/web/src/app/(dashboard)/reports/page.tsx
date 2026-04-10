@@ -26,7 +26,6 @@ import { getSupabaseBrowser } from "@/lib/supabase-browser";
 import {
   buildReportRoute,
   fetchReportCatalog,
-  getDefaultReportDateRange,
   type ReportCatalogItem,
 } from "@/lib/queries/reports";
 
@@ -36,7 +35,7 @@ interface ReportDef {
   name: string;
   description: string;
   icon: LucideIcon;
-  formats: string[];
+  formats: readonly string[];
   recordCount: number;
   latestActivity: string | null;
   category: string;
@@ -136,7 +135,7 @@ export default function ReportsPage() {
 
   const handleQuickGenerate = (slug: string, name: string) => {
     setQuickLoading(slug);
-    router.push(buildReportRoute(slug, getDefaultReportDateRange()));
+    router.push(buildReportRoute(slug));
     toast(`Opening ${name}`, { variant: "info" });
   };
 

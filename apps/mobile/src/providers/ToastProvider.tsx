@@ -121,7 +121,7 @@ function ToastViewport({
   const styles = StyleSheet.create({
     actionLabel: {
       ...typography.subheadline,
-      color: colors.primaryStrong,
+      color: colors.primaryInk,
       fontWeight: "700",
     },
     body: {

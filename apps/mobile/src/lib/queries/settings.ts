@@ -1,10 +1,15 @@
 import {
+  mapUiRoleToStaffRole,
+  type InviteUserPayload,
+} from "@eztrack/shared";
+import {
   useMutation,
   useQuery,
   useQueryClient,
 } from "@tanstack/react-query";
 
 import { useSessionContext } from "@/hooks/useSessionContext";
+import { requestServerApi } from "@/lib/server-api";
 import { getSupabase } from "@/lib/supabase";
 
 export interface OrganizationRow {
@@ -302,12 +307,19 @@ async function updateUserRole(userId: string, role: string) {
   const supabase = getSupabase();
   const { error } = await supabase
     .from("profiles")
-    .update({ role })
+    .update({ role: mapUiRoleToStaffRole(role) })
     .eq("id", userId);
 
   if (error) {
     throw error;
   }
+}
+
+async function inviteOrgUser(payload: InviteUserPayload) {
+  return requestServerApi<{ user: OrgUserRow }>("/api/settings/invite", {
+    body: payload,
+    method: "POST",
+  });
 }
 
 async function deactivateUser(userId: string) {
@@ -650,6 +662,29 @@ export function useDeactivateUserMutation() {
     onSuccess: async () => {
       await queryClient.invalidateQueries({ queryKey: ["settings", "users"] });
       await queryClient.invalidateQueries({ queryKey: ["personnel"] });
+    },
+  });
+}
+
+export function useInviteOrgUserMutation() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: inviteOrgUser,
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ["settings", "users"] });
+      await queryClient.invalidateQueries({ queryKey: ["personnel"] });
+    },
+  });
+}
+
+export function useResendInviteMutation() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: inviteOrgUser,
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ["settings", "users"] });
     },
   });
 }

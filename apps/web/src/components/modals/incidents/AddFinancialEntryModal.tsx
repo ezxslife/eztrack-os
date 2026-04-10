@@ -1,8 +1,8 @@
 "use client";
 
 import { useState } from "react";
-import clsx from "clsx";
 import { FormModal } from "@/components/modals/FormModal";
+import { SegmentedControl } from "@/components/ui/SegmentedControl";
 import { Select } from "@/components/ui/Select";
 import { Textarea } from "@/components/ui/Textarea";
 import { useFormState } from "@/hooks/useFormState";
@@ -83,25 +83,16 @@ export function AddFinancialEntryModal({
         <label className="block text-[13px] font-medium text-[var(--text-secondary)] mb-2">
           Entry Type
         </label>
-        <div className="flex gap-2">
-          {(["loss", "saving"] as const).map((option) => (
-            <button
-              key={option}
-              type="button"
-              onClick={() => form.setValue("kind", option)}
-              className={clsx(
-                "flex-1 py-2 rounded-lg border text-[13px] font-medium transition-all duration-150",
-                form.values.kind === option
-                  ? option === "loss"
-                    ? "border-red-500 bg-red-500/10 text-red-600"
-                    : "border-green-500 bg-green-500/10 text-green-600"
-                  : "border-[var(--border-default)] bg-[var(--surface-primary)] text-[var(--text-secondary)] hover:border-[var(--border-hover)]"
-              )}
-            >
-              {option === "loss" ? "Loss" : "Saving"}
-            </button>
-          ))}
-        </div>
+        <SegmentedControl
+          ariaLabel="Financial entry type"
+          stretch
+          value={form.values.kind}
+          onChange={(value) => form.setValue("kind", value)}
+          options={[
+            { value: "loss", label: "Loss" },
+            { value: "saving", label: "Saving" },
+          ]}
+        />
       </div>
 
       <Select

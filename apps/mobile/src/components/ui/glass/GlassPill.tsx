@@ -80,7 +80,7 @@ export function GlassPill({
       textAlign: "center",
     },
     outlineBorder: {
-      borderColor: selected ? colors.primaryStrong : colors.borderSubtle,
+      borderColor: selected ? colors.primaryInk : colors.borderSubtle,
       borderRadius: metrics.radius,
     },
     pressed: {
@@ -88,7 +88,7 @@ export function GlassPill({
       transform: [{ scale: 0.96 }],
     },
     tintedBorder: {
-      borderColor: selected ? colors.primaryStrong : colors.focusRing,
+      borderColor: selected ? colors.primaryInk : colors.focusRing,
       borderRadius: metrics.radius,
     },
   });
@@ -97,7 +97,7 @@ export function GlassPill({
     variant === "filled"
       ? colors.primaryText
       : selected
-        ? colors.primaryStrong
+        ? colors.primaryInk
         : colors.textSecondary;
 
   const handlePress = () => {

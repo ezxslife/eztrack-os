@@ -2,9 +2,9 @@
 
 import { useState } from "react";
 import { Search, User, Briefcase, Phone, Globe } from "lucide-react";
-import clsx from "clsx";
 import { WizardModal } from "@/components/modals/WizardModal";
 import { Input } from "@/components/ui/Input";
+import { SelectionTile } from "@/components/ui/SelectionTile";
 import { Select } from "@/components/ui/Select";
 import { Textarea } from "@/components/ui/Textarea";
 import { Toggle } from "@/components/ui/Toggle";
@@ -214,36 +214,25 @@ function StepPersonType({
       </p>
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
         {PERSON_TYPES.map(({ value, label, icon: Icon, description }) => (
-          <button
+          <SelectionTile
             key={value}
-            type="button"
             onClick={() => onSelect(value)}
-            className={clsx(
-              "flex items-start gap-3 p-3 rounded-xl border text-left transition-all duration-150",
-              selected === value
-                ? "border-[var(--eztrack-primary-500,#6366f1)] bg-[var(--eztrack-primary-500,#6366f1)]/5 ring-1 ring-[var(--eztrack-primary-500,#6366f1)]"
-                : "border-[var(--border-default)] bg-[var(--surface-primary)] hover:border-[var(--border-hover)]"
-            )}
-          >
-            <div
-              className={clsx(
-                "h-8 w-8 rounded-lg flex items-center justify-center shrink-0",
-                selected === value
-                  ? "bg-[var(--eztrack-primary-500,#6366f1)] text-white"
-                  : "bg-[var(--surface-secondary)] text-[var(--text-tertiary)]"
-              )}
-            >
-              <Icon className="h-4 w-4" />
-            </div>
-            <div>
-              <p className="text-[13px] font-medium text-[var(--text-primary)]">
-                {label}
-              </p>
-              <p className="text-[11px] text-[var(--text-tertiary)]">
-                {description}
-              </p>
-            </div>
-          </button>
+            selected={selected === value}
+            selectedLabel="Selected"
+            title={label}
+            description={description}
+            leading={
+              <div
+                className={`flex h-8 w-8 items-center justify-center rounded-lg ${
+                  selected === value
+                    ? "bg-[var(--action-primary-fill)] text-[var(--text-on-brand)]"
+                    : "bg-[var(--surface-secondary)] text-[var(--text-tertiary)]"
+                }`}
+              >
+                <Icon className="h-4 w-4" />
+              </div>
+            }
+          />
         ))}
       </div>
     </div>
@@ -322,23 +311,20 @@ function StepIdentity({
           { name: "Sarah Johnson", id: "P-2318", dept: "Security" },
           { name: "Michael Chen", id: "P-0891", dept: "Front Desk" },
         ].map((person) => (
-          <button
+          <SelectionTile
             key={person.id}
-            type="button"
-            className="w-full flex items-center gap-3 px-3 py-2.5 text-left hover:bg-[var(--surface-secondary)] transition-colors"
-          >
-            <div className="h-8 w-8 rounded-full bg-[var(--surface-tertiary)] flex items-center justify-center text-[11px] font-medium text-[var(--text-secondary)]">
-              {person.name.split(" ").map((n) => n[0]).join("")}
-            </div>
-            <div className="flex-1 min-w-0">
-              <p className="text-[13px] font-medium text-[var(--text-primary)] truncate">
-                {person.name}
-              </p>
-              <p className="text-[11px] text-[var(--text-tertiary)]">
-                {person.id} &middot; {person.dept}
-              </p>
-            </div>
-          </button>
+            className="rounded-none border-0 shadow-none first:rounded-t-xl last:rounded-b-xl"
+            onClick={() => onUpdate("searchQuery", person.name)}
+            selected={data.searchQuery === person.name}
+            selectedLabel="Selected"
+            title={person.name}
+            description={`${person.id} · ${person.dept}`}
+            leading={
+              <div className="flex h-8 w-8 items-center justify-center rounded-full bg-[var(--surface-tertiary)] text-[11px] font-medium text-[var(--text-secondary)]">
+                {person.name.split(" ").map((n) => n[0]).join("")}
+              </div>
+            }
+          />
         ))}
       </div>
     </div>

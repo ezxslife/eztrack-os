@@ -5,6 +5,7 @@ import { Upload, X, File, Image, Video, FileText, AlertCircle, CheckCircle2 } fr
 import clsx from "clsx";
 import { uploadFile, type StorageBucket } from "@/lib/storage";
 import { Button } from "./Button";
+import { IconButton } from "./IconButton";
 
 /* ─── Types ─────────────────────────────────────────────── */
 
@@ -325,16 +326,19 @@ function FileRow({ item, onRemove }: { item: QueuedFile; onRemove: (id: string) 
       {item.status === "error" && (
         <AlertCircle className="w-4 h-4 shrink-0 text-[var(--status-critical)]" />
       )}
-      <button
+      <IconButton
         onClick={(e) => {
           e.stopPropagation();
           onRemove(item.id);
         }}
-        className="p-1 rounded hover:bg-[var(--surface-tertiary)] text-[var(--text-tertiary)] hover:text-[var(--text-primary)] transition-colors"
-        aria-label={`Remove ${item.file.name}`}
+        className="h-7 w-7 rounded-lg bg-transparent text-[var(--text-secondary)] shadow-none hover:bg-[var(--surface-tertiary)]"
+        label={`Remove ${item.file.name}`}
+        size="sm"
+        type="button"
+        variant="ghost"
       >
         <X className="w-3.5 h-3.5" />
-      </button>
+      </IconButton>
     </div>
   );
 }
@@ -350,9 +354,16 @@ function CompactFileRow({ item, onRemove }: { item: QueuedFile; onRemove: (id: s
       {item.status === "done" && <CheckCircle2 className="w-3 h-3 text-[var(--status-success)]" />}
       {item.status === "error" && <AlertCircle className="w-3 h-3 text-[var(--status-critical)]" />}
       <span className="truncate flex-1">{item.file.name}</span>
-      <button onClick={() => onRemove(item.id)} className="p-0.5 hover:text-[var(--text-primary)]">
+      <IconButton
+        onClick={() => onRemove(item.id)}
+        className="h-5 w-5 rounded-md text-[var(--text-secondary)] shadow-none hover:bg-[var(--surface-hover)] hover:text-[var(--text-primary)]"
+        label={`Remove ${item.file.name}`}
+        size="sm"
+        type="button"
+        variant="ghost"
+      >
         <X className="w-3 h-3" />
-      </button>
+      </IconButton>
     </div>
   );
 }

@@ -4,7 +4,8 @@ import {
   type ColorValue,
 } from "react-native";
 
-import type { ThemeColors } from "@/theme/colors";
+import { IOS_CONTROL_TOKENS } from "./controlTokens";
+import type { ThemeColors } from "./colors";
 
 export interface ThemeControls {
   groupedBorder: ColorValue;
@@ -31,43 +32,43 @@ function iosColor(light: string, dark: string, fallback: string) {
 export function createThemeControls(colors: ThemeColors): ThemeControls {
   return {
     groupedBorder: iosColor(
-      "rgba(60, 60, 67, 0.12)",
-      "rgba(84, 84, 88, 0.36)",
+      IOS_CONTROL_TOKENS.groupedBorder.light,
+      IOS_CONTROL_TOKENS.groupedBorder.dark,
       colors.divider
     ),
     groupedSurface: iosColor(
-      "rgba(255, 255, 255, 0.94)",
-      "rgba(28, 28, 30, 0.92)",
+      IOS_CONTROL_TOKENS.groupedSurface.light,
+      IOS_CONTROL_TOKENS.groupedSurface.dark,
       colors.surface
     ),
     headerBackground: iosColor(
-      "rgba(242, 242, 247, 0.94)",
-      "rgba(0, 0, 0, 0.92)",
+      IOS_CONTROL_TOKENS.headerBackground.light,
+      IOS_CONTROL_TOKENS.headerBackground.dark,
       colors.background
     ),
     searchFieldFill: iosColor(
-      "rgba(118, 118, 128, 0.12)",
-      "rgba(118, 118, 128, 0.24)",
+      IOS_CONTROL_TOKENS.searchFieldFill.light,
+      IOS_CONTROL_TOKENS.searchFieldFill.dark,
       colors.surfaceSecondary
     ),
     secondaryButtonFill: iosColor(
-      "rgba(118, 118, 128, 0.12)",
-      "rgba(118, 118, 128, 0.24)",
+      IOS_CONTROL_TOKENS.secondaryButtonFill.light,
+      IOS_CONTROL_TOKENS.secondaryButtonFill.dark,
       colors.surfaceSecondary
     ),
     secondaryButtonLabel: iosColor(
-      colors.primaryStrong,
-      colors.primaryStrong,
+      IOS_CONTROL_TOKENS.secondaryButtonLabel.light,
+      IOS_CONTROL_TOKENS.secondaryButtonLabel.dark,
       colors.textPrimary
     ),
     switchTrackFalse: iosColor(
-      "rgba(120, 120, 128, 0.16)",
-      "rgba(118, 118, 128, 0.32)",
+      IOS_CONTROL_TOKENS.switchTrackFalse.light,
+      IOS_CONTROL_TOKENS.switchTrackFalse.dark,
       colors.surfaceSecondary
     ),
     switchTrackTrue: iosColor(
-      "rgba(8, 145, 178, 0.42)",
-      "rgba(103, 232, 249, 0.64)",
+      IOS_CONTROL_TOKENS.switchTrackTrue.light,
+      IOS_CONTROL_TOKENS.switchTrackTrue.dark,
       colors.primarySoft
     ),
   };

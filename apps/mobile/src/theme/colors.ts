@@ -29,6 +29,7 @@ export interface ThemeColors {
   borderStrong: string;
   divider: string;
   primary: string;
+  primaryInk: string;
   primaryStrong: string;
   primarySoft: string;
   primaryText: string;
@@ -69,12 +70,13 @@ export const lightColors: ThemeColors = {
   borderStrong: "#B6BCC6",
   divider: "rgba(17, 24, 39, 0.08)",
   primary: brand.primary,
+  primaryInk: "#0E7490",
   primaryStrong: "#0891B2",
   primarySoft: "rgba(6, 182, 212, 0.12)",
-  primaryText: "#FFFFFF",
+  primaryText: "#071418",
   accent: brand.accent,
   accentSoft: "#B45309",
-  accentText: "#FFFFFF",
+  accentText: "#1A1204",
   success: "#059669",
   successBg: "#D1FAE5",
   warning: "#D97706",
@@ -109,6 +111,7 @@ export const darkColors: ThemeColors = {
   borderStrong: "#414656",
   divider: "rgba(255, 255, 255, 0.08)",
   primary: brand.primary,
+  primaryInk: "#67E8F9",
   primaryStrong: "#67E8F9",
   primarySoft: "rgba(6, 182, 212, 0.18)",
   primaryText: "#041317",
@@ -139,6 +142,7 @@ export function createThemeColors(scheme: ResolvedThemeScheme) {
 export const colors = {
   brand: {
     primary: darkColors.primary,
+    primaryInk: darkColors.primaryInk,
     primaryStrong: darkColors.primaryStrong,
     accent: darkColors.accent,
     accentSoft: darkColors.accentSoft,

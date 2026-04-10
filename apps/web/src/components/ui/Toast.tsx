@@ -11,6 +11,7 @@ import {
 } from "react";
 import { X, CheckCircle2, AlertCircle, AlertTriangle, Info } from "lucide-react";
 import clsx from "clsx";
+import { IconButton } from "@/components/ui/IconButton";
 
 type ToastVariant = "default" | "success" | "error" | "warning" | "info";
 
@@ -140,17 +141,16 @@ function ToastItem({ data, onDismiss }: ToastItemProps) {
       <span className="text-[13px] text-[var(--text-primary)] flex-1">
         {data.message}
       </span>
-      <button
+      <IconButton
         onClick={() => setExiting(true)}
-        className={clsx(
-          "flex-shrink-0 w-5 h-5 rounded flex items-center justify-center",
-          "text-[var(--text-tertiary)] hover:text-[var(--text-primary)]",
-          "hover:bg-[var(--surface-hover)] transition-colors duration-100 cursor-pointer"
-        )}
-        aria-label="Dismiss"
+        className="h-6 w-6 rounded-md text-[var(--text-secondary)] shadow-none"
+        label="Dismiss"
+        size="sm"
+        type="button"
+        variant="ghost"
       >
         <X size={12} />
-      </button>
+      </IconButton>
       <style>{`
         @keyframes toastIn {
           from { opacity: 0; transform: translateY(8px) scale(0.96); }

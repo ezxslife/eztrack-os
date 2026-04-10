@@ -125,7 +125,7 @@ function ThemeInner({ children }: { children: ReactNode }) {
             dark: true,
             colors: {
               ...DarkTheme.colors,
-              primary: colors.primaryStrong,
+              primary: colors.primaryInk,
               background: colors.background,
               card: colors.background,
               text: colors.textPrimary,
@@ -138,7 +138,7 @@ function ThemeInner({ children }: { children: ReactNode }) {
             dark: false,
             colors: {
               ...DefaultTheme.colors,
-              primary: colors.primary,
+              primary: colors.primaryInk,
               background: colors.background,
               card: colors.backgroundMuted,
               text: colors.textPrimary,

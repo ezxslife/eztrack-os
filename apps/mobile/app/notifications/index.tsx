@@ -1,23 +1,28 @@
+import { useRouter } from "expo-router";
 import {
+  Pressable,
   StyleSheet,
   Text,
   View,
 } from "react-native";
 
+import { RequireLiveSession } from "@/components/auth/RequireLiveSession";
 import { ScreenContainer } from "@/components/layout/ScreenContainer";
 import { Button } from "@/components/ui/Button";
 import { SectionCard } from "@/components/ui/SectionCard";
 import { formatRelativeTimestamp } from "@/lib/format";
 import {
+  getNotificationRoute,
   useMarkAllNotificationsReadMutation,
   useMarkNotificationReadMutation,
   useNotifications,
 } from "@/lib/queries/notifications";
 import { useThemeColors } from "@/theme";
 
-export default function NotificationsScreen() {
+function NotificationsContent() {
   const colors = useThemeColors();
   const styles = createStyles(colors);
+  const router = useRouter();
   const notificationsQuery = useNotifications();
   const markReadMutation = useMarkNotificationReadMutation();
   const markAllMutation = useMarkAllNotificationsReadMutation();
@@ -29,7 +34,7 @@ export default function NotificationsScreen() {
         void notificationsQuery.refetch();
       }}
       refreshing={notificationsQuery.isRefetching}
-      subtitle="Real notification inbox with per-item and bulk read state."
+      subtitle="Live inbox, push-aware routes, and shared deep-link resolution."
       title="Notifications"
     >
       <SectionCard
@@ -50,43 +55,71 @@ export default function NotificationsScreen() {
       >
         <View style={styles.list}>
           {notifications.length ? (
-            notifications.map((notification) => (
-              <View key={notification.id} style={styles.row}>
-                <Text style={styles.label}>{notification.title}</Text>
-                {notification.message ? (
-                  <Text style={styles.copy}>{notification.message}</Text>
-                ) : null}
-                <Text style={styles.value}>
-                  {notification.type} · {formatRelativeTimestamp(notification.createdAt)}
-                </Text>
-                <Text style={styles.value}>{notification.read ? "Read" : "Unread"}</Text>
-                {!notification.read ? (
-                  <Button
-                    label="Mark Read"
-                    loading={
-                      markReadMutation.isPending &&
-                      markReadMutation.variables === notification.id
-                    }
-                    onPress={() => {
+            notifications.map((notification) => {
+              const route = getNotificationRoute(notification);
+
+              return (
+                <Pressable
+                  key={notification.id}
+                  onPress={() => {
+                    if (!notification.read) {
                       void markReadMutation.mutateAsync(notification.id);
-                    }}
-                    variant="secondary"
-                  />
-                ) : null}
-              </View>
-            ))
+                    }
+
+                    router.push(route as never);
+                  }}
+                  style={styles.row}
+                >
+                  <Text style={styles.label}>{notification.title}</Text>
+                  {notification.message ? (
+                    <Text style={styles.copy}>{notification.message}</Text>
+                  ) : null}
+                  <Text style={styles.value}>
+                    {notification.type} · {formatRelativeTimestamp(notification.createdAt)}
+                  </Text>
+                  <Text style={styles.value}>
+                    {notification.read ? "Read" : "Unread"} · {route}
+                  </Text>
+                  {!notification.read ? (
+                    <Button
+                      label="Mark Read"
+                      loading={
+                        markReadMutation.isPending &&
+                        markReadMutation.variables === notification.id
+                      }
+                      onPress={() => {
+                        void markReadMutation.mutateAsync(notification.id);
+                      }}
+                      variant="secondary"
+                    />
+                  ) : null}
+                </Pressable>
+              );
+            })
           ) : (
             <Text style={styles.copy}>No notifications are available.</Text>
           )}
         </View>
       </SectionCard>
 
-      <SectionCard title="Delivery note">
+      <SectionCard title="Delivery">
         <Text style={styles.copy}>
-          Push registration and category-based delivery still depend on the mobile notifications tranche, but inbox state is now wired to live records.
+          Push registration now happens at runtime. Foreground deliveries refresh the inbox,
+          sync unread badge counts, and use the same route resolver as the history view.
         </Text>
       </SectionCard>
     </ScreenContainer>
+  );
+}
+
+export default function NotificationsScreen() {
+  return (
+    <RequireLiveSession
+      detail="Notifications rely on live inbox records and push registration in this tranche."
+      title="Notifications"
+    >
+      <NotificationsContent />
+    </RequireLiveSession>
   );
 }
 

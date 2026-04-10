@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { FormModal } from "@/components/modals/FormModal";
 import { Input } from "@/components/ui/Input";
-import clsx from "clsx";
+import { SelectionTile } from "@/components/ui/SelectionTile";
 
 interface AssignOfficerModalProps {
   open: boolean;
@@ -84,34 +84,15 @@ export function AssignOfficerModal({
           const isSelected = selectedId === officer.id;
 
           return (
-            <button
+            <SelectionTile
               key={officer.id}
-              type="button"
               onClick={() => setSelectedId(officer.id)}
-              className={clsx(
-                "w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-left transition-colors cursor-pointer",
-                isSelected
-                  ? "bg-[var(--eztrack-primary-500,#6366f1)]/10 border border-[var(--eztrack-primary-500,#6366f1)]/30"
-                  : "hover:bg-[var(--surface-hover)] border border-transparent"
-              )}
-            >
-              <span
-                className={clsx("h-2 w-2 rounded-full shrink-0", dot.color)}
-              />
-              <div className="flex-1 min-w-0">
-                <p className="text-[13px] font-medium text-[var(--text-primary)] truncate">
-                  {officer.name}
-                </p>
-                <p className="text-[11px] text-[var(--text-tertiary)]">
-                  {officer.badge} &middot; {dot.label}
-                </p>
-              </div>
-              {isSelected && (
-                <span className="text-[11px] font-medium text-[var(--eztrack-primary-500,#6366f1)]">
-                  Selected
-                </span>
-              )}
-            </button>
+              selected={isSelected}
+              selectedLabel="Selected"
+              title={officer.name}
+              description={`${officer.badge} · ${dot.label}`}
+              leading={<span className={`mt-1 h-2.5 w-2.5 rounded-full ${dot.color}`} />}
+            />
           );
         })}
         {filtered.length === 0 && (

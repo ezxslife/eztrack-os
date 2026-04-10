@@ -3,6 +3,8 @@
 import { useState } from "react";
 import { FormModal } from "@/components/modals/FormModal";
 import { Input } from "@/components/ui/Input";
+import { IconButton } from "@/components/ui/IconButton";
+import { InlineAction } from "@/components/ui/InlineAction";
 import { Select } from "@/components/ui/Select";
 import { Textarea } from "@/components/ui/Textarea";
 import { X } from "lucide-react";
@@ -111,13 +113,9 @@ export function OutcomeDocumentationModal({
           <label className="block text-[13px] font-medium text-[var(--text-secondary)]">
             Key Findings
           </label>
-          <button
-            type="button"
-            onClick={addFinding}
-            className="text-[12px] text-[var(--eztrack-primary-500,#6366f1)] hover:underline cursor-pointer"
-          >
+          <InlineAction onClick={addFinding}>
             + Add finding
-          </button>
+          </InlineAction>
         </div>
         <div className="space-y-2">
           {keyFindings.map((finding, idx) => (
@@ -128,14 +126,14 @@ export function OutcomeDocumentationModal({
                 onChange={(e) => updateFinding(idx, e.target.value)}
                 placeholder={`Finding ${idx + 1}...`}
               />
-              <button
-                type="button"
+              <IconButton
                 onClick={() => removeFinding(idx)}
-                className="h-9 w-9 rounded-lg flex items-center justify-center text-[var(--text-tertiary)] hover:text-[var(--status-critical)] hover:bg-[var(--surface-hover)] transition-colors cursor-pointer shrink-0"
-                aria-label="Remove finding"
+                className="shrink-0 text-[var(--text-tertiary)] hover:text-[var(--status-critical)]"
+                label="Remove finding"
+                variant="ghost"
               >
                 <X size={14} />
-              </button>
+              </IconButton>
             </div>
           ))}
         </div>

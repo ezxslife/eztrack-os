@@ -19,6 +19,7 @@ export function PriorityBadge({ priority }: PriorityBadgeProps) {
         styles.badge,
         {
           backgroundColor: palette.bg,
+          borderColor: palette.border,
         },
       ]}
     >
@@ -31,6 +32,7 @@ const styles = StyleSheet.create({
   badge: {
     alignSelf: "flex-start",
     borderRadius: 999,
+    borderWidth: 1,
     paddingHorizontal: 10,
     paddingVertical: 6,
   },

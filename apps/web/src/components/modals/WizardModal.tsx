@@ -148,15 +148,15 @@ function StepIndicator({
                   "h-7 w-7 rounded-full flex items-center justify-center text-[11px] font-semibold shrink-0",
                   "transition-all duration-300",
                   isCompleted &&
-                    "bg-[var(--eztrack-primary-500,#6366f1)] text-white",
+                    "bg-[var(--action-primary-fill)] text-[var(--text-on-brand)]",
                   isCurrent &&
-                    "bg-[var(--eztrack-primary-500,#6366f1)] text-white ring-4 ring-[var(--eztrack-primary-500,#6366f1)]/20",
+                    "bg-[var(--action-primary-fill)] text-[var(--text-on-brand)] ring-4 ring-[var(--action-primary-fill)]/20",
                   isUpcoming &&
                     "bg-[var(--surface-secondary)] text-[var(--text-tertiary)] border border-[var(--border-default)]"
                 )}
                 style={
                   isCurrent
-                    ? { boxShadow: "0 0 0 4px color-mix(in srgb, var(--eztrack-primary-500, #6366f1) 20%, transparent)" }
+                    ? { boxShadow: "0 0 0 4px color-mix(in srgb, var(--action-primary) 20%, transparent)" }
                     : undefined
                 }
               >
@@ -185,7 +185,7 @@ function StepIndicator({
                   className={clsx(
                     "h-[2px] w-full rounded-full transition-colors duration-300",
                     idx < currentIndex
-                      ? "bg-[var(--eztrack-primary-500,#6366f1)]"
+                      ? "bg-[var(--action-primary-fill)]"
                       : "bg-[var(--border-default)]"
                   )}
                 />

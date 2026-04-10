@@ -14,8 +14,11 @@ import {
   AlertCircle,
 } from "lucide-react";
 import { Button } from "@/components/ui/Button";
+import { getReadableForegroundColor } from "@/components/ui/Avatar";
 import { Badge } from "@/components/ui/Badge";
 import { EmptyState } from "@/components/ui/EmptyState";
+import { FilterChipGroup } from "@/components/ui/FilterChipGroup";
+import { SegmentedControl } from "@/components/ui/SegmentedControl";
 import { CreatePatronModal } from "@/components/modals/patrons";
 import { fetchPatrons, createPatron, type PatronRow, type PatronFlag } from "@/lib/queries/patrons";
 import { formatRelativeTime } from "@/lib/utils/time";
@@ -58,8 +61,8 @@ function Avatar({ firstName, lastName, color }: { firstName: string; lastName: s
   const initials = `${firstName[0]}${lastName[0]}`;
   return (
     <div
-      className="w-12 h-12 rounded-full flex items-center justify-center text-white text-[13px] font-semibold shrink-0"
-      style={{ backgroundColor: color }}
+      className="w-12 h-12 rounded-full flex items-center justify-center text-[13px] font-semibold shrink-0"
+      style={{ backgroundColor: color, color: getReadableForegroundColor(color) }}
     >
       {initials}
     </div>
@@ -176,49 +179,29 @@ export default function PatronsPage() {
 
       {/* Filter chips + view toggle */}
       <div className="flex items-center justify-between gap-3">
-        <div className="flex items-center gap-1.5 overflow-x-auto">
-          {FLAG_FILTERS.map((f) => {
-            const isActive = flagFilter === f.value;
-            return (
-              <button
-                key={f.value}
-                onClick={() => setFlagFilter(f.value)}
-                className={`inline-flex items-center px-2.5 py-1 rounded-full text-[12px] font-medium border transition-all duration-150 whitespace-nowrap cursor-pointer ${
-                  isActive
-                    ? "bg-[var(--action-primary)] text-white border-[var(--action-primary)]"
-                    : "bg-[var(--surface-secondary)] text-[var(--text-secondary)] border-[var(--border-default)] hover:border-[var(--border-hover)] hover:bg-[var(--surface-hover)]"
-                }`}
-              >
-                {f.label}
-              </button>
-            );
-          })}
-        </div>
+        <FilterChipGroup
+          ariaLabel="Filter patrons by flag"
+          options={FLAG_FILTERS.map((filter) => ({
+            ...filter,
+            dotColor:
+              filter.value !== "all" && filter.value in FLAG_CONFIG
+                ? FLAG_CONFIG[filter.value as PatronFlag].color
+                : undefined,
+          }))}
+          value={flagFilter}
+          onChange={setFlagFilter}
+        />
 
-        <div className="flex items-center gap-1 border border-[var(--border-default)] rounded-lg p-0.5">
-          <button
-            onClick={() => setView("grid")}
-            className={`p-1.5 rounded-md transition-colors duration-150 cursor-pointer ${
-              view === "grid"
-                ? "bg-[var(--surface-hover)] text-[var(--text-primary)]"
-                : "text-[var(--text-tertiary)] hover:text-[var(--text-secondary)]"
-            }`}
-            aria-label="Grid view"
-          >
-            <LayoutGrid size={14} />
-          </button>
-          <button
-            onClick={() => setView("list")}
-            className={`p-1.5 rounded-md transition-colors duration-150 cursor-pointer ${
-              view === "list"
-                ? "bg-[var(--surface-hover)] text-[var(--text-primary)]"
-                : "text-[var(--text-tertiary)] hover:text-[var(--text-secondary)]"
-            }`}
-            aria-label="List view"
-          >
-            <List size={14} />
-          </button>
-        </div>
+        <SegmentedControl
+          ariaLabel="Patron view mode"
+          options={[
+            { value: "grid", label: "Grid", icon: <LayoutGrid className="h-3.5 w-3.5" /> },
+            { value: "list", label: "List", icon: <List className="h-3.5 w-3.5" /> },
+          ]}
+          size="sm"
+          value={view}
+          onChange={setView}
+        />
       </div>
 
       {/* Results count */}

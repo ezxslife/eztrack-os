@@ -417,7 +417,7 @@ function createStyles(
     },
     location: {
       ...typography.subheadline,
-      color: colors.primaryStrong,
+      color: colors.primaryInk,
       fontWeight: "600",
     },
     meta: {
