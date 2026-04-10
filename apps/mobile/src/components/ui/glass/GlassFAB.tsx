@@ -50,7 +50,7 @@ export function GlassFAB({ icon, iosSymbol, label, onPress }: GlassFABProps) {
       <MaterialSurface padding={0} variant="cta">
         <View style={styles.content}>
           <AppSymbol
-            color={colors.primaryStrong}
+            color={colors.primaryInk}
             fallbackName={icon}
             iosName={iosSymbol}
             size={18}

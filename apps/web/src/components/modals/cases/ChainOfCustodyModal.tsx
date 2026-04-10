@@ -1,9 +1,9 @@
 "use client";
 
 import { useState } from "react";
-import clsx from "clsx";
-import { Package, ArrowRight, CheckCircle2 } from "lucide-react";
+import { Package, ArrowRight } from "lucide-react";
 import { WizardModal } from "@/components/modals/WizardModal";
+import { SelectionTile } from "@/components/ui/SelectionTile";
 import { Select } from "@/components/ui/Select";
 import { Textarea } from "@/components/ui/Textarea";
 
@@ -151,44 +151,20 @@ export function ChainOfCustodyModal({
             {evidenceItems.map((item) => {
               const isSelected = selectedItems.includes(item.id);
               return (
-                <button
+                <SelectionTile
                   key={item.id}
-                  type="button"
                   onClick={() => toggleItem(item.id)}
-                  className={clsx(
-                    "w-full flex items-center gap-3 p-3 rounded-lg border text-left transition-all duration-150",
-                    isSelected
-                      ? "border-[var(--eztrack-primary-500,#6366f1)] bg-[var(--eztrack-primary-500,#6366f1)]/5"
-                      : "border-[var(--border-default)] hover:border-[var(--text-tertiary)] bg-[var(--surface-primary)]"
-                  )}
-                >
-                  {/* Checkbox */}
-                  <div
-                    className={clsx(
-                      "h-5 w-5 rounded border-2 flex items-center justify-center shrink-0 transition-colors",
-                      isSelected
-                        ? "bg-[var(--eztrack-primary-500,#6366f1)] border-[var(--eztrack-primary-500,#6366f1)]"
-                        : "border-[var(--border-default)]"
-                    )}
-                  >
-                    {isSelected && (
-                      <CheckCircle2 size={12} className="text-white" />
-                    )}
-                  </div>
-
-                  <div className="h-8 w-8 rounded-lg bg-[var(--surface-secondary)] flex items-center justify-center shrink-0">
-                    <Package size={14} className="text-[var(--text-tertiary)]" />
-                  </div>
-
-                  <div className="flex-1 min-w-0">
-                    <p className="text-[13px] font-medium text-[var(--text-primary)] truncate">
-                      {item.label}
-                    </p>
-                    <p className="text-[11px] text-[var(--text-tertiary)] capitalize">
-                      {item.type}
-                    </p>
-                  </div>
-                </button>
+                  indicator="check"
+                  selected={isSelected}
+                  selectedLabel="Included"
+                  title={item.label}
+                  description={<span className="capitalize">{item.type}</span>}
+                  leading={
+                    <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-[var(--surface-secondary)]">
+                      <Package size={14} className="text-[var(--text-tertiary)]" />
+                    </div>
+                  }
+                />
               );
             })}
             {evidenceItems.length === 0 && (

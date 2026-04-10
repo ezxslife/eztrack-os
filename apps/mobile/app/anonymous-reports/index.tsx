@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import {
   Alert,
   StyleSheet,
@@ -6,17 +6,21 @@ import {
   View,
 } from "react-native";
 
-import { ScreenContainer } from "@/components/layout/ScreenContainer";
 import { RequireLiveSession } from "@/components/auth/RequireLiveSession";
+import { ScreenContainer } from "@/components/layout/ScreenContainer";
 import { Button } from "@/components/ui/Button";
 import { FilterChips } from "@/components/ui/FilterChips";
 import { SectionCard } from "@/components/ui/SectionCard";
 import { TextField } from "@/components/ui/TextField";
+import { useSessionContext } from "@/hooks/useSessionContext";
 import { formatShortDateTime } from "@/lib/format";
 import {
+  useAnonymousReportLookup,
   useAnonymousReports,
   useSubmitAnonymousReportMutation,
+  useUpdateAnonymousReportStatusMutation,
 } from "@/lib/queries/anonymous-reports";
+import { useToast } from "@/providers/ToastProvider";
 import { useThemeColors } from "@/theme";
 
 const CATEGORY_OPTIONS = [
@@ -28,6 +32,14 @@ const CATEGORY_OPTIONS = [
   { label: "Other", value: "other" },
 ] as const;
 
+const STATUS_OPTIONS = [
+  { label: "Submitted", value: "submitted" },
+  { label: "Under Review", value: "under_review" },
+  { label: "Investigating", value: "investigating" },
+  { label: "Resolved", value: "resolved" },
+  { label: "Closed", value: "closed" },
+] as const;
+
 function getTrackingCode(id: string) {
   return `ANON-${id.substring(0, 8).toUpperCase()}`;
 }
@@ -35,14 +47,29 @@ function getTrackingCode(id: string) {
 function AnonymousReportsContent() {
   const colors = useThemeColors();
   const styles = createStyles(colors);
+  const { showToast } = useToast();
+  const { profile } = useSessionContext();
   const reportsQuery = useAnonymousReports();
   const submitMutation = useSubmitAnonymousReportMutation();
+  const updateStatusMutation = useUpdateAnonymousReportStatusMutation();
   const [selectedCategory, setSelectedCategory] = useState<string>(
     CATEGORY_OPTIONS[0].label
   );
   const [reportText, setReportText] = useState("");
   const [trackingCode, setTrackingCode] = useState<null | string>(null);
+  const [lookupCode, setLookupCode] = useState("");
+  const lookupQuery = useAnonymousReportLookup(lookupCode);
   const reports = reportsQuery.data ?? [];
+  const canReviewStatuses = useMemo(
+    () =>
+      [
+        "super_admin",
+        "org_admin",
+        "manager",
+        "supervisor",
+      ].includes(profile?.role ?? ""),
+    [profile?.role]
+  );
   const descriptionError =
     reportText.length > 0 && reportText.trim().length < 20
       ? "Description must be at least 20 characters."
@@ -69,6 +96,11 @@ function AnonymousReportsContent() {
       });
       setTrackingCode(getTrackingCode(result.id));
       setReportText("");
+      showToast({
+        message: "The anonymous report is now in the live queue.",
+        title: "Report submitted",
+        tone: "success",
+      });
     } catch (error) {
       Alert.alert(
         "Submit failed",
@@ -77,13 +109,32 @@ function AnonymousReportsContent() {
     }
   };
 
+  const handleStatusUpdate = async (id: string, status: string) => {
+    try {
+      await updateStatusMutation.mutateAsync({ id, status });
+      showToast({
+        message: `${getTrackingCode(id)} moved to ${status.replace(/_/g, " ")}.`,
+        title: "Report updated",
+        tone: "success",
+      });
+    } catch (error) {
+      Alert.alert(
+        "Update failed",
+        error instanceof Error ? error.message : "Could not update report status."
+      );
+    }
+  };
+
   return (
     <ScreenContainer
       onRefresh={() => {
         void reportsQuery.refetch();
+        if (lookupCode.trim().length >= 6) {
+          void lookupQuery.refetch();
+        }
       }}
       refreshing={reportsQuery.isRefetching}
-      subtitle="Live anonymous report submission and recent report review."
+      subtitle="Live anonymous submission, tracking-code lookup, and supervisor review."
       title="Anonymous Reports"
     >
       <SectionCard
@@ -126,12 +177,57 @@ function AnonymousReportsContent() {
       </SectionCard>
 
       <SectionCard
+        subtitle="Use the submission code to check the current case status."
+        title="Status Lookup"
+      >
+        <View style={styles.stack}>
+          <TextField
+            autoCapitalize="characters"
+            label="Tracking Code"
+            onChangeText={setLookupCode}
+            placeholder="ANON-1234ABCD"
+            value={lookupCode}
+          />
+          {lookupCode.trim().length >= 6 ? (
+            lookupQuery.data ? (
+              <View style={styles.row}>
+                <Text style={styles.rowTitle}>
+                  {getTrackingCode(lookupQuery.data.id)}
+                </Text>
+                <Text style={styles.meta}>
+                  {lookupQuery.data.status} · {formatShortDateTime(lookupQuery.data.submittedAt)}
+                </Text>
+                <Text style={styles.copy}>{lookupQuery.data.reportText}</Text>
+                {lookupQuery.data.adminNotes ? (
+                  <Text style={styles.meta}>
+                    Admin notes: {lookupQuery.data.adminNotes}
+                  </Text>
+                ) : null}
+              </View>
+            ) : lookupQuery.isError ? (
+              <Text style={styles.meta}>
+                {lookupQuery.error instanceof Error
+                  ? lookupQuery.error.message
+                  : "No report matched that code."}
+              </Text>
+            ) : (
+              <Text style={styles.meta}>Looking up report status…</Text>
+            )
+          ) : (
+            <Text style={styles.meta}>
+              Enter a tracking code to look up a previously submitted report.
+            </Text>
+          )}
+        </View>
+      </SectionCard>
+
+      <SectionCard
         subtitle={
           reportsQuery.isLoading
-            ? "Loading recent reports"
+            ? "Loading submitted reports"
             : `${reports.length} reports visible`
         }
-        title="Recent Reports"
+        title="Submitted Reports"
       >
         <View style={styles.list}>
           {reports.length ? (
@@ -142,12 +238,28 @@ function AnonymousReportsContent() {
                   {CATEGORY_OPTIONS.find((option) => option.value === report.category)?.label ??
                     report.category}
                 </Text>
-                <Text style={styles.copy} numberOfLines={3}>
-                  {report.reportText}
-                </Text>
+                <Text style={styles.copy}>{report.reportText}</Text>
                 <Text style={styles.meta}>
                   {report.status} · {formatShortDateTime(report.submittedAt)}
                 </Text>
+                {report.adminNotes ? (
+                  <Text style={styles.meta}>Admin notes: {report.adminNotes}</Text>
+                ) : null}
+                {canReviewStatuses ? (
+                  <FilterChips
+                    onSelect={(value) => {
+                      const status =
+                        STATUS_OPTIONS.find((option) => option.label === value)?.value ??
+                        report.status;
+                      void handleStatusUpdate(report.id, status);
+                    }}
+                    options={STATUS_OPTIONS.map((option) => option.label)}
+                    selected={
+                      STATUS_OPTIONS.find((option) => option.value === report.status)?.label ??
+                      report.status
+                    }
+                  />
+                ) : null}
               </View>
             ))
           ) : (

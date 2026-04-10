@@ -8,7 +8,7 @@ export default function NotFound() {
         <p className="text-[var(--text-tertiary)]">Page not found</p>
         <Link
           href="/"
-          className="inline-block rounded-lg bg-[var(--eztrack-primary-500,#6366f1)] px-4 py-2 text-sm font-medium text-white hover:opacity-90 transition-opacity"
+          className="inline-block rounded-lg bg-[var(--action-primary-fill)] px-4 py-2 text-sm font-medium text-[var(--text-on-brand)] hover:opacity-90 transition-opacity"
         >
           Back to Dashboard
         </Link>

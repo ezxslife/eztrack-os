@@ -1,3 +1,19 @@
+import {
+  ROLE_ORDER,
+  formatRoleLabel,
+  mapStaffRoleToUiRole,
+  mapUiRoleToStaffRole,
+  type InviteUserPayload,
+} from "@eztrack/shared";
+
+export {
+  ROLE_ORDER,
+  formatRoleLabel,
+  mapStaffRoleToUiRole,
+  mapUiRoleToStaffRole,
+};
+export type { InviteUserPayload };
+
 export type PermissionLevel = "full" | "edit" | "view" | "none";
 
 export interface RolePermissionsRow {
@@ -39,14 +55,6 @@ export interface IntegrationRecord {
   updatedAt?: string;
 }
 
-export interface InviteUserPayload {
-  email: string;
-  firstName: string;
-  lastName: string;
-  role: string;
-  sendWelcomeEmail: boolean;
-}
-
 export const SETTINGS_MODULES = [
   "Incidents",
   "Dispatches",
@@ -60,15 +68,6 @@ export const SETTINGS_MODULES = [
   "Reports",
   "Analytics",
   "Settings",
-] as const;
-
-export const ROLE_ORDER = [
-  "Super Admin",
-  "Admin",
-  "Manager",
-  "Supervisor",
-  "Officer",
-  "Staff",
 ] as const;
 
 const DEFAULT_ROLE_PERMISSION_PRESETS: Record<string, Record<string, PermissionLevel>> = {
@@ -228,79 +227,6 @@ export const DEFAULT_INTEGRATIONS: IntegrationRecord[] = [
     enabled: false,
   },
 ];
-
-export function mapUiRoleToStaffRole(role: string) {
-  const normalized = role.trim().toLowerCase();
-  switch (normalized) {
-    case "super admin":
-    case "super_admin":
-      return "super_admin";
-    case "admin":
-      return "org_admin";
-    case "manager":
-      return "manager";
-    case "supervisor":
-      return "supervisor";
-    case "officer":
-      return "dispatcher";
-    case "dispatcher":
-      return "dispatcher";
-    case "viewer":
-    case "readonly":
-    case "read only":
-      return "viewer";
-    default:
-      return normalized;
-  }
-}
-
-export function mapStaffRoleToUiRole(role: string) {
-  switch (role.trim().toLowerCase()) {
-    case "super_admin":
-      return "super_admin";
-    case "org_admin":
-      return "admin";
-    case "manager":
-      return "manager";
-    case "supervisor":
-      return "supervisor";
-    case "dispatcher":
-      return "officer";
-    case "viewer":
-      return "readonly";
-    case "staff":
-      return "staff";
-    default:
-      return role.trim().toLowerCase();
-  }
-}
-
-export function formatRoleLabel(role: string) {
-  const normalized = role.trim().toLowerCase();
-  const roleKey = mapStaffRoleToUiRole(role);
-  switch (normalized || roleKey) {
-    case "super_admin":
-      return "Super Admin";
-    case "org_admin":
-    case "admin":
-      return "Admin";
-    case "manager":
-      return "Manager";
-    case "supervisor":
-      return "Supervisor";
-    case "dispatcher":
-    case "officer":
-      return "Officer";
-    case "viewer":
-    case "readonly":
-    case "read only":
-      return "Read Only";
-    case "staff":
-      return "Staff";
-    default:
-      return role;
-  }
-}
 
 export function createDefaultRolePermissions(roleName: string): Record<string, PermissionLevel> {
   const preset = DEFAULT_ROLE_PERMISSION_PRESETS[roleName.trim().toLowerCase()];

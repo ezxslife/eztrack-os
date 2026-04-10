@@ -1,5 +1,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { createClient as createSupabaseClient } from "@supabase/supabase-js";
 import { createClient } from "@/lib/supabase-server";
+import { createSupabaseAdminClient } from "@/lib/supabase-admin";
 import type { Database, Json } from "@/types/database";
 
 export interface RequestContext {
@@ -9,11 +11,50 @@ export interface RequestContext {
   role: string;
 }
 
-export async function getRequestContext(): Promise<RequestContext> {
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+function getBearerToken(request?: Request) {
+  const header = request?.headers.get("authorization") ?? "";
+  if (!header.toLowerCase().startsWith("bearer ")) {
+    return null;
+  }
+
+  const token = header.slice(7).trim();
+  return token.length ? token : null;
+}
+
+function createBearerSupabaseClient(accessToken: string) {
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+
+  if (!url || !anonKey) {
+    throw new Error("Supabase browser credentials are not configured.");
+  }
+
+  return createSupabaseClient<Database>(url, anonKey, {
+    auth: {
+      autoRefreshToken: false,
+      persistSession: false,
+    },
+    global: {
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+      },
+    },
+  });
+}
+
+export async function getRequestContext(request?: Request): Promise<RequestContext> {
+  const bearerToken = getBearerToken(request);
+  const supabase = bearerToken
+    ? createBearerSupabaseClient(bearerToken)
+    : await createClient();
+
+  const userResult = bearerToken
+    ? await createSupabaseAdminClient().auth.getUser(bearerToken)
+    : await supabase.auth.getUser();
+  if (userResult.error) {
+    throw userResult.error;
+  }
+  const user = userResult.data.user;
 
   if (!user) {
     throw new Error("Not authenticated");

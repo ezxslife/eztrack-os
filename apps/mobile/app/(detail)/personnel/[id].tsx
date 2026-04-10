@@ -5,6 +5,7 @@ import {
   View,
 } from "react-native";
 
+import { RequireLiveSession } from "@/components/auth/RequireLiveSession";
 import { ScreenContainer } from "@/components/layout/ScreenContainer";
 import { SectionCard } from "@/components/ui/SectionCard";
 import { StatusBadge } from "@/components/ui/StatusBadge";
@@ -12,15 +13,19 @@ import {
   formatRelativeTimestamp,
   formatShortDateTime,
 } from "@/lib/format";
-import { usePersonnelDetail } from "@/lib/queries/personnel";
+import {
+  usePersonnelActivity,
+  usePersonnelDetail,
+} from "@/lib/queries/personnel";
 import { useThemeColors } from "@/theme";
 
-export default function PersonnelDetailScreen() {
+function PersonnelDetailContent() {
   const colors = useThemeColors();
   const styles = createStyles(colors);
   const params = useLocalSearchParams<{ id: string }>();
   const profileId = params.id ?? "";
   const detailQuery = usePersonnelDetail(profileId);
+  const activityQuery = usePersonnelActivity(profileId);
   const person = detailQuery.data;
 
   if (!person) {
@@ -37,9 +42,10 @@ export default function PersonnelDetailScreen() {
     <ScreenContainer
       onRefresh={() => {
         void detailQuery.refetch();
+        void activityQuery.refetch();
       }}
-      refreshing={detailQuery.isRefetching}
-      subtitle="Read-only personnel detail backed by the profiles table."
+      refreshing={detailQuery.isRefetching || activityQuery.isRefetching}
+      subtitle="Read-only personnel profile plus recent activity history."
       title={person.fullName}
     >
       <SectionCard title="Profile">
@@ -52,12 +58,53 @@ export default function PersonnelDetailScreen() {
           <Text style={styles.meta}>Updated {formatRelativeTimestamp(person.updatedAt)}</Text>
         </View>
       </SectionCard>
+
+      <SectionCard
+        subtitle={
+          activityQuery.isLoading
+            ? "Loading recent activity"
+            : `${(activityQuery.data ?? []).length} recent events`
+        }
+        title="Activity"
+      >
+        <View style={styles.stack}>
+          {(activityQuery.data ?? []).length ? (
+            activityQuery.data?.map((entry) => (
+              <View key={entry.id} style={styles.activityRow}>
+                <Text style={styles.copy}>{entry.action}</Text>
+                <Text style={styles.meta}>{formatRelativeTimestamp(entry.createdAt)}</Text>
+              </View>
+            ))
+          ) : (
+            <Text style={styles.meta}>
+              Recent personnel actions and status changes will appear here.
+            </Text>
+          )}
+        </View>
+      </SectionCard>
     </ScreenContainer>
+  );
+}
+
+export default function PersonnelDetailScreen() {
+  return (
+    <RequireLiveSession
+      detail="Personnel detail and activity history are live-only because they read profile and activity-log records directly."
+      title="Personnel"
+    >
+      <PersonnelDetailContent />
+    </RequireLiveSession>
   );
 }
 
 function createStyles(colors: ReturnType<typeof useThemeColors>) {
   return StyleSheet.create({
+    activityRow: {
+      backgroundColor: colors.surfaceSecondary,
+      borderRadius: 18,
+      gap: 6,
+      padding: 14,
+    },
     copy: {
       color: colors.textSecondary,
       fontSize: 15,

@@ -23,7 +23,7 @@ export default function TabLayout() {
           ...getBlurTabHeaderOptions(colors.background),
           headerTitle: "",
           headerTintColor: colors.textPrimary,
-          tabBarActiveTintColor: colors.primaryStrong,
+          tabBarActiveTintColor: colors.primaryInk,
           tabBarInactiveTintColor: colors.textTertiary,
           tabBarLabelStyle: {
             fontSize: 11,

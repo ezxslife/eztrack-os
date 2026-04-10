@@ -3,6 +3,7 @@
 import { useRef, useState } from "react";
 import { Upload, Image, FileText, X } from "lucide-react";
 import { FormModal } from "@/components/modals/FormModal";
+import { IconButton } from "@/components/ui/IconButton";
 import { Input } from "@/components/ui/Input";
 import { Textarea } from "@/components/ui/Textarea";
 import { Toggle } from "@/components/ui/Toggle";
@@ -114,16 +115,18 @@ export function UploadMediaModal({
           <div className="flex items-center gap-2 rounded-lg border border-[var(--border-default)] bg-[var(--surface-primary)] px-3 py-2 text-[11px] text-[var(--text-secondary)]">
             <FileText className="h-3.5 w-3.5" />
             <span className="max-w-[220px] truncate">{selectedFile.name}</span>
-            <button
-              type="button"
-              className="text-[var(--text-tertiary)] hover:text-[var(--text-primary)]"
+            <IconButton
+              className="h-7 w-7 text-[var(--text-tertiary)] hover:text-[var(--text-primary)]"
+              label="Clear selected file"
               onClick={(event) => {
                 event.stopPropagation();
                 setSelectedFile(null);
               }}
+              size="sm"
+              variant="ghost"
             >
               <X className="h-3.5 w-3.5" />
-            </button>
+            </IconButton>
           </div>
         ) : (
           <div className="flex items-center gap-1.5 text-[11px] text-[var(--text-tertiary)]">

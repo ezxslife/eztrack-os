@@ -70,14 +70,14 @@ export function useIOSNativeSearchHeader({
         placeholder,
         ref: searchRef,
         textColor: colors.textPrimary,
-        tintColor: colors.primaryStrong,
+        tintColor: colors.primaryInk,
       },
       headerShadowVisible: false,
       headerShown: true,
       headerStyle: {
         backgroundColor: controls.headerBackground,
       },
-      headerTintColor: colors.primaryStrong,
+      headerTintColor: colors.primaryInk,
       headerTitleStyle: {
         color: colors.textPrimary,
         fontSize: typography.headline.fontSize,
@@ -86,7 +86,7 @@ export function useIOSNativeSearchHeader({
       title,
     });
   }, [
-    colors.primaryStrong,
+    colors.primaryInk,
     colors.textPrimary,
     controls.headerBackground,
     controls.searchFieldFill,

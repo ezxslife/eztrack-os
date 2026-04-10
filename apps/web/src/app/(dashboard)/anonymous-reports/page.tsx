@@ -11,6 +11,7 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { Badge } from "@/components/ui/Badge";
+import { InlineAction } from "@/components/ui/InlineAction";
 import { Input } from "@/components/ui/Input";
 import { Select } from "@/components/ui/Select";
 import { Textarea } from "@/components/ui/Textarea";
@@ -259,18 +260,20 @@ export default function AnonymousReportsPage() {
                 />
 
                 {/* ── Collapsible contact section ── */}
-                <button
+                <InlineAction
                   type="button"
                   onClick={() => setContactExpanded(!contactExpanded)}
-                  className="flex items-center gap-1.5 text-[13px] font-medium text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-colors duration-150"
+                  className="px-0 text-[13px] text-[var(--text-secondary)] hover:text-[var(--text-primary)]"
+                  leadingIcon={
+                    contactExpanded ? (
+                      <ChevronDown className="h-3.5 w-3.5" />
+                    ) : (
+                      <ChevronRight className="h-3.5 w-3.5" />
+                    )
+                  }
                 >
-                  {contactExpanded ? (
-                    <ChevronDown className="h-3.5 w-3.5" />
-                  ) : (
-                    <ChevronRight className="h-3.5 w-3.5" />
-                  )}
                   You may optionally provide contact info
-                </button>
+                </InlineAction>
 
                 {contactExpanded && (
                   <Input

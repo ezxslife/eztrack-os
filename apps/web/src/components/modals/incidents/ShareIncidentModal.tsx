@@ -1,9 +1,9 @@
 "use client";
 
 import { useState } from "react";
-import clsx from "clsx";
 import { FormModal } from "@/components/modals/FormModal";
 import { Input } from "@/components/ui/Input";
+import { SegmentedControl } from "@/components/ui/SegmentedControl";
 import { Select } from "@/components/ui/Select";
 import { Textarea } from "@/components/ui/Textarea";
 
@@ -111,23 +111,16 @@ export function ShareIncidentModal({
         <label className="block text-[13px] font-medium text-[var(--text-secondary)] mb-2">
           Share With
         </label>
-        <div className="flex gap-2">
-          {(["user", "role"] as const).map((option) => (
-            <button
-              key={option}
-              type="button"
-              onClick={() => setTargetType(option)}
-              className={clsx(
-                "flex-1 py-2 rounded-lg border text-[13px] font-medium transition-all duration-150",
-                targetType === option
-                  ? "border-[var(--eztrack-primary-500,#6366f1)] bg-[var(--eztrack-primary-500,#6366f1)]/10 text-[var(--eztrack-primary-500,#6366f1)]"
-                  : "border-[var(--border-default)] bg-[var(--surface-primary)] text-[var(--text-secondary)] hover:border-[var(--border-hover)]"
-              )}
-            >
-              {option === "user" ? "User" : "Role"}
-            </button>
-          ))}
-        </div>
+        <SegmentedControl
+          ariaLabel="Share target type"
+          stretch
+          value={targetType}
+          onChange={setTargetType}
+          options={[
+            { value: "user", label: "User" },
+            { value: "role", label: "Role" },
+          ]}
+        />
       </div>
 
       {/* Conditional: user search or role select */}
@@ -167,29 +160,18 @@ export function ShareIncidentModal({
         <label className="block text-[13px] font-medium text-[var(--text-secondary)] mb-2">
           Access Expiry
         </label>
-        <div className="flex gap-2">
-          {(
-            [
-              { value: "never", label: "Never" },
-              { value: "specific_date", label: "Specific Date" },
-              { value: "on_close", label: "On Incident Close" },
-            ] as const
-          ).map((option) => (
-            <button
-              key={option.value}
-              type="button"
-              onClick={() => setExpiry(option.value)}
-              className={clsx(
-                "flex-1 py-2 rounded-lg border text-[12px] font-medium transition-all duration-150",
-                expiry === option.value
-                  ? "border-[var(--eztrack-primary-500,#6366f1)] bg-[var(--eztrack-primary-500,#6366f1)]/10 text-[var(--eztrack-primary-500,#6366f1)]"
-                  : "border-[var(--border-default)] bg-[var(--surface-primary)] text-[var(--text-secondary)] hover:border-[var(--border-hover)]"
-              )}
-            >
-              {option.label}
-            </button>
-          ))}
-        </div>
+        <SegmentedControl
+          ariaLabel="Access expiry"
+          size="sm"
+          stretch
+          value={expiry}
+          onChange={setExpiry}
+          options={[
+            { value: "never", label: "Never" },
+            { value: "specific_date", label: "Specific Date" },
+            { value: "on_close", label: "On Incident Close" },
+          ]}
+        />
       </div>
 
       {/* Conditional date input */}

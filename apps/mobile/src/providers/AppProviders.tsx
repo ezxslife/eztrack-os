@@ -9,6 +9,7 @@ import { AppStatusBanner } from "@/components/feedback/AppStatusBanner";
 import { AuthBootstrap } from "@/providers/AuthBootstrap";
 import { BottomSheetProvider } from "@/providers/BottomSheetProvider";
 import { NetworkBridge } from "@/providers/NetworkBridge";
+import { NotificationsBridge } from "@/providers/NotificationsBridge";
 import { OfflineQueueBridge } from "@/providers/OfflineQueueBridge";
 import { RealtimeBridge } from "@/providers/RealtimeBridge";
 import { StorageHealthBootstrap } from "@/providers/StorageHealthBootstrap";
@@ -44,6 +45,7 @@ export function AppProviders({ children }: AppProvidersProps) {
       <RealtimeBridge />
       <BottomSheetProvider>
         <ToastProvider>
+          <NotificationsBridge />
           {children}
           <AppStatusBanner />
         </ToastProvider>

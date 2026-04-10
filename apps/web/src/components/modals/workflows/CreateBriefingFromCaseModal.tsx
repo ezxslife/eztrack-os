@@ -203,7 +203,7 @@ export function CreateBriefingFromCaseModal({
                   type="checkbox"
                   checked={distribution.includes(option.value)}
                   onChange={() => handleDistributionToggle(option.value)}
-                  className="w-4 h-4 rounded border-[var(--border-default)] accent-[var(--action-primary)]"
+                  className="w-4 h-4 rounded border-[var(--border-default)] accent-[var(--action-primary-fill)]"
                 />
                 <span className="text-[13px] text-[var(--text-primary)]">
                   {option.label}

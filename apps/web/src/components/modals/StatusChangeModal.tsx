@@ -1,10 +1,10 @@
 "use client";
 
 import { useState } from "react";
-import clsx from "clsx";
 import { ArrowRight, AlertTriangle } from "lucide-react";
 import { Modal, ModalHeader, ModalContent, ModalFooter } from "@/components/ui/Modal";
 import { Button } from "@/components/ui/Button";
+import { SelectionTile } from "@/components/ui/SelectionTile";
 import { Textarea } from "@/components/ui/Textarea";
 import { StatusBadge } from "@/components/ui/Badge";
 
@@ -83,49 +83,27 @@ export function StatusChangeModal({
               New Status
             </p>
             {transitions.map((transition) => (
-              <button
+              <SelectionTile
                 key={transition.value}
-                type="button"
                 onClick={() => {
                   setSelected(transition.value);
                   setReason("");
                 }}
-                className={clsx(
-                  "w-full text-left rounded-lg border p-3 transition-all duration-150",
-                  selected === transition.value
-                    ? "border-[var(--eztrack-primary-500,#6366f1)] bg-[var(--eztrack-primary-500,#6366f1)]/5 ring-1 ring-[var(--eztrack-primary-500,#6366f1)]/30"
-                    : "border-[var(--border-default)] hover:border-[var(--border-hover)] bg-[var(--surface-primary)]"
-                )}
-              >
-                <div className="flex items-center gap-2">
-                  {/* Radio indicator */}
-                  <div
-                    className={clsx(
-                      "h-4 w-4 rounded-full border-2 flex items-center justify-center shrink-0 transition-colors",
-                      selected === transition.value
-                        ? "border-[var(--eztrack-primary-500,#6366f1)]"
-                        : "border-[var(--border-default)]"
-                    )}
-                  >
-                    {selected === transition.value && (
-                      <div className="h-2 w-2 rounded-full bg-[var(--eztrack-primary-500,#6366f1)]" />
-                    )}
-                  </div>
-                  <div className="flex items-center gap-2 flex-1 min-w-0">
+                indicator="radio"
+                selected={selected === transition.value}
+                selectedLabel="Selected"
+                title={
+                  <div className="flex min-w-0 items-center gap-2">
                     <StatusBadge status={currentStatus} dot />
-                    <ArrowRight className="h-3 w-3 text-[var(--text-tertiary)] shrink-0" />
+                    <ArrowRight className="h-3 w-3 shrink-0 text-[var(--text-tertiary)]" />
                     <StatusBadge status={transition.value} dot />
-                    <span className="text-[13px] font-medium text-[var(--text-primary)]">
+                    <span className="truncate text-[13px] font-medium text-[var(--text-primary)]">
                       {transition.label}
                     </span>
                   </div>
-                </div>
-                {transition.description && (
-                  <p className="text-[11px] text-[var(--text-tertiary)] mt-1.5 ml-6">
-                    {transition.description}
-                  </p>
-                )}
-              </button>
+                }
+                description={transition.description}
+              />
             ))}
           </div>
 

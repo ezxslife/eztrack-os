@@ -14,6 +14,7 @@ import {
   Clock,
 } from "lucide-react";
 import { Button } from "@/components/ui/Button";
+import { getReadableForegroundColor } from "@/components/ui/Avatar";
 import { Badge } from "@/components/ui/Badge";
 import { StatusBadge } from "@/components/ui/Badge";
 import { EmptyState } from "@/components/ui/EmptyState";
@@ -80,8 +81,14 @@ function Avatar({ firstName, lastName, color, size = 64 }: { firstName: string; 
   const initials = `${firstName[0]}${lastName[0]}`;
   return (
     <div
-      className="rounded-full flex items-center justify-center text-white font-semibold shrink-0"
-      style={{ backgroundColor: color, width: size, height: size, fontSize: size * 0.28 }}
+      className="rounded-full flex items-center justify-center font-semibold shrink-0"
+      style={{
+        backgroundColor: color,
+        color: getReadableForegroundColor(color),
+        width: size,
+        height: size,
+        fontSize: size * 0.28,
+      }}
     >
       {initials}
     </div>

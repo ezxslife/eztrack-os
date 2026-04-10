@@ -2,14 +2,18 @@ import type { ConfigContext, ExpoConfig } from "expo/config";
 
 const bundleIdentifier =
   process.env.EXPO_PUBLIC_APP_BUNDLE_ID?.trim() || "com.eztrack.mobile";
+const owner = process.env.EXPO_OWNER?.trim();
+const slug = process.env.EXPO_SLUG?.trim() || "eztrack-mobile";
 const easProjectId =
   process.env.EXPO_PUBLIC_EAS_PROJECT_ID?.trim() ||
-  process.env.EAS_PROJECT_ID?.trim();
+  process.env.EAS_PROJECT_ID?.trim() ||
+  "613ba789-448d-4da9-8d70-475f4ada4231";
 
 export default ({ config }: ConfigContext): ExpoConfig => ({
   ...config,
   name: "EZTrack Mobile",
-  slug: "eztrack-mobile",
+  slug,
+  ...(owner ? { owner } : {}),
   version: "1.0.0",
   orientation: "portrait",
   icon: "./assets/images/icon.png",
@@ -44,6 +48,7 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
   },
   plugins: [
     "expo-router",
+    "expo-notifications",
     "expo-secure-store",
     [
       "expo-sqlite",

@@ -6,7 +6,7 @@ import type { Database } from "@/types/database";
 
 export async function POST(request: Request) {
   try {
-    const { orgId, role } = await getRequestContext();
+    const { orgId, role } = await getRequestContext(request);
     if (!canManageSettings(role)) {
       return NextResponse.json({ error: "You do not have permission to invite users" }, { status: 403 });
     }

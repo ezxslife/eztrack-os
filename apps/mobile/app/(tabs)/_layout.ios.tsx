@@ -28,14 +28,14 @@ export default function IOSTabLayout() {
     <RequireAuth>
       <NativeTabs
         blurEffect={isDark ? "systemChromeMaterialDark" : "systemChromeMaterialLight"}
-        iconColor={{ default: defaultLabelColor, selected: colors.primaryStrong }}
+        iconColor={{ default: defaultLabelColor, selected: colors.primaryInk }}
         labelStyle={{
           default: { color: defaultLabelColor, fontSize: 11, fontWeight: "600" },
-          selected: { color: colors.primaryStrong, fontSize: 11, fontWeight: "700" },
+          selected: { color: colors.primaryInk, fontSize: 11, fontWeight: "700" },
         }}
         minimizeBehavior="onScrollDown"
         shadowColor={colors.shadow}
-        tintColor={colors.primaryStrong}
+        tintColor={colors.primaryInk}
       >
         {tabs.map((tab) => (
           <NativeTabs.Trigger key={tab.routeName} name={tab.routeName}>

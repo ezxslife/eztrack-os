@@ -15,6 +15,21 @@ const PALETTE = [
   "#10b981", // emerald
 ] as const;
 
+export function getReadableForegroundColor(backgroundColor: string) {
+  const hex = backgroundColor.replace("#", "");
+  if (hex.length !== 6) {
+    return "#ffffff";
+  }
+
+  const [r, g, b] = [0, 2, 4].map((index) => Number.parseInt(hex.slice(index, index + 2), 16) / 255);
+  const [lr, lg, lb] = [r, g, b].map((channel) =>
+    channel <= 0.03928 ? channel / 12.92 : ((channel + 0.055) / 1.055) ** 2.4
+  );
+  const luminance = 0.2126 * lr + 0.7152 * lg + 0.0722 * lb;
+
+  return luminance > 0.24 ? "#18181b" : "#ffffff";
+}
+
 function hashName(name: string): number {
   let hash = 0;
   for (let i = 0; i < name.length; i++) {
@@ -44,6 +59,7 @@ export function Avatar({ src, name, size = "md", className }: AvatarProps) {
   const config = sizeMap[size];
   const bgColor = PALETTE[hashName(name) % PALETTE.length];
   const initial = name.charAt(0).toUpperCase();
+  const foregroundColor = getReadableForegroundColor(bgColor);
 
   if (src) {
     return (
@@ -64,10 +80,10 @@ export function Avatar({ src, name, size = "md", className }: AvatarProps) {
       className={clsx(
         config.container,
         config.text,
-        "rounded-full flex items-center justify-center font-medium text-white flex-shrink-0 select-none",
+        "rounded-full flex items-center justify-center font-medium flex-shrink-0 select-none",
         className
       )}
-      style={{ backgroundColor: bgColor }}
+      style={{ backgroundColor: bgColor, color: foregroundColor }}
       title={name}
     >
       {initial}

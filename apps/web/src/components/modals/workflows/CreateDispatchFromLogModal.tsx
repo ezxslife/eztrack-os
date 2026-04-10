@@ -196,7 +196,7 @@ export function CreateDispatchFromLogModal({
                   type="checkbox"
                   checked={assignedOfficers.includes(officer.value)}
                   onChange={() => handleOfficerToggle(officer.value)}
-                  className="w-4 h-4 rounded border-[var(--border-default)] accent-[var(--action-primary)]"
+                  className="w-4 h-4 rounded border-[var(--border-default)] accent-[var(--action-primary-fill)]"
                 />
                 <span className="text-[13px] text-[var(--text-primary)]">
                   {officer.label}

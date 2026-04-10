@@ -1,90 +1,28 @@
+import {
+  REPORT_DEFINITIONS,
+  buildReportRoute,
+  canonicalizeReportSlug,
+  getDefaultReportDateRange,
+  getReportDefinition,
+  type ReportCatalogItem,
+  type ReportDefinition,
+} from "@eztrack/shared";
+
 import { getSupabaseBrowser } from "@/lib/supabase-browser";
 import type { Database } from "@/types/database";
+
+export {
+  REPORT_DEFINITIONS,
+  buildReportRoute,
+  getDefaultReportDateRange,
+  getReportDefinition,
+};
+export type { ReportCatalogItem, ReportDefinition };
 
 export interface ReportResult {
   stats: { label: string; value: string; sub?: string }[];
   columns: { key: string; label: string; sortable?: boolean }[];
   rows: Record<string, unknown>[];
-}
-
-export interface ReportDefinition {
-  slug: string;
-  name: string;
-  description: string;
-  category: string;
-  formats: string[];
-  quick?: boolean;
-}
-
-export interface ReportCatalogItem extends ReportDefinition {
-  recordCount: number;
-  latestActivity: string | null;
-}
-
-export const REPORT_DEFINITIONS: ReportDefinition[] = [
-  {
-    slug: "daily-activity",
-    name: "Daily Activity Summary",
-    description: "All daily log entries for a selected date range",
-    category: "Operations Reports",
-    formats: ["PDF", "CSV", "Excel"],
-    quick: true,
-  },
-  {
-    slug: "incident-summary",
-    name: "Incident Summary Report",
-    description: "All incidents with classification, status, and response times",
-    category: "Operations Reports",
-    formats: ["PDF", "CSV", "Excel"],
-    quick: true,
-  },
-  {
-    slug: "dispatch-performance",
-    name: "Dispatch Performance",
-    description: "Response times, resolution rates, officer workload",
-    category: "Operations Reports",
-    formats: ["PDF", "CSV", "Excel"],
-  },
-  {
-    slug: "case-status",
-    name: "Case Status Report",
-    description: "Active investigations, stage breakdown, aging",
-    category: "Investigation Reports",
-    formats: ["PDF", "CSV", "Excel"],
-  },
-  {
-    slug: "savings-losses",
-    name: "Savings & Losses Summary",
-    description: "Financial impact across incidents and cases",
-    category: "Financial Reports",
-    formats: ["PDF", "CSV", "Excel"],
-  },
-  {
-    slug: "visitor-log",
-    name: "Visitor Log",
-    description: "All visits with sign-in/out times",
-    category: "Visitor & Patron Reports",
-    formats: ["PDF", "CSV", "Excel"],
-    quick: true,
-  },
-  {
-    slug: "patron-flags",
-    name: "Patron Flags & Bans",
-    description: "Active flags, ban history, and watch list",
-    category: "Visitor & Patron Reports",
-    formats: ["PDF", "CSV"],
-  },
-  {
-    slug: "lost-found-inventory",
-    name: "Lost & Found Inventory",
-    description: "Current found-item inventory and claim status",
-    category: "Inventory Reports",
-    formats: ["PDF", "CSV", "Excel"],
-  },
-];
-
-export function getReportDefinition(slug: string) {
-  return REPORT_DEFINITIONS.find((report) => report.slug === slug);
 }
 
 async function fetchScopedTableSummary(
@@ -192,6 +130,48 @@ export async function fetchReportCatalog(orgId: string): Promise<ReportCatalogIt
   });
 }
 
+export interface ReportQueryParams {
+  dateFrom?: string;
+  dateTo?: string;
+  extraFilterValue?: string;
+  propertyId?: string;
+}
+
+function applyDateRangeFilters(query: any, params: ReportQueryParams) {
+  let next = query;
+
+  if (params.dateFrom) {
+    next = next.gte("created_at", params.dateFrom);
+  }
+
+  if (params.dateTo) {
+    next = next.lte("created_at", `${params.dateTo}T23:59:59`);
+  }
+
+  return next;
+}
+
+function applyCommonReportFilters(
+  query: any,
+  params: ReportQueryParams,
+  options?: {
+    extraFilterColumn?: string;
+    propertyColumn?: string;
+  },
+) {
+  let next = applyDateRangeFilters(query, params);
+
+  if (params.propertyId && options?.propertyColumn) {
+    next = next.eq(options.propertyColumn, params.propertyId);
+  }
+
+  if (params.extraFilterValue && options?.extraFilterColumn) {
+    next = next.eq(options.extraFilterColumn, params.extraFilterValue);
+  }
+
+  return next;
+}
+
 /* ── CSV export helper ── */
 export function exportCSV(data: Record<string, unknown>[], filename: string) {
   if (!data.length) return;
@@ -211,34 +191,13 @@ export function exportCSV(data: Record<string, unknown>[], filename: string) {
   URL.revokeObjectURL(url);
 }
 
-export function getDefaultReportDateRange(days = 7) {
-  const end = new Date();
-  const start = new Date(end);
-  start.setDate(end.getDate() - Math.max(days - 1, 0));
-
-  const toDateInput = (date: Date) => date.toISOString().slice(0, 10);
-
-  return {
-    dateFrom: toDateInput(start),
-    dateTo: toDateInput(end),
-  };
-}
-
-export function buildReportRoute(
-  reportType: string,
-  range: { dateFrom: string; dateTo: string } = getDefaultReportDateRange(),
-) {
-  const params = new URLSearchParams(range);
-  return `/reports/${reportType}?${params.toString()}`;
-}
-
 /* ── Generic report fetcher ── */
 export async function fetchReportData(
   orgId: string,
   reportType: string,
-  params: { dateFrom?: string; dateTo?: string }
+  params: ReportQueryParams
 ): Promise<ReportResult> {
-  switch (reportType) {
+  switch (canonicalizeReportSlug(reportType)) {
     case "incident-summary":
       return fetchIncidentSummary(orgId, params);
     case "dispatch-log":
@@ -270,18 +229,22 @@ export async function fetchReportData(
 
 async function fetchIncidentSummary(
   orgId: string,
-  params: { dateFrom?: string; dateTo?: string }
+  params: ReportQueryParams
 ): Promise<ReportResult> {
   const supabase = getSupabaseBrowser();
-  let query = supabase
+  const query = applyCommonReportFilters(
+    supabase
     .from("incidents")
     .select("id, record_number, incident_type, severity, status, synopsis, created_at, location:locations(name)")
     .eq("org_id", orgId)
     .is("deleted_at", null)
-    .order("created_at", { ascending: false });
-
-  if (params.dateFrom) query = query.gte("created_at", params.dateFrom);
-  if (params.dateTo) query = query.lte("created_at", params.dateTo + "T23:59:59");
+    .order("created_at", { ascending: false }),
+    params,
+    {
+      extraFilterColumn: "severity",
+      propertyColumn: "property_id",
+    },
+  );
 
   const { data, error } = await query;
   if (error) throw error;
@@ -297,8 +260,8 @@ async function fetchIncidentSummary(
   }));
 
   const total = rows.length;
-  const critical = rows.filter((r) => r.severity === "Critical" || r.severity === "critical").length;
-  const resolved = rows.filter((r) => r.status === "Resolved" || r.status === "Closed" || r.status === "resolved" || r.status === "closed").length;
+  const critical = rows.filter((r: any) => r.severity === "Critical" || r.severity === "critical").length;
+  const resolved = rows.filter((r: any) => r.status === "Resolved" || r.status === "Closed" || r.status === "resolved" || r.status === "closed").length;
 
   return {
     stats: [
@@ -321,18 +284,22 @@ async function fetchIncidentSummary(
 
 async function fetchDispatchLog(
   orgId: string,
-  params: { dateFrom?: string; dateTo?: string }
+  params: ReportQueryParams
 ): Promise<ReportResult> {
   const supabase = getSupabaseBrowser();
-  let query = supabase
+  const query = applyCommonReportFilters(
+    supabase
     .from("dispatches")
     .select("id, record_number, description, status, priority, created_at, updated_at")
     .eq("org_id", orgId)
     .is("deleted_at", null)
-    .order("created_at", { ascending: false });
-
-  if (params.dateFrom) query = query.gte("created_at", params.dateFrom);
-  if (params.dateTo) query = query.lte("created_at", params.dateTo + "T23:59:59");
+    .order("created_at", { ascending: false }),
+    params,
+    {
+      extraFilterColumn: "priority",
+      propertyColumn: "property_id",
+    },
+  );
 
   const { data, error } = await query;
   if (error) throw error;
@@ -354,7 +321,7 @@ async function fetchDispatchLog(
   });
 
   const total = rows.length;
-  const resolved = rows.filter((r) => r.status === "Resolved" || r.status === "Cleared" || r.status === "resolved" || r.status === "cleared").length;
+  const resolved = rows.filter((r: any) => r.status === "Resolved" || r.status === "Cleared" || r.status === "resolved" || r.status === "cleared").length;
 
   return {
     stats: [
@@ -377,18 +344,22 @@ async function fetchDispatchLog(
 
 async function fetchDailyActivity(
   orgId: string,
-  params: { dateFrom?: string; dateTo?: string }
+  params: ReportQueryParams
 ): Promise<ReportResult> {
   const supabase = getSupabaseBrowser();
-  let query = supabase
+  const query = applyCommonReportFilters(
+    supabase
     .from("daily_logs")
     .select("id, record_number, topic, priority, status, created_at, location:locations(name)")
     .eq("org_id", orgId)
     .is("deleted_at", null)
-    .order("created_at", { ascending: false });
-
-  if (params.dateFrom) query = query.gte("created_at", params.dateFrom);
-  if (params.dateTo) query = query.lte("created_at", params.dateTo + "T23:59:59");
+    .order("created_at", { ascending: false }),
+    params,
+    {
+      extraFilterColumn: "priority",
+      propertyColumn: "property_id",
+    },
+  );
 
   const { data, error } = await query;
   if (error) throw error;
@@ -404,14 +375,14 @@ async function fetchDailyActivity(
   }));
 
   const total = rows.length;
-  const highPriority = rows.filter((r) => r.priority === "High" || r.priority === "high").length;
+  const highPriority = rows.filter((r: any) => r.priority === "High" || r.priority === "high").length;
 
   return {
     stats: [
       { label: "Total Entries", value: String(total), sub: "Selected period" },
       { label: "High Priority", value: String(highPriority), sub: `${total ? ((highPriority / total) * 100).toFixed(1) : 0}% of total` },
-      { label: "Completed", value: String(rows.filter((r) => r.status === "Complete" || r.status === "complete" || r.status === "Closed" || r.status === "closed").length) },
-      { label: "In Progress", value: String(rows.filter((r) => r.status === "In Progress" || r.status === "in_progress" || r.status === "Active" || r.status === "active").length) },
+      { label: "Completed", value: String(rows.filter((r: any) => r.status === "Complete" || r.status === "complete" || r.status === "Closed" || r.status === "closed").length) },
+      { label: "In Progress", value: String(rows.filter((r: any) => r.status === "In Progress" || r.status === "in_progress" || r.status === "Active" || r.status === "active").length) },
     ],
     columns: [
       { key: "date", label: "Date", sortable: true },
@@ -427,19 +398,22 @@ async function fetchDailyActivity(
 
 async function fetchPatronFlags(
   orgId: string,
-  params: { dateFrom?: string; dateTo?: string }
+  params: ReportQueryParams
 ): Promise<ReportResult> {
   const supabase = getSupabaseBrowser();
-  let query = supabase
+  const query = applyCommonReportFilters(
+    supabase
     .from("patrons")
     .select("id, first_name, last_name, flag, flag_reason, created_at")
     .eq("org_id", orgId)
     .is("deleted_at", null)
     .not("flag", "is", null)
-    .order("created_at", { ascending: false });
-
-  if (params.dateFrom) query = query.gte("created_at", params.dateFrom);
-  if (params.dateTo) query = query.lte("created_at", params.dateTo + "T23:59:59");
+    .order("created_at", { ascending: false }),
+    params,
+    {
+      extraFilterColumn: "flag",
+    },
+  );
 
   const { data, error } = await query;
   if (error) throw error;
@@ -453,8 +427,8 @@ async function fetchPatronFlags(
     status: "Active",
   }));
 
-  const bans = rows.filter((r) => r.flagType === "Ban" || r.flagType === "ban").length;
-  const watches = rows.filter((r) => r.flagType === "Watch" || r.flagType === "watch").length;
+  const bans = rows.filter((r: any) => r.flagType === "Ban" || r.flagType === "ban").length;
+  const watches = rows.filter((r: any) => r.flagType === "Watch" || r.flagType === "watch").length;
 
   return {
     stats: [
@@ -477,18 +451,22 @@ async function fetchPatronFlags(
 
 async function fetchCaseStatus(
   orgId: string,
-  params: { dateFrom?: string; dateTo?: string }
+  params: ReportQueryParams
 ): Promise<ReportResult> {
   const supabase = getSupabaseBrowser();
-  let query = supabase
+  const query = applyCommonReportFilters(
+    supabase
     .from("cases")
     .select("id, record_number, case_type, status, created_at, updated_at")
     .eq("org_id", orgId)
     .is("deleted_at", null)
-    .order("created_at", { ascending: false });
-
-  if (params.dateFrom) query = query.gte("created_at", params.dateFrom);
-  if (params.dateTo) query = query.lte("created_at", params.dateTo + "T23:59:59");
+    .order("created_at", { ascending: false }),
+    params,
+    {
+      extraFilterColumn: "status",
+      propertyColumn: "property_id",
+    },
+  );
 
   const { data, error } = await query;
   if (error) throw error;
@@ -505,7 +483,7 @@ async function fetchCaseStatus(
     };
   });
 
-  const active = rows.filter((r) => r.status !== "Closed" && r.status !== "closed").length;
+  const active = rows.filter((r: any) => r.status !== "Closed" && r.status !== "closed").length;
 
   return {
     stats: [
@@ -527,18 +505,22 @@ async function fetchCaseStatus(
 
 async function fetchLostFoundInventory(
   orgId: string,
-  params: { dateFrom?: string; dateTo?: string }
+  params: ReportQueryParams
 ): Promise<ReportResult> {
   const supabase = getSupabaseBrowser();
-  let query = supabase
+  const query = applyCommonReportFilters(
+    supabase
     .from("found_items")
     .select("id, record_number, description, status, category, created_at, storage_location")
     .eq("org_id", orgId)
     .is("deleted_at", null)
-    .order("created_at", { ascending: false });
-
-  if (params.dateFrom) query = query.gte("created_at", params.dateFrom);
-  if (params.dateTo) query = query.lte("created_at", params.dateTo + "T23:59:59");
+    .order("created_at", { ascending: false }),
+    params,
+    {
+      extraFilterColumn: "status",
+      propertyColumn: "property_id",
+    },
+  );
 
   const { data, error } = await query;
   if (error) throw error;
@@ -552,7 +534,7 @@ async function fetchLostFoundInventory(
     date: r.created_at ? new Date(r.created_at).toLocaleDateString() : "-",
   }));
 
-  const claimed = rows.filter((r) => r.status === "Claimed" || r.status === "claimed" || r.status === "Returned" || r.status === "returned").length;
+  const claimed = rows.filter((r: any) => r.status === "Claimed" || r.status === "claimed" || r.status === "Returned" || r.status === "returned").length;
 
   return {
     stats: [
@@ -575,33 +557,33 @@ async function fetchLostFoundInventory(
 
 async function fetchFinancialSummary(
   orgId: string,
-  params: { dateFrom?: string; dateTo?: string }
+  params: ReportQueryParams
 ): Promise<ReportResult> {
   const supabase = getSupabaseBrowser();
   let incidentQuery = supabase
     .from("incident_financials")
-    .select("id, incident_id, entry_type, amount, description, created_at, incident:incidents!incident_id(record_number, incident_type)")
+    .select("id, incident_id, entry_type, amount, description, created_at, incident:incidents!incident_id(record_number, incident_type, org_id, property_id)")
     .order("created_at", { ascending: false });
   let caseQuery = supabase
     .from("case_costs")
-    .select("id, case_id, cost_type, amount, description, created_at, related_case:cases!case_id(record_number, case_type)")
+    .select("id, case_id, cost_type, amount, description, created_at, related_case:cases!case_id(record_number, case_type, org_id, property_id)")
     .order("created_at", { ascending: false });
 
-  if (params.dateFrom) {
-    incidentQuery = incidentQuery.gte("created_at", params.dateFrom);
-    caseQuery = caseQuery.gte("created_at", params.dateFrom);
-  }
-  if (params.dateTo) {
-    incidentQuery = incidentQuery.lte("created_at", params.dateTo + "T23:59:59");
-    caseQuery = caseQuery.lte("created_at", params.dateTo + "T23:59:59");
-  }
+  incidentQuery = applyDateRangeFilters(incidentQuery, params);
+  caseQuery = applyDateRangeFilters(caseQuery, params);
 
   const [{ data: incidentData, error: incidentError }, { data: caseData, error: caseError }] =
     await Promise.all([incidentQuery, caseQuery]);
   if (incidentError) throw incidentError;
   if (caseError) throw caseError;
 
-  const incidentRows = (incidentData ?? []).map((r: any) => ({
+  const incidentRows = (incidentData ?? [])
+    .filter(
+      (row: any) =>
+        row.incident?.org_id === orgId &&
+        (!params.propertyId || row.incident?.property_id === params.propertyId),
+    )
+    .map((r: any) => ({
     id: r.id,
     incidentRef: r.incident?.record_number ?? "-",
     type: r.incident?.incident_type ?? "incident",
@@ -616,7 +598,13 @@ async function fetchFinancialSummary(
     date: r.created_at ? new Date(r.created_at).toLocaleDateString() : "-",
   }));
 
-  const caseRows = (caseData ?? []).map((r: any) => ({
+  const caseRows = (caseData ?? [])
+    .filter(
+      (row: any) =>
+        row.related_case?.org_id === orgId &&
+        (!params.propertyId || row.related_case?.property_id === params.propertyId),
+    )
+    .map((r: any) => ({
     id: r.id,
     incidentRef: r.related_case?.record_number ?? "-",
     type: r.related_case?.case_type ?? (r.cost_type || "case"),
@@ -628,13 +616,24 @@ async function fetchFinancialSummary(
 
   const rows = [...incidentRows, ...caseRows];
 
+  const filteredIncidentFinancials = (incidentData ?? []).filter(
+    (row: any) =>
+      row.incident?.org_id === orgId &&
+      (!params.propertyId || row.incident?.property_id === params.propertyId),
+  );
+  const filteredCaseCosts = (caseData ?? []).filter(
+    (row: any) =>
+      row.related_case?.org_id === orgId &&
+      (!params.propertyId || row.related_case?.property_id === params.propertyId),
+  );
+
   const totalLoss =
-    (incidentData ?? []).reduce(
+    filteredIncidentFinancials.reduce(
       (sum, row: any) => sum + (row.entry_type === "loss" ? Number(row.amount || 0) : 0),
       0,
     ) +
-    (caseData ?? []).reduce((sum, row: any) => sum + Number(row.amount || 0), 0);
-  const totalRecovered = (incidentData ?? []).reduce(
+    filteredCaseCosts.reduce((sum, row: any) => sum + Number(row.amount || 0), 0);
+  const totalRecovered = filteredIncidentFinancials.reduce(
     (sum, row: any) => sum + (row.entry_type === "saving" ? Number(row.amount || 0) : 0),
     0,
   );
@@ -660,18 +659,22 @@ async function fetchFinancialSummary(
 
 async function fetchVisitorLog(
   orgId: string,
-  params: { dateFrom?: string; dateTo?: string }
+  params: ReportQueryParams
 ): Promise<ReportResult> {
   const supabase = getSupabaseBrowser();
-  let query = supabase
+  const query = applyCommonReportFilters(
+    supabase
     .from("visitors")
-    .select("id, first_name, last_name, company, host_name, checked_in_at, checked_out_at, purpose, created_at")
+    .select("id, first_name, last_name, company, host_name, checked_in_at, checked_out_at, purpose, created_at, status")
     .eq("org_id", orgId)
     .is("deleted_at", null)
-    .order("created_at", { ascending: false });
-
-  if (params.dateFrom) query = query.gte("created_at", params.dateFrom);
-  if (params.dateTo) query = query.lte("created_at", params.dateTo + "T23:59:59");
+    .order("created_at", { ascending: false }),
+    params,
+    {
+      extraFilterColumn: "status",
+      propertyColumn: "property_id",
+    },
+  );
 
   const { data, error } = await query;
   if (error) throw error;
@@ -697,7 +700,7 @@ async function fetchVisitorLog(
     };
   });
 
-  const onSite = rows.filter((r) => r.duration === "On-site").length;
+  const onSite = rows.filter((r: any) => r.duration === "On-site").length;
 
   return {
     stats: [

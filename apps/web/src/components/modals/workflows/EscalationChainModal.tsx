@@ -163,7 +163,7 @@ export function EscalationChainModal({
                     className={clsx(
                       "px-2 py-1.5 rounded text-[11px] font-medium whitespace-nowrap",
                       idx <= targetIndex
-                        ? "bg-[var(--eztrack-primary-500,#6366f1)] text-white"
+                        ? "bg-[var(--action-primary-fill)] text-[var(--text-on-brand)]"
                         : "bg-[var(--surface-primary)] text-[var(--text-secondary)]"
                     )}
                   >

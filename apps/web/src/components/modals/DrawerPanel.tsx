@@ -8,8 +8,9 @@ import {
   useState,
 } from "react";
 import { createPortal } from "react-dom";
-import { X } from "lucide-react";
 import clsx from "clsx";
+import { X } from "lucide-react";
+import { IconButton } from "@/components/ui/IconButton";
 
 type DrawerSize = "default" | "lg" | "xl";
 
@@ -165,13 +166,16 @@ export function DrawerHeader({ children, onClose }: DrawerHeaderProps) {
         {children}
       </h2>
       {onClose && (
-        <button
+        <IconButton
           onClick={onClose}
-          className="w-7 h-7 rounded-md flex items-center justify-center text-[var(--text-tertiary)] hover:text-[var(--text-primary)] hover:bg-[var(--surface-hover)] transition-colors cursor-pointer"
-          aria-label="Close"
+          className="h-8 w-8 rounded-lg text-[var(--text-secondary)] shadow-none"
+          label="Close"
+          size="sm"
+          type="button"
+          variant="ghost"
         >
           <X size={16} />
-        </button>
+        </IconButton>
       )}
     </div>
   );

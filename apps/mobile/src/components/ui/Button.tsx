@@ -61,7 +61,7 @@ export function Button({
       backgroundColor: "transparent",
     },
     plainLabel: {
-      color: colors.primaryStrong,
+      color: colors.primaryInk,
     },
     pressed: {
       opacity: Platform.OS === "ios" ? 0.72 : 0.84,
@@ -82,6 +82,25 @@ export function Button({
       color: Platform.OS === "ios" ? controls.secondaryButtonLabel : colors.textPrimary,
     },
   });
+
+  const palettes = {
+    plain: {
+      foreground: colors.primaryInk,
+      spinner: colors.primaryInk,
+    },
+    primary: {
+      background: colors.primaryStrong,
+      foreground: colors.primaryText,
+      spinner: colors.primaryText,
+    },
+    secondary: {
+      background: controls.secondaryButtonFill,
+      foreground:
+        Platform.OS === "ios" ? controls.secondaryButtonLabel : colors.textPrimary,
+      spinner:
+        Platform.OS === "ios" ? controls.secondaryButtonLabel : colors.textPrimary,
+    },
+  } as const;
 
   const handlePress = () => {
     if (disabled || loading) {
@@ -116,13 +135,7 @@ export function Button({
     >
       {loading ? (
         <ActivityIndicator
-          color={
-            variant === "primary"
-              ? colors.primaryText
-              : variant === "secondary"
-                ? colors.primaryStrong
-                : colors.primaryStrong
-          }
+          color={palettes[variant].spinner}
           size="small"
         />
       ) : (
@@ -134,6 +147,7 @@ export function Button({
               : variant === "secondary"
                 ? styles.secondaryLabel
                 : styles.plainLabel,
+            { color: palettes[variant].foreground },
           ]}
         >
           {label}

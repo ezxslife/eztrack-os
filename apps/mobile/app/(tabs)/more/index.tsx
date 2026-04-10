@@ -89,10 +89,6 @@ export default function MoreScreen() {
     (item) =>
       !primaryTabs.has(item.label) && availableModuleHrefs.has(item.href)
   );
-  const queuedModules = moduleItems.filter(
-    (item) =>
-      !primaryTabs.has(item.label) && !availableModuleHrefs.has(item.href)
-  );
   const globalDestinations = NAV_BOTTOM_ITEMS.filter((item) =>
     availableGlobalHrefs.has(item.href)
   );
@@ -125,7 +121,7 @@ export default function MoreScreen() {
 
   return (
     <ScreenContainer
-      subtitle="The first mobile tranche stays focused. Everything else is still visible as grouped destinations."
+      subtitle="Operational routes outside the primary tabs stay grouped here so the shell remains focused."
       title="More"
     >
       <MaterialSurface intensity={72} variant="panel">
@@ -229,20 +225,6 @@ export default function MoreScreen() {
               <Text style={styles.title}>{item.label}</Text>
               <Text style={styles.meta}>{item.href}</Text>
             </Pressable>
-          ))}
-        </View>
-      </SectionCard>
-
-      <SectionCard
-        subtitle="These modules still need their native screens and workflows."
-        title="Still queued for port"
-      >
-        <View style={styles.list}>
-          {queuedModules.map((item) => (
-            <View key={item.label} style={styles.row}>
-              <Text style={styles.title}>{item.label}</Text>
-              <Text style={styles.meta}>{item.href}</Text>
-            </View>
           ))}
         </View>
       </SectionCard>
