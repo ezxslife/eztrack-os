@@ -1,8 +1,48 @@
-const relativeFormatter = new Intl.RelativeTimeFormat("en", { numeric: "auto" });
-const shortDateFormatter = new Intl.DateTimeFormat("en-US", {
-  dateStyle: "medium",
-  timeStyle: "short",
-});
+type RelativeUnit = "minute" | "hour" | "day";
+
+const relativeFormatter =
+  typeof Intl !== "undefined" && typeof Intl.RelativeTimeFormat === "function"
+    ? new Intl.RelativeTimeFormat("en", { numeric: "auto" })
+    : null;
+
+const shortDateFormatter =
+  typeof Intl !== "undefined" && typeof Intl.DateTimeFormat === "function"
+    ? new Intl.DateTimeFormat("en-US", {
+        dateStyle: "medium",
+        timeStyle: "short",
+      })
+    : null;
+
+function formatRelativeFallback(value: number, unit: RelativeUnit) {
+  if (value === 0) {
+    return `this ${unit}`;
+  }
+
+  const absoluteValue = Math.abs(value);
+  const label = absoluteValue === 1 ? unit : `${unit}s`;
+
+  if (value > 0) {
+    return `in ${absoluteValue} ${label}`;
+  }
+
+  return `${absoluteValue} ${label} ago`;
+}
+
+function formatRelative(value: number, unit: RelativeUnit) {
+  if (relativeFormatter) {
+    return relativeFormatter.format(value, unit);
+  }
+
+  return formatRelativeFallback(value, unit);
+}
+
+function formatShortDate(value: Date) {
+  if (shortDateFormatter) {
+    return shortDateFormatter.format(value);
+  }
+
+  return value.toLocaleString("en-US");
+}
 
 export function formatRelativeTimestamp(value: string) {
   const timestamp = new Date(value);
@@ -16,23 +56,23 @@ export function formatRelativeTimestamp(value: string) {
   const absoluteMinutes = Math.abs(deltaMinutes);
 
   if (absoluteMinutes < 60) {
-    return relativeFormatter.format(deltaMinutes, "minute");
+    return formatRelative(deltaMinutes, "minute");
   }
 
   const deltaHours = Math.round(deltaMinutes / 60);
   const absoluteHours = Math.abs(deltaHours);
 
   if (absoluteHours < 24) {
-    return relativeFormatter.format(deltaHours, "hour");
+    return formatRelative(deltaHours, "hour");
   }
 
   const deltaDays = Math.round(deltaHours / 24);
 
   if (Math.abs(deltaDays) < 7) {
-    return relativeFormatter.format(deltaDays, "day");
+    return formatRelative(deltaDays, "day");
   }
 
-  return shortDateFormatter.format(timestamp);
+  return formatShortDate(timestamp);
 }
 
 export function formatShortDateTime(value: string) {
@@ -42,13 +82,17 @@ export function formatShortDateTime(value: string) {
     return value;
   }
 
-  return shortDateFormatter.format(timestamp);
+  return formatShortDate(timestamp);
 }
 
 export function formatCurrency(amount: number) {
-  return new Intl.NumberFormat("en-US", {
-    style: "currency",
-    currency: "USD",
-    maximumFractionDigits: 2,
-  }).format(amount);
+  if (typeof Intl !== "undefined" && typeof Intl.NumberFormat === "function") {
+    return new Intl.NumberFormat("en-US", {
+      style: "currency",
+      currency: "USD",
+      maximumFractionDigits: 2,
+    }).format(amount);
+  }
+
+  return `$${amount.toFixed(2)}`;
 }

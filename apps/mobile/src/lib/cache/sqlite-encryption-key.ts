@@ -2,7 +2,7 @@ import * as Crypto from "expo-crypto";
 import * as SecureStore from "expo-secure-store";
 import { Platform } from "react-native";
 
-const SQLITE_CACHE_KEY_STORAGE_KEY = "eztrack-mobile-sqlite-cache-key:v1";
+const SQLITE_CACHE_KEY_STORAGE_KEY = "eztrack-mobile-sqlite-cache-key.v1";
 const SQLITE_CACHE_KEY_BYTES = 32;
 const SQLITE_CACHE_KEY_PATTERN = /^[0-9a-f]{64}$/;
 

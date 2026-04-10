@@ -56,19 +56,19 @@ function RootNavigator() {
           name="(create)"
           options={{ presentation: "fullScreenModal" }}
         />
-        <Stack.Screen name="patrons" />
-        <Stack.Screen name="cases" />
-        <Stack.Screen name="lost-found" />
-        <Stack.Screen name="briefings" />
-        <Stack.Screen name="work-orders" />
-        <Stack.Screen name="visitors" />
-        <Stack.Screen name="vehicles" />
-        <Stack.Screen name="contacts" />
-        <Stack.Screen name="anonymous-reports" />
+        <Stack.Screen name="patrons/index" />
+        <Stack.Screen name="cases/index" />
+        <Stack.Screen name="lost-found/index" />
+        <Stack.Screen name="briefings/index" />
+        <Stack.Screen name="work-orders/index" />
+        <Stack.Screen name="visitors/index" />
+        <Stack.Screen name="vehicles/index" />
+        <Stack.Screen name="contacts/index" />
+        <Stack.Screen name="anonymous-reports/index" />
         <Stack.Screen name="settings" />
-        <Stack.Screen name="sync-center" />
-        <Stack.Screen name="notifications" />
-        <Stack.Screen name="alerts" />
+        <Stack.Screen name="sync-center/index" />
+        <Stack.Screen name="notifications/index" />
+        <Stack.Screen name="alerts/index" />
         <Stack.Screen name="+not-found" />
       </Stack>
     </>
