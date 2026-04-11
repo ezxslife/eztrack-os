@@ -11,9 +11,9 @@ export function NetworkBridge() {
   useEffect(() => {
     onlineManager.setEventListener((setOnline) => {
       return NetInfo.addEventListener((state) => {
-        const isConnected = state.isConnected ?? false;
+        const isConnected = state.isConnected;
         const isInternetReachable = state.isInternetReachable;
-        const isOnline = isConnected && isInternetReachable !== false;
+        const isOnline = isConnected !== false && isInternetReachable !== false;
 
         setStatus({
           isConnected,
@@ -24,14 +24,15 @@ export function NetworkBridge() {
     });
 
     void NetInfo.fetch().then((state) => {
-      const isConnected = state.isConnected ?? false;
+      const isConnected = state.isConnected;
       const isInternetReachable = state.isInternetReachable;
+      const isOnline = isConnected !== false && isInternetReachable !== false;
 
       setStatus({
         isConnected,
         isInternetReachable,
       });
-      onlineManager.setOnline(isConnected && isInternetReachable !== false);
+      onlineManager.setOnline(isOnline);
     });
   }, [setStatus]);
 

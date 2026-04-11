@@ -253,14 +253,13 @@ export default function DailyLogScreen() {
         </View>
       </SectionCard>
 
-      <SectionCard title="Foundation state">
+      <SectionCard title="Start a new entry">
         <Text style={styles.copy}>
-          The fast path now queues validated entries. The full create flow is
-          still where operators choose location and priority explicitly.
+          Capture activity, handoff notes, and key events for this shift.
         </Text>
         <View style={styles.actions}>
           <Button
-            label="Open Create Flow"
+            label="New Daily Log"
             onPress={() => router.push("/daily-log/new")}
           />
         </View>

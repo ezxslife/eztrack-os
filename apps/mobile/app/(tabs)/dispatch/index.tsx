@@ -1,12 +1,6 @@
 import { useRouter } from "expo-router";
 import { useState } from "react";
-import {
-  Alert,
-  Pressable,
-  StyleSheet,
-  Text,
-  View,
-} from "react-native";
+import { Alert, StyleSheet, Text, View } from "react-native";
 
 import { DispatchStatus } from "@eztrack/shared";
 
@@ -14,16 +8,19 @@ import { ScreenContainer } from "@/components/layout/ScreenContainer";
 import { useIOSNativeSearchHeader } from "@/navigation/useIOSNativeSearchHeader";
 import { Button } from "@/components/ui/Button";
 import { FilterChips } from "@/components/ui/FilterChips";
+import { GroupedCard } from "@/components/ui/GroupedCard";
+import { GroupedCardDivider } from "@/components/ui/GroupedCardDivider";
 import { MaterialSurface } from "@/components/ui/MaterialSurface";
 import { PriorityBadge } from "@/components/ui/PriorityBadge";
 import { SearchField } from "@/components/ui/SearchField";
-import { SectionCard } from "@/components/ui/SectionCard";
+import { SectionHeader } from "@/components/ui/SectionHeader";
+import { SettingsListRow } from "@/components/ui/SettingsListRow";
 import { StatusBadge } from "@/components/ui/StatusBadge";
 import { formatRelativeTimestamp } from "@/lib/format";
 import { triggerNotificationHaptic } from "@/lib/haptics";
 import {
-  useDispatches,
   useAssignDispatchOfficerMutation,
+  useDispatches,
   useOnDutyOfficers,
   useUpdateDispatchStatusMutation,
 } from "@/lib/queries/dispatches";
@@ -127,7 +124,8 @@ export default function DispatchScreen() {
 
     return (
       matchesQuery &&
-      dispatch.status.replace("_", " ").toLowerCase() === selectedFilter.toLowerCase()
+      dispatch.status.replace("_", " ").toLowerCase() ===
+        selectedFilter.toLowerCase()
     );
   });
 
@@ -195,7 +193,11 @@ export default function DispatchScreen() {
               value={query}
             />
           ) : null}
-          <FilterChips onSelect={setSelectedFilter} options={filters} selected={selectedFilter} />
+          <FilterChips
+            onSelect={setSelectedFilter}
+            options={filters}
+            selected={selectedFilter}
+          />
           <Button
             label="New Dispatch"
             onPress={() => router.push("/dispatch/new")}
@@ -203,35 +205,24 @@ export default function DispatchScreen() {
           />
         </View>
       }
+      gutter="none"
       iosNativeHeader={nativeIOSHeader}
       onRefresh={() => {
         void Promise.all([dispatchesQuery.refetch(), officersQuery.refetch()]);
       }}
       refreshing={dispatchesQuery.isRefetching || officersQuery.isRefetching}
-      subtitle="The dispatch board should feel glanceable first, actionable second."
+      subtitle="Live calls, unit assignment, and status changes."
       title="Dispatch"
     >
-      <MaterialSurface intensity={76} style={styles.summary} variant="panel">
-        <Text style={styles.summaryEyebrow}>Live Board</Text>
-        <Text style={styles.summaryValue}>{dispatches.length} active calls</Text>
-        <Text style={styles.summaryCopy}>
-          The tab shell is native. The content layer stays dense, calm, and readable under stress.
-        </Text>
-      </MaterialSurface>
-
-      <SectionCard title="Live board">
+      <View style={styles.section}>
+        <SectionHeader title="Live board" />
         <View style={styles.list}>
           {dispatches.length ? (
             dispatches.map((dispatch) => (
-              <Pressable
+              <MaterialSurface
                 key={dispatch.id}
-                onPress={() =>
-                  router.push({
-                    pathname: "/dispatch/[id]",
-                    params: { id: dispatch.id },
-                  })
-                }
                 style={styles.card}
+                variant="panel"
               >
                 <View style={styles.row}>
                   <Text style={styles.title}>{dispatch.recordNumber}</Text>
@@ -241,7 +232,9 @@ export default function DispatchScreen() {
                 <Text style={styles.description}>{dispatch.description}</Text>
                 <View style={styles.row}>
                   <StatusBadge status={dispatch.status} />
-                  <Text style={styles.assignee}>{dispatch.officerName ?? "Unassigned"}</Text>
+                  <Text style={styles.assignee}>
+                    {dispatch.officerName ?? "Unassigned"}
+                  </Text>
                 </View>
                 {pendingDispatchActionIds.has(dispatch.id) ? (
                   <Text style={styles.pendingMeta}>
@@ -258,7 +251,8 @@ export default function DispatchScreen() {
                       loading={
                         updateDispatchStatus.isPending &&
                         updateDispatchStatus.variables?.dispatchId === dispatch.id &&
-                        updateDispatchStatus.variables?.nextStatus === action.nextStatus
+                        updateDispatchStatus.variables?.nextStatus ===
+                          action.nextStatus
                       }
                       onPress={() => {
                         void handleStatusUpdate(dispatch, action.nextStatus);
@@ -292,7 +286,7 @@ export default function DispatchScreen() {
                   <MaterialSurface
                     intensity={72}
                     style={styles.assignmentSurface}
-                    variant="panel"
+                    variant="subtle"
                   >
                     <Text style={styles.assignmentTitle}>Assign unit</Text>
                     {(officersQuery.data ?? []).length ? (
@@ -329,36 +323,44 @@ export default function DispatchScreen() {
                         No on-duty staff records are available for assignment.
                       </Text>
                     )}
-                    <Text style={styles.assignmentCopy}>
-                      Assignment uses the on-duty roster already loaded for the board.
-                    </Text>
                   </MaterialSurface>
                 ) : null}
-                <Text style={styles.meta}>{formatRelativeTimestamp(dispatch.createdAt)}</Text>
-              </Pressable>
+                <Text style={styles.meta}>
+                  {formatRelativeTimestamp(dispatch.createdAt)}
+                </Text>
+              </MaterialSurface>
             ))
           ) : (
-            <Text style={styles.emptyCopy}>No dispatches match the current view.</Text>
+            <View style={styles.emptyState}>
+              <Text style={styles.emptyCopy}>
+                No dispatches match the current view.
+              </Text>
+            </View>
           )}
         </View>
-      </SectionCard>
+      </View>
 
-      <SectionCard
-        subtitle={officersQuery.isLoading ? "Loading staff statuses" : `${(officersQuery.data ?? []).length} active staff records`}
-        title="Units on duty"
-      >
-        <View style={styles.list}>
-          {(officersQuery.data ?? []).map((officer) => (
-            <View key={officer.id} style={styles.officerRow}>
-              <View>
-                <Text style={styles.title}>{officer.name}</Text>
-                <Text style={styles.meta}>{formatRelativeTimestamp(officer.updatedAt)}</Text>
+      <View style={styles.section}>
+        <SectionHeader title="Units on duty" />
+        {(officersQuery.data ?? []).length ? (
+          <GroupedCard>
+            {(officersQuery.data ?? []).map((officer, index) => (
+              <View key={officer.id}>
+                {index > 0 ? <GroupedCardDivider /> : null}
+                <SettingsListRow
+                  label={officer.name}
+                  subtitle={formatRelativeTimestamp(officer.updatedAt)}
+                  trailing={<StatusBadge status={officer.status} />}
+                />
               </View>
-              <StatusBadge status={officer.status} />
-            </View>
-          ))}
-        </View>
-      </SectionCard>
+            ))}
+          </GroupedCard>
+        ) : (
+          <View style={styles.emptyState}>
+            <Text style={styles.emptyCopy}>No active staff records are available.</Text>
+          </View>
+        )}
+      </View>
     </ScreenContainer>
   );
 }
@@ -373,14 +375,15 @@ function createStyles(
       flexDirection: "row",
       flexWrap: "wrap",
       gap: layout.gridGap,
+      paddingHorizontal: layout.horizontalPadding,
     },
     actionButton: {
       minHeight: 40,
     },
     actionRow: {
       flexDirection: "row",
-      gap: layout.gridGap,
       flexWrap: "wrap",
+      gap: layout.gridGap,
     },
     assignee: {
       ...typography.footnote,
@@ -399,10 +402,7 @@ function createStyles(
       fontWeight: "700",
     },
     card: {
-      backgroundColor: colors.surfaceSecondary,
-      borderRadius: 18,
       gap: layout.gridGap,
-      padding: layout.listItemPadding,
     },
     description: {
       ...typography.subheadline,
@@ -412,8 +412,16 @@ function createStyles(
       ...typography.subheadline,
       color: colors.textTertiary,
     },
+    emptyState: {
+      backgroundColor: colors.surfaceTintSubtle,
+      borderColor: colors.borderLight,
+      borderRadius: 18,
+      borderWidth: 1,
+      padding: 16,
+    },
     list: {
       gap: layout.gridGap,
+      paddingHorizontal: layout.horizontalPadding,
     },
     location: {
       ...typography.subheadline,
@@ -429,14 +437,6 @@ function createStyles(
       color: colors.accentSoft,
       fontWeight: "600",
     },
-    officerRow: {
-      alignItems: "flex-start",
-      backgroundColor: colors.surfaceSecondary,
-      borderRadius: 18,
-      flexDirection: "row",
-      justifyContent: "space-between",
-      padding: layout.listItemPadding,
-    },
     row: {
       alignItems: "flex-start",
       flexDirection: "row",
@@ -446,29 +446,14 @@ function createStyles(
     searchField: {
       width: "100%",
     },
-    summary: {
-      gap: layout.gridGap,
-    },
-    summaryCopy: {
-      ...typography.subheadline,
-      color: colors.textSecondary,
-    },
-    summaryEyebrow: {
-      ...typography.caption1,
-      color: colors.accentSoft,
-      fontWeight: "700",
-      textTransform: "uppercase",
-    },
-    summaryValue: {
-      ...typography.title2,
-      color: colors.textPrimary,
-      fontWeight: "700",
+    section: {
+      gap: 8,
     },
     title: {
       ...typography.subheadline,
       color: colors.textPrimary,
-      fontWeight: "700",
       flex: 1,
+      fontWeight: "700",
       paddingRight: 12,
     },
   });

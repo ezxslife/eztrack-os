@@ -333,7 +333,7 @@ function ReportsDetailContent() {
 export default function ReportDetailScreen() {
   return (
     <RequireLiveSession
-      detail="Report generation and mobile export share live data and files, so preview builds stay blocked here."
+      detail="Reports are available when you're signed in with a live account."
       title="Reports"
     >
       <ReportsDetailContent />

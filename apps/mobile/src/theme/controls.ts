@@ -34,12 +34,12 @@ export function createThemeControls(colors: ThemeColors): ThemeControls {
     groupedBorder: iosColor(
       IOS_CONTROL_TOKENS.groupedBorder.light,
       IOS_CONTROL_TOKENS.groupedBorder.dark,
-      colors.divider
+      colors.borderLight
     ),
     groupedSurface: iosColor(
       IOS_CONTROL_TOKENS.groupedSurface.light,
       IOS_CONTROL_TOKENS.groupedSurface.dark,
-      colors.surface
+      colors.surfaceFrosted
     ),
     headerBackground: iosColor(
       IOS_CONTROL_TOKENS.headerBackground.light,
@@ -49,12 +49,12 @@ export function createThemeControls(colors: ThemeColors): ThemeControls {
     searchFieldFill: iosColor(
       IOS_CONTROL_TOKENS.searchFieldFill.light,
       IOS_CONTROL_TOKENS.searchFieldFill.dark,
-      colors.surfaceSecondary
+      colors.surfaceTintMedium
     ),
     secondaryButtonFill: iosColor(
       IOS_CONTROL_TOKENS.secondaryButtonFill.light,
       IOS_CONTROL_TOKENS.secondaryButtonFill.dark,
-      colors.surfaceSecondary
+      colors.surfaceTintMedium
     ),
     secondaryButtonLabel: iosColor(
       IOS_CONTROL_TOKENS.secondaryButtonLabel.light,
@@ -64,12 +64,12 @@ export function createThemeControls(colors: ThemeColors): ThemeControls {
     switchTrackFalse: iosColor(
       IOS_CONTROL_TOKENS.switchTrackFalse.light,
       IOS_CONTROL_TOKENS.switchTrackFalse.dark,
-      colors.surfaceSecondary
+      colors.surfaceTintMedium
     ),
     switchTrackTrue: iosColor(
       IOS_CONTROL_TOKENS.switchTrackTrue.light,
       IOS_CONTROL_TOKENS.switchTrackTrue.dark,
-      colors.primarySoft
+      colors.interactiveSolid
     ),
   };
 }

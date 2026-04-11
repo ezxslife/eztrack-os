@@ -1,10 +1,5 @@
 import { useMemo } from "react";
-import {
-  Pressable,
-  StyleSheet,
-  Text,
-  View,
-} from "react-native";
+import { Pressable, StyleSheet, Text, View } from "react-native";
 
 import {
   buildReportRoute,
@@ -14,11 +9,14 @@ import { useRouter } from "expo-router";
 
 import { RequireLiveSession } from "@/components/auth/RequireLiveSession";
 import { AppSymbol } from "@/components/ui/AppSymbol";
-import { MaterialSurface } from "@/components/ui/MaterialSurface";
-import { SectionCard } from "@/components/ui/SectionCard";
+import { GroupedCard } from "@/components/ui/GroupedCard";
+import { GroupedCardDivider } from "@/components/ui/GroupedCardDivider";
 import { ScreenContainer } from "@/components/layout/ScreenContainer";
+import { SectionHeader } from "@/components/ui/SectionHeader";
+import { SettingsListRow } from "@/components/ui/SettingsListRow";
 import { useReportCatalog } from "@/lib/queries/reports";
-import { useThemeColors } from "@/theme";
+import { useThemeColors, useThemeTypography } from "@/theme";
+import { useAdaptiveLayout } from "@/theme/layout";
 
 const REPORT_SYMBOLS: Record<string, string> = {
   "case-status": "briefcase.fill",
@@ -33,7 +31,7 @@ const REPORT_SYMBOLS: Record<string, string> = {
 
 function formatActivityDate(value: string | null) {
   if (!value) {
-    return "No records yet";
+    return "No activity yet";
   }
 
   const parsed = new Date(value);
@@ -50,7 +48,9 @@ function formatActivityDate(value: string | null) {
 
 function ReportsContent() {
   const colors = useThemeColors();
-  const styles = createStyles(colors);
+  const typography = useThemeTypography();
+  const layout = useAdaptiveLayout();
+  const styles = createStyles(colors, typography, layout);
   const router = useRouter();
   const catalogQuery = useReportCatalog();
   const catalog = catalogQuery.data ?? [];
@@ -66,81 +66,70 @@ function ReportsContent() {
 
   return (
     <ScreenContainer
+      gutter="none"
       onRefresh={() => {
         void catalogQuery.refetch();
       }}
       refreshing={catalogQuery.isRefetching}
-      subtitle="Shared report catalog, grouped categories, and quick-generate entry points."
+      subtitle="Run and export operational reports."
       title="Reports"
     >
-      <MaterialSurface intensity={68} style={styles.hero} variant="panel">
-        <Text style={styles.eyebrow}>Operational Reporting</Text>
-        <Text style={styles.heroTitle}>Generate live reports from the same catalog as web</Text>
-        <Text style={styles.copy}>
-          Quick generate opens a default date range. Each report route exposes the full config panel,
-          then native CSV and PDF sharing.
-        </Text>
-      </MaterialSurface>
-
-      <SectionCard subtitle="Start with the most common report exports." title="Quick Generate">
-        <View style={styles.quickList}>
-          {quickReports.map((report) => (
-            <Pressable
-              key={report.slug}
-              onPress={() =>
-                router.push(
-                  buildReportRoute(
-                    report.slug,
-                    getDefaultReportDateRange(report.defaultRangeDays ?? 7)
-                  ) as never
-                )
-              }
-              style={styles.quickChip}
-            >
-              <Text style={styles.quickChipLabel}>{report.name}</Text>
-            </Pressable>
-          ))}
-        </View>
-      </SectionCard>
-
-      {Object.entries(groupedCatalog).map(([category, reports]) => (
-        <SectionCard key={category} subtitle={`${reports.length} reports`} title={category}>
-          <View style={styles.list}>
-            {reports.map((report) => (
+      {quickReports.length ? (
+        <View style={styles.section}>
+          <SectionHeader title="Favorites" />
+          <View style={styles.quickList}>
+            {quickReports.map((report) => (
               <Pressable
                 key={report.slug}
                 onPress={() =>
-                  router.push({
-                    pathname: "/reports/[type]",
-                    params: { type: report.slug },
-                  })
+                  router.push(
+                    buildReportRoute(
+                      report.slug,
+                      getDefaultReportDateRange(report.defaultRangeDays ?? 7)
+                    ) as never
+                  )
                 }
-                style={styles.row}
+                style={styles.quickChip}
               >
-                <View style={styles.rowHeader}>
-                  <View style={styles.iconWrap}>
-                    <AppSymbol
-                      color={colors.textSecondary}
-                      fallbackName="document-text-outline"
-                      iosName={(REPORT_SYMBOLS[report.slug] ?? "doc.text.fill") as any}
-                      size={18}
-                      weight="medium"
-                    />
-                  </View>
-                  <View style={styles.rowBody}>
-                    <Text style={styles.rowTitle}>{report.name}</Text>
-                    <Text style={styles.rowCopy}>{report.description}</Text>
-                    <Text style={styles.rowMeta}>
-                      {report.recordCount.toLocaleString()} records · latest activity{" "}
-                      {formatActivityDate(report.latestActivity)}
-                    </Text>
-                    <Text style={styles.rowMeta}>{report.formats.join(" · ")}</Text>
-                  </View>
-                </View>
+                <Text style={styles.quickChipLabel}>{report.name}</Text>
               </Pressable>
             ))}
           </View>
-        </SectionCard>
+        </View>
+      ) : null}
+
+      {Object.entries(groupedCatalog).map(([category, reports]) => (
+        <View key={category} style={styles.section}>
+          <SectionHeader title={category} />
+          <GroupedCard>
+            {reports.map((report, index) => (
+              <View key={report.slug}>
+                {index > 0 ? <GroupedCardDivider /> : null}
+                <SettingsListRow
+                  label={report.name}
+                  onPress={() =>
+                    router.push({
+                      pathname: "/reports/[type]",
+                      params: { type: report.slug },
+                    })
+                  }
+                  subtitle={`${report.recordCount.toLocaleString()} records · latest activity ${formatActivityDate(report.latestActivity)} · ${report.formats.join(" · ")}`}
+                  trailing={
+                    <View style={styles.iconWrap}>
+                      <AppSymbol
+                        color={colors.textSecondary}
+                        fallbackName="document-text-outline"
+                        iosName={(REPORT_SYMBOLS[report.slug] ?? "doc.text.fill") as any}
+                        size={16}
+                        weight="medium"
+                      />
+                    </View>
+                  }
+                />
+              </View>
+            ))}
+          </GroupedCard>
+        </View>
       ))}
     </ScreenContainer>
   );
@@ -149,7 +138,7 @@ function ReportsContent() {
 export default function ReportsScreen() {
   return (
     <RequireLiveSession
-      detail="Report catalog metadata and exports depend on live Supabase reporting queries in this tranche."
+      detail="Reports are available when you're signed in with a live account."
       title="Reports"
     >
       <ReportsContent />
@@ -157,82 +146,43 @@ export default function ReportsScreen() {
   );
 }
 
-function createStyles(colors: ReturnType<typeof useThemeColors>) {
+function createStyles(
+  colors: ReturnType<typeof useThemeColors>,
+  typography: ReturnType<typeof useThemeTypography>,
+  layout: ReturnType<typeof useAdaptiveLayout>
+) {
   return StyleSheet.create({
-    copy: {
-      color: colors.textSecondary,
-      fontSize: 14,
-      lineHeight: 20,
-    },
-    eyebrow: {
-      color: colors.accentSoft,
-      fontSize: 12,
-      fontWeight: "700",
-      textTransform: "uppercase",
-    },
-    hero: {
-      gap: 8,
-    },
-    heroTitle: {
-      color: colors.textPrimary,
-      fontSize: 24,
-      fontWeight: "700",
-      lineHeight: 30,
-    },
     iconWrap: {
       alignItems: "center",
-      backgroundColor: colors.surfaceSecondary,
+      backgroundColor: colors.surfaceTintMedium,
+      borderColor: colors.borderLight,
       borderRadius: 14,
-      height: 36,
+      borderWidth: 1,
+      height: 32,
       justifyContent: "center",
-      width: 36,
-    },
-    list: {
-      gap: 12,
+      width: 32,
     },
     quickChip: {
-      backgroundColor: colors.surfaceSecondary,
+      backgroundColor: colors.surfaceTintMedium,
+      borderColor: colors.borderLight,
       borderRadius: 999,
+      borderWidth: 1,
       paddingHorizontal: 14,
       paddingVertical: 12,
     },
     quickChipLabel: {
+      ...typography.subheadline,
       color: colors.textPrimary,
-      fontSize: 13,
       fontWeight: "700",
     },
     quickList: {
       flexDirection: "row",
       flexWrap: "wrap",
       gap: 12,
+      paddingHorizontal: layout.horizontalPadding,
     },
-    row: {
-      backgroundColor: colors.surfaceSecondary,
-      borderRadius: 18,
-      padding: 14,
-    },
-    rowBody: {
-      flex: 1,
-      gap: 4,
-    },
-    rowCopy: {
-      color: colors.textSecondary,
-      fontSize: 13,
-      lineHeight: 18,
-    },
-    rowHeader: {
-      flexDirection: "row",
-      gap: 12,
-    },
-    rowMeta: {
-      color: colors.textTertiary,
-      fontSize: 12,
-      lineHeight: 16,
-    },
-    rowTitle: {
-      color: colors.textPrimary,
-      fontSize: 15,
-      fontWeight: "700",
+    section: {
+      gap: 8,
     },
   });
 }

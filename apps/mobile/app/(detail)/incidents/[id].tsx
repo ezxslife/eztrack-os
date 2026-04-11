@@ -134,7 +134,7 @@ export default function IncidentDetailScreen() {
         formsQuery.isRefetching ||
         docLogQuery.isRefetching
       }
-      subtitle="Incident detail synced from the same Supabase records as the web app."
+      subtitle="Incident details, activity, and supporting records."
       title={incident.recordNumber}
     >
       <SectionCard subtitle={incident.location} title={incident.type}>
@@ -588,9 +588,8 @@ export default function IncidentDetailScreen() {
             variant="secondary"
           />
           <Text style={styles.meta}>
-            Form authoring is not exposed on mobile because the current product does not have a
-            dedicated schema-driven mobile form builder yet. This route writes a real generic form
-            payload to the same table used by web.
+            Add or complete the forms your team needs for this incident. Updates stay in sync
+            across the case record.
           </Text>
         </View>
       </SectionCard>
@@ -616,14 +615,11 @@ export default function IncidentDetailScreen() {
         </View>
       </SectionCard>
 
-      <SectionCard subtitle="This matches current web behavior." title="Attached Records">
+      <SectionCard subtitle="Related records linked to this incident." title="Attached Records">
         <View style={styles.stack}>
-          <Text style={styles.copy}>
-            Cross-record attachment totals are not backed by a durable linkage contract yet.
-          </Text>
+          <Text style={styles.copy}>Additional linked records will appear here as they are attached.</Text>
           <Text style={styles.meta}>
-            Mobile keeps this honest as a read-only parity surface instead of showing fake counts
-            or placeholder actions.
+            Check back here to review everything connected to this incident in one place.
           </Text>
         </View>
       </SectionCard>
@@ -672,8 +668,10 @@ function createStyles(colors: ReturnType<typeof useThemeColors>) {
       fontSize: 13,
     },
     row: {
-      backgroundColor: colors.surfaceSecondary,
+      backgroundColor: colors.surfaceTintMedium,
+      borderColor: colors.borderLight,
       borderRadius: 18,
+      borderWidth: 1,
       gap: 8,
       padding: 14,
     },

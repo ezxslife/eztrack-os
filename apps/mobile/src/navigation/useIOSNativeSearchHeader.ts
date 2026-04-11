@@ -7,6 +7,7 @@ import {
 } from "react-native";
 import type { SearchBarCommands } from "react-native-screens";
 
+import { getBlurTabHeaderOptions } from "@/theme/headers";
 import { useThemeColors, useThemeControls, useThemeTypography } from "@/theme";
 
 interface UseIOSNativeSearchHeaderProps {
@@ -33,15 +34,11 @@ export function useIOSNativeSearchHeader({
 
   useLayoutEffect(() => {
     if (!nativeIOSHeader) {
-      navigation.setOptions({
-        headerShown: false,
-      });
       return;
     }
 
     navigation.setOptions({
-      headerBackButtonDisplayMode: "minimal",
-      headerBlurEffect: "systemChromeMaterial",
+      ...getBlurTabHeaderOptions(colors.background),
       headerLargeTitle: true,
       headerLargeTitleShadowVisible: false,
       headerLargeTitleStyle: {
@@ -74,9 +71,6 @@ export function useIOSNativeSearchHeader({
       },
       headerShadowVisible: false,
       headerShown: true,
-      headerStyle: {
-        backgroundColor: controls.headerBackground,
-      },
       headerTintColor: colors.primaryInk,
       headerTitleStyle: {
         color: colors.textPrimary,
@@ -88,7 +82,6 @@ export function useIOSNativeSearchHeader({
   }, [
     colors.primaryInk,
     colors.textPrimary,
-    controls.headerBackground,
     controls.searchFieldFill,
     navigation,
     nativeIOSHeader,

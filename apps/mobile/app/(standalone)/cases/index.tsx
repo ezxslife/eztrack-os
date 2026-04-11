@@ -1,20 +1,17 @@
 import { useRouter } from "expo-router";
 import { useMemo } from "react";
-import {
-  Pressable,
-  StyleSheet,
-  Text,
-  View,
-} from "react-native";
+import { StyleSheet, Text, View } from "react-native";
 
 import { ScreenContainer } from "@/components/layout/ScreenContainer";
 import { useIOSNativeSearchHeader } from "@/navigation/useIOSNativeSearchHeader";
 import { Button } from "@/components/ui/Button";
 import { FilterChips } from "@/components/ui/FilterChips";
+import { GroupedCard } from "@/components/ui/GroupedCard";
+import { GroupedCardDivider } from "@/components/ui/GroupedCardDivider";
 import { PriorityBadge } from "@/components/ui/PriorityBadge";
 import { SearchField } from "@/components/ui/SearchField";
-import { SectionCard } from "@/components/ui/SectionCard";
-import { StatusBadge } from "@/components/ui/StatusBadge";
+import { SectionHeader } from "@/components/ui/SectionHeader";
+import { SettingsListRow } from "@/components/ui/SettingsListRow";
 import { formatRelativeTimestamp } from "@/lib/format";
 import { useCases } from "@/lib/queries/secondary-modules";
 import {
@@ -54,7 +51,7 @@ export default function CasesScreen() {
     setQuery: (value) => setFilter(moduleKey, { search: value }),
     title: "Cases",
   });
-  const styles = createStyles(colors, layout, typography);
+  const styles = createStyles(colors, typography, layout);
 
   const filtered = useMemo(
     () =>
@@ -104,117 +101,82 @@ export default function CasesScreen() {
           />
         </View>
       }
+      gutter="none"
       iosNativeHeader={nativeIOSHeader}
       onRefresh={() => {
         void casesQuery.refetch();
       }}
       refreshing={casesQuery.isRefetching}
-      subtitle="Case tracking, lead ownership, and escalation state in a field-friendly queue."
+      subtitle="Case ownership and escalation state."
       title="Cases"
     >
-      <SectionCard
-        subtitle={
-          casesQuery.isLoading
-            ? "Loading case queue"
-            : `${filtered.length} cases visible`
-        }
-        title="Active cases"
-      >
-        <View style={styles.list}>
-          {filtered.length ? (
-            filtered.map((item) => (
-              <Pressable
-                key={item.id}
-                onPress={() =>
-                  router.push({
-                    pathname: "/cases/[id]",
-                    params: { id: item.id },
-                  })
-                }
-                style={styles.card}
-              >
-                <View style={styles.rowBetween}>
-                  <Text style={styles.title}>{item.caseNumber}</Text>
-                  <PriorityBadge priority={item.priority ?? "none"} />
-                </View>
-                <Text style={styles.type}>{item.caseType}</Text>
-                <Text style={styles.copy}>
-                  {item.synopsis ?? "No synopsis recorded for this case."}
-                </Text>
-                <View style={styles.rowBetween}>
-                  <StatusBadge status={item.status} />
-                  <Text style={styles.meta}>
-                    {item.leadInvestigator ?? "Unassigned"}
-                  </Text>
-                </View>
-                <Text style={styles.meta}>
-                  Opened {formatRelativeTimestamp(item.created)}
-                </Text>
-              </Pressable>
-            ))
-          ) : (
+      <View style={styles.section}>
+        <SectionHeader title="Active cases" />
+        {filtered.length ? (
+          <GroupedCard>
+            {filtered.map((item, index) => (
+              <View key={item.id}>
+                {index > 0 ? <GroupedCardDivider /> : null}
+                <SettingsListRow
+                  label={item.caseNumber}
+                  onPress={() =>
+                    router.push({
+                      pathname: "/cases/[id]",
+                      params: { id: item.id },
+                    })
+                  }
+                  subtitle={[
+                    item.caseType,
+                    item.synopsis ?? "No synopsis recorded for this case.",
+                    item.leadInvestigator ?? "Unassigned",
+                    `Opened ${formatRelativeTimestamp(item.created)}`,
+                  ].join(" · ")}
+                  trailing={<PriorityBadge priority={item.priority ?? "none"} />}
+                />
+              </View>
+            ))}
+          </GroupedCard>
+        ) : (
+          <View style={styles.emptyState}>
             <Text style={styles.emptyCopy}>
               No cases match the current search and filter.
             </Text>
-          )}
-        </View>
-      </SectionCard>
+          </View>
+        )}
+      </View>
     </ScreenContainer>
   );
 }
 
 function createStyles(
   colors: ReturnType<typeof useThemeColors>,
-  layout: ReturnType<typeof useAdaptiveLayout>,
-  typography: ReturnType<typeof useThemeTypography>
+  typography: ReturnType<typeof useThemeTypography>,
+  layout: ReturnType<typeof useAdaptiveLayout>
 ) {
   return StyleSheet.create({
     accessory: {
       flexDirection: "row",
       flexWrap: "wrap",
       gap: layout.gridGap,
-    },
-    card: {
-      backgroundColor: colors.surfaceSecondary,
-      borderRadius: 18,
-      gap: 8,
-      padding: layout.listItemPadding,
-    },
-    copy: {
-      ...typography.subheadline,
-      color: colors.textSecondary,
+      paddingHorizontal: layout.horizontalPadding,
     },
     emptyCopy: {
       ...typography.subheadline,
       color: colors.textTertiary,
     },
-    list: {
-      gap: layout.gridGap,
-    },
-    meta: {
-      ...typography.footnote,
-      color: colors.textTertiary,
-    },
-    rowBetween: {
-      alignItems: "flex-start",
-      flexDirection: "row",
-      gap: 12,
-      justifyContent: "space-between",
+    emptyState: {
+      backgroundColor: colors.surfaceTintSubtle,
+      borderColor: colors.borderLight,
+      borderRadius: 18,
+      borderWidth: 1,
+      marginHorizontal: layout.horizontalPadding,
+      padding: 16,
     },
     searchField: {
       width: "100%",
     },
-    title: {
-      ...typography.headline,
-      color: colors.textPrimary,
-      fontWeight: "700",
-      flex: 1,
-      paddingRight: 12,
-    },
-    type: {
-      ...typography.subheadline,
-      color: colors.accent,
-      fontWeight: "600",
+    section: {
+      gap: 8,
     },
   });
 }

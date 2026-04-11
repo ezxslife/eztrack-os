@@ -28,9 +28,9 @@ interface GlassPillProps {
 }
 
 const sizeMap = {
-  sm: { minHeight: 32, paddingHorizontal: 12, paddingVertical: 7, radius: 16 },
-  md: { minHeight: 40, paddingHorizontal: 14, paddingVertical: 10, radius: 22 },
-  lg: { minHeight: 44, paddingHorizontal: 18, paddingVertical: 12, radius: 26 },
+  sm: { minHeight: 32, paddingHorizontal: 14, paddingVertical: 7, radius: 16 },
+  md: { minHeight: 40, paddingHorizontal: 20, paddingVertical: 10, radius: 22 },
+  lg: { minHeight: 52, paddingHorizontal: 28, paddingVertical: 14, radius: 26 },
 } as const;
 
 export function GlassPill({
@@ -68,19 +68,18 @@ export function GlassPill({
       paddingVertical: metrics.paddingVertical,
     },
     filled: {
-      backgroundColor: selected ? colors.primaryStrong : colors.primary,
+      backgroundColor: selected ? colors.interactiveHover : colors.interactiveSolid,
       borderColor: "transparent",
       borderRadius: metrics.radius,
     },
     label: {
-      ...typography.footnote,
+      ...(size === "lg" ? typography.headline : typography.footnote),
       flexShrink: 1,
-      fontWeight: Platform.OS === "ios" ? "600" : "700",
-      lineHeight: 18,
+      fontWeight: "700",
       textAlign: "center",
     },
     outlineBorder: {
-      borderColor: selected ? colors.primaryInk : colors.borderSubtle,
+      borderColor: selected ? colors.brandText : colors.borderLight,
       borderRadius: metrics.radius,
     },
     pressed: {
@@ -88,17 +87,17 @@ export function GlassPill({
       transform: [{ scale: 0.96 }],
     },
     tintedBorder: {
-      borderColor: selected ? colors.primaryInk : colors.focusRing,
+      borderColor: selected ? colors.brandText : colors.borderLight,
       borderRadius: metrics.radius,
     },
   });
 
   const labelColor =
     variant === "filled"
-      ? colors.primaryText
+      ? colors.brandContrastText
       : selected
-        ? colors.primaryInk
-        : colors.textSecondary;
+        ? colors.brandText
+        : colors.textPrimary;
 
   const handlePress = () => {
     if (!onPress || disabled) {

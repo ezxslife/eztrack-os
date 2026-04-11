@@ -1,12 +1,10 @@
-import {
-  StyleSheet,
-  Text,
-  View,
-} from "react-native";
+import { StyleSheet, Text, View } from "react-native";
 
 import { ScreenContainer } from "@/components/layout/ScreenContainer";
-import { MaterialSurface } from "@/components/ui/MaterialSurface";
-import { SectionCard } from "@/components/ui/SectionCard";
+import { GroupedCard } from "@/components/ui/GroupedCard";
+import { GroupedCardDivider } from "@/components/ui/GroupedCardDivider";
+import { SectionHeader } from "@/components/ui/SectionHeader";
+import { SettingsListRow } from "@/components/ui/SettingsListRow";
 import {
   useDispatchResponseTimes,
   useIncidentsByStatus,
@@ -31,8 +29,28 @@ export default function AnalyticsScreen() {
   const moduleCountsQuery = useModuleActivityCounts();
   const response = responseQuery.data;
 
+  const breakdownRows = [
+    ...(byTypeQuery.data ?? []).slice(0, 5).map((item) => ({
+      label: item.label,
+      subtitle: `${item.count} incidents`,
+    })),
+    ...(flagsQuery.data ?? []).slice(0, 5).map((item) => ({
+      label: `Patron · ${item.label}`,
+      subtitle: `${item.count} patrons`,
+    })),
+    ...(moduleCountsQuery.data ?? []).map((item) => ({
+      label: item.label,
+      subtitle: `${item.count} records in the last 30 days`,
+    })),
+    ...(overTimeQuery.data ?? []).slice(-7).map((item) => ({
+      label: item.date,
+      subtitle: `${item.count} incidents`,
+    })),
+  ];
+
   return (
     <ScreenContainer
+      gutter="none"
       onRefresh={() => {
         void Promise.all([
           byStatusQuery.refetch(),
@@ -51,92 +69,71 @@ export default function AnalyticsScreen() {
         flagsQuery.isRefetching ||
         moduleCountsQuery.isRefetching
       }
-      subtitle="Real operational analytics from the existing web parity queries."
+      subtitle="Response times, incident volume, and activity trends."
       title="Analytics"
     >
-      <MaterialSurface intensity={80} style={styles.hero} variant="panel">
-        <Text style={styles.eyebrow}>Performance Snapshot</Text>
-        <Text style={styles.title}>Operational health at a glance</Text>
-        <Text style={styles.copy}>
-          This is the first mobile analytics slice: fast KPIs, short feeds, and
-          enough context to triage a shift without leaving the app shell.
-        </Text>
-      </MaterialSurface>
-
-      <SectionCard
-        subtitle={
-          responseQuery.isLoading
-            ? "Loading performance metrics"
-            : "Dispatch timing and incident volume"
-        }
-        title="Current KPIs"
-      >
+      <View style={styles.section}>
+        <SectionHeader title="Current KPIs" />
         <View style={styles.grid}>
           <View style={styles.statCard}>
-            <Text style={styles.statLabel}>Avg Response</Text>
+            <Text style={styles.statLabel}>Avg response</Text>
             <Text style={styles.statValue}>{response?.avgMinutes ?? 0}m</Text>
           </View>
           <View style={styles.statCard}>
-            <Text style={styles.statLabel}>Median Response</Text>
+            <Text style={styles.statLabel}>Median response</Text>
             <Text style={styles.statValue}>{response?.medianMinutes ?? 0}m</Text>
           </View>
           <View style={styles.statCard}>
-            <Text style={styles.statLabel}>Incident Statuses</Text>
+            <Text style={styles.statLabel}>Status buckets</Text>
             <Text style={styles.statValue}>{byStatusQuery.data?.length ?? 0}</Text>
           </View>
           <View style={styles.statCard}>
-            <Text style={styles.statLabel}>Active Modules</Text>
-            <Text style={styles.statValue}>{moduleCountsQuery.data?.length ?? 0}</Text>
+            <Text style={styles.statLabel}>Active modules</Text>
+            <Text style={styles.statValue}>
+              {moduleCountsQuery.data?.length ?? 0}
+            </Text>
           </View>
         </View>
-      </SectionCard>
+      </View>
 
-      <SectionCard
-        subtitle={
-          byStatusQuery.isLoading
-            ? "Loading incident status buckets"
-            : `${(byStatusQuery.data ?? []).length} buckets`
-        }
-        title="Incident Status Distribution"
-      >
-        <View style={styles.list}>
-          {(byStatusQuery.data ?? []).map((item) => (
-            <View key={item.label} style={styles.row}>
-              <Text style={styles.rowTitle}>{item.label}</Text>
-              <Text style={styles.rowMeta}>{item.count} incidents</Text>
-            </View>
-          ))}
-        </View>
-      </SectionCard>
+      <View style={styles.section}>
+        <SectionHeader title="Incident status" />
+        {(byStatusQuery.data ?? []).length ? (
+          <GroupedCard>
+            {(byStatusQuery.data ?? []).map((item, index) => (
+              <View key={item.label}>
+                {index > 0 ? <GroupedCardDivider /> : null}
+                <SettingsListRow
+                  label={item.label}
+                  subtitle={`${item.count} incidents`}
+                />
+              </View>
+            ))}
+          </GroupedCard>
+        ) : (
+          <View style={styles.emptyState}>
+            <Text style={styles.emptyCopy}>No incident status metrics yet.</Text>
+          </View>
+        )}
+      </View>
 
-      <SectionCard title="Breakdowns">
-        <View style={styles.list}>
-          {(byTypeQuery.data ?? []).slice(0, 5).map((item) => (
-            <View key={item.label} style={styles.row}>
-              <Text style={styles.rowTitle}>{item.label}</Text>
-              <Text style={styles.rowMeta}>{item.count} incidents</Text>
-            </View>
-          ))}
-          {(flagsQuery.data ?? []).slice(0, 5).map((item) => (
-            <View key={`flag-${item.label}`} style={styles.row}>
-              <Text style={styles.rowTitle}>Patron: {item.label}</Text>
-              <Text style={styles.rowMeta}>{item.count} patrons</Text>
-            </View>
-          ))}
-          {(moduleCountsQuery.data ?? []).map((item) => (
-            <View key={`module-${item.label}`} style={styles.row}>
-              <Text style={styles.rowTitle}>{item.label}</Text>
-              <Text style={styles.rowMeta}>{item.count} records in last 30 days</Text>
-            </View>
-          ))}
-          {(overTimeQuery.data ?? []).slice(-7).map((item) => (
-            <View key={`day-${item.date}`} style={styles.row}>
-              <Text style={styles.rowTitle}>{item.date}</Text>
-              <Text style={styles.rowMeta}>{item.count} incidents</Text>
-            </View>
-          ))}
-        </View>
-      </SectionCard>
+      <View style={styles.section}>
+        <SectionHeader title="Breakdowns" />
+        {breakdownRows.length ? (
+          <GroupedCard>
+            {breakdownRows.map((item, index) => (
+              <View key={`${item.label}-${index}`}>
+                {index > 0 ? <GroupedCardDivider /> : null}
+                <SettingsListRow label={item.label} subtitle={item.subtitle} />
+              </View>
+            ))}
+          </GroupedCard>
+        ) : (
+          <View style={styles.emptyState}>
+            <Text style={styles.emptyCopy}>No breakdown data is available yet.</Text>
+          </View>
+        )}
+      </View>
     </ScreenContainer>
   );
 }
@@ -147,45 +144,30 @@ function createStyles(
   typography: ReturnType<typeof useThemeTypography>
 ) {
   return StyleSheet.create({
-    copy: {
+    emptyCopy: {
       ...typography.subheadline,
-      color: colors.textSecondary,
+      color: colors.textTertiary,
     },
-    eyebrow: {
-      ...typography.caption1,
-      color: colors.accentSoft,
-      fontWeight: "700",
-      textTransform: "uppercase",
+    emptyState: {
+      backgroundColor: colors.surfaceTintSubtle,
+      borderColor: colors.borderLight,
+      borderRadius: 18,
+      borderWidth: 1,
+      marginHorizontal: layout.horizontalPadding,
+      padding: 16,
     },
     grid: {
       flexDirection: "row",
       flexWrap: "wrap",
       gap: layout.gridGap,
+      paddingHorizontal: layout.horizontalPadding,
     },
-    hero: {
-      gap: layout.gridGap,
-    },
-    list: {
-      gap: layout.gridGap,
-    },
-    row: {
-      backgroundColor: colors.surfaceSecondary,
-      borderRadius: 18,
-      gap: 6,
-      padding: layout.listItemPadding,
-    },
-    rowMeta: {
-      ...typography.footnote,
-      color: colors.textTertiary,
-    },
-    rowTitle: {
-      ...typography.subheadline,
-      color: colors.textPrimary,
-      fontWeight: "700",
+    section: {
+      gap: 8,
     },
     statCard: {
-      backgroundColor: colors.surfaceSecondary,
-      borderColor: colors.divider,
+      backgroundColor: colors.surfaceFrosted,
+      borderColor: colors.borderLight,
       borderRadius: 20,
       borderWidth: 1,
       flexBasis: layout.isRegularWidth ? layout.minGridColumnWidth : "47%",
@@ -204,11 +186,6 @@ function createStyles(
       color: colors.textPrimary,
       fontWeight: "700",
       marginTop: 10,
-    },
-    title: {
-      ...typography.title1,
-      color: colors.textPrimary,
-      fontWeight: "700",
     },
   });
 }

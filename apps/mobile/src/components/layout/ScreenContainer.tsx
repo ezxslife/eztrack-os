@@ -8,6 +8,7 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
+import { useHasNativeHeader } from "@/navigation/NativeHeaderContext";
 import { ScreenTitleStrip } from "@/components/ui/glass/ScreenTitleStrip";
 import { useAdaptiveLayout } from "@/theme/layout";
 import {
@@ -18,7 +19,9 @@ import {
 interface ScreenContainerProps {
   accessory?: ReactNode;
   children: ReactNode;
+  gutter?: "compact" | "none" | "standard";
   iosNativeHeader?: boolean;
+  nativeHeader?: boolean;
   onRefresh?: () => void;
   padded?: boolean;
   refreshing?: boolean;
@@ -29,7 +32,9 @@ interface ScreenContainerProps {
 export function ScreenContainer({
   accessory,
   children,
+  gutter = "standard",
   iosNativeHeader = false,
+  nativeHeader,
   onRefresh,
   padded = true,
   refreshing = false,
@@ -39,16 +44,26 @@ export function ScreenContainer({
   const colors = useThemeColors();
   const spacing = useThemeSpacing();
   const layout = useAdaptiveLayout();
+  const inheritedNativeHeader = useHasNativeHeader();
+  const headerManaged =
+    nativeHeader ??
+    (Platform.OS === "ios" ? iosNativeHeader : undefined) ??
+    inheritedNativeHeader;
   const styles = StyleSheet.create({
     accessory: {
-      marginBottom: spacing[4],
+      marginBottom: spacing[5],
     },
     body: {
       gap: layout.bodyGap,
     },
     content: {
-      paddingBottom: spacing[8],
-      paddingHorizontal: layout.horizontalPadding,
+      paddingBottom: spacing[10],
+      paddingHorizontal:
+        gutter === "none"
+          ? 0
+          : gutter === "compact"
+            ? spacing[3]
+            : layout.horizontalPadding,
     },
     contentInner: {
       alignSelf: "center",
@@ -57,19 +72,19 @@ export function ScreenContainer({
     },
     contentCompact: {
       paddingTop:
-        Platform.OS === "ios" && iosNativeHeader
+        headerManaged
           ? spacing[2]
           : layout.isRegularWidth
-            ? spacing[4]
-            : spacing[3],
+            ? spacing[5]
+            : spacing[4],
     },
     contentPadded: {
       paddingTop:
-        Platform.OS === "ios" && iosNativeHeader
+        headerManaged
           ? spacing[2]
           : layout.isRegularWidth
-            ? spacing[6]
-            : spacing[5],
+            ? spacing[7]
+            : spacing[6],
     },
     safeArea: {
       backgroundColor: colors.background,
@@ -99,7 +114,7 @@ export function ScreenContainer({
         showsVerticalScrollIndicator={false}
       >
         <View style={styles.contentInner}>
-          {Platform.OS === "ios" && iosNativeHeader ? null : (
+          {headerManaged ? null : (
             <ScreenTitleStrip subtitle={subtitle} title={title} />
           )}
           {accessory ? <View style={styles.accessory}>{accessory}</View> : null}

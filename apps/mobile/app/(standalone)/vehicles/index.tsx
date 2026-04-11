@@ -1,17 +1,15 @@
 import { useRouter } from "expo-router";
 import { useMemo } from "react";
-import {
-  Pressable,
-  StyleSheet,
-  Text,
-  View,
-} from "react-native";
+import { StyleSheet, Text, View } from "react-native";
 
 import { ScreenContainer } from "@/components/layout/ScreenContainer";
 import { useIOSNativeSearchHeader } from "@/navigation/useIOSNativeSearchHeader";
 import { Button } from "@/components/ui/Button";
+import { GroupedCard } from "@/components/ui/GroupedCard";
+import { GroupedCardDivider } from "@/components/ui/GroupedCardDivider";
 import { SearchField } from "@/components/ui/SearchField";
-import { SectionCard } from "@/components/ui/SectionCard";
+import { SectionHeader } from "@/components/ui/SectionHeader";
+import { SettingsListRow } from "@/components/ui/SettingsListRow";
 import { useVehicles } from "@/lib/queries/secondary-modules";
 import {
   defaultFilterState,
@@ -40,7 +38,7 @@ export default function VehiclesScreen() {
     setQuery: (value) => setFilter(moduleKey, { search: value }),
     title: "Vehicles",
   });
-  const styles = createStyles(colors, layout, typography);
+  const styles = createStyles(colors, typography, layout);
 
   const filtered = useMemo(
     () =>
@@ -80,114 +78,80 @@ export default function VehiclesScreen() {
           />
         </View>
       }
+      gutter="none"
       iosNativeHeader={nativeIOSHeader}
       onRefresh={() => {
         void vehiclesQuery.refetch();
       }}
       refreshing={vehiclesQuery.isRefetching}
-      subtitle="Vehicle registry for staff, vendors, and operational assets."
+      subtitle="Vehicle registry for staff, vendors, and assets."
       title="Vehicles"
     >
-      <SectionCard
-        subtitle={
-          vehiclesQuery.isLoading
-            ? "Loading vehicle registry"
-            : `${filtered.length} vehicles visible`
-        }
-        title="Vehicle registry"
-      >
-        <View style={styles.list}>
-          {filtered.length ? (
-            filtered.map((item) => (
-              <Pressable
-                key={item.id}
-                onPress={() =>
-                  router.push({
-                    pathname: "/vehicles/[id]",
-                    params: { id: item.id },
-                  })
-                }
-                style={styles.card}
-              >
-                <View style={styles.rowBetween}>
-                  <Text style={styles.title}>
-                    {item.plate ?? "No Plate"}
-                  </Text>
-                  <Text style={styles.type}>{item.type}</Text>
-                </View>
-                <Text style={styles.copy}>
-                  {item.year ? `${item.year} ` : ""}{item.make} {item.model}
-                </Text>
-                <Text style={styles.meta}>
-                  {item.color ?? "Unknown color"} · {item.ownerType ?? "Unknown owner"}
-                </Text>
-              </Pressable>
-            ))
-          ) : (
+      <View style={styles.section}>
+        <SectionHeader title="Vehicle registry" />
+        {filtered.length ? (
+          <GroupedCard>
+            {filtered.map((item, index) => (
+              <View key={item.id}>
+                {index > 0 ? <GroupedCardDivider /> : null}
+                <SettingsListRow
+                  label={item.plate ?? "No Plate"}
+                  onPress={() =>
+                    router.push({
+                      pathname: "/vehicles/[id]",
+                      params: { id: item.id },
+                    })
+                  }
+                  subtitle={[
+                    `${item.year ? `${item.year} ` : ""}${item.make} ${item.model}`.trim(),
+                    item.type,
+                    `${item.color ?? "Unknown color"} · ${item.ownerType ?? "Unknown owner"}`,
+                  ].join(" · ")}
+                />
+              </View>
+            ))}
+          </GroupedCard>
+        ) : (
+          <View style={styles.emptyState}>
             <Text style={styles.emptyCopy}>
               No vehicles match the current search.
             </Text>
-          )}
-        </View>
-      </SectionCard>
+          </View>
+        )}
+      </View>
     </ScreenContainer>
   );
 }
 
 function createStyles(
   colors: ReturnType<typeof useThemeColors>,
-  layout: ReturnType<typeof useAdaptiveLayout>,
-  typography: ReturnType<typeof useThemeTypography>
+  typography: ReturnType<typeof useThemeTypography>,
+  layout: ReturnType<typeof useAdaptiveLayout>
 ) {
   return StyleSheet.create({
     accessory: {
       flexDirection: "row",
       flexWrap: "wrap",
       gap: layout.gridGap,
-    },
-    card: {
-      backgroundColor: colors.surfaceSecondary,
-      borderRadius: 18,
-      gap: 6,
-      padding: layout.listItemPadding,
-    },
-    copy: {
-      ...typography.subheadline,
-      color: colors.textPrimary,
-      fontWeight: "600",
+      paddingHorizontal: layout.horizontalPadding,
     },
     emptyCopy: {
       ...typography.subheadline,
       color: colors.textTertiary,
     },
-    list: {
-      gap: layout.gridGap,
-    },
-    meta: {
-      ...typography.footnote,
-      color: colors.textTertiary,
-    },
-    rowBetween: {
-      alignItems: "flex-start",
-      flexDirection: "row",
-      gap: 12,
-      justifyContent: "space-between",
+    emptyState: {
+      backgroundColor: colors.surfaceTintSubtle,
+      borderColor: colors.borderLight,
+      borderRadius: 18,
+      borderWidth: 1,
+      marginHorizontal: layout.horizontalPadding,
+      padding: 16,
     },
     searchField: {
       width: "100%",
     },
-    title: {
-      ...typography.headline,
-      color: colors.textPrimary,
-      fontWeight: "700",
-      flex: 1,
-      paddingRight: 12,
-    },
-    type: {
-      ...typography.caption1,
-      color: colors.accent,
-      fontWeight: "700",
-      textTransform: "uppercase",
+    section: {
+      gap: 8,
     },
   });
 }

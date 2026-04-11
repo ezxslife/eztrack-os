@@ -1,18 +1,16 @@
 import { useRouter } from "expo-router";
 import { useMemo } from "react";
-import {
-  Pressable,
-  StyleSheet,
-  Text,
-  View,
-} from "react-native";
+import { StyleSheet, Text, View } from "react-native";
 
 import { ScreenContainer } from "@/components/layout/ScreenContainer";
 import { useIOSNativeSearchHeader } from "@/navigation/useIOSNativeSearchHeader";
 import { Button } from "@/components/ui/Button";
 import { FilterChips } from "@/components/ui/FilterChips";
+import { GroupedCard } from "@/components/ui/GroupedCard";
+import { GroupedCardDivider } from "@/components/ui/GroupedCardDivider";
 import { SearchField } from "@/components/ui/SearchField";
-import { SectionCard } from "@/components/ui/SectionCard";
+import { SectionHeader } from "@/components/ui/SectionHeader";
+import { SettingsListRow } from "@/components/ui/SettingsListRow";
 import { StatusBadge } from "@/components/ui/StatusBadge";
 import { formatRelativeTimestamp } from "@/lib/format";
 import { usePatrons } from "@/lib/queries/secondary-modules";
@@ -53,7 +51,7 @@ export default function PatronsScreen() {
     setQuery: (value) => setFilter(moduleKey, { search: value }),
     title: "Patrons",
   });
-  const styles = createStyles(colors, layout, typography);
+  const styles = createStyles(colors, typography, layout);
 
   const filtered = useMemo(
     () =>
@@ -104,116 +102,86 @@ export default function PatronsScreen() {
           />
         </View>
       }
+      gutter="none"
       iosNativeHeader={nativeIOSHeader}
       onRefresh={() => {
         void patronsQuery.refetch();
       }}
       refreshing={patronsQuery.isRefetching}
-      subtitle="Patron watch states and contact context in a fast mobile register."
+      subtitle="Patron watch states and contact context."
       title="Patrons"
     >
-      <SectionCard
-        subtitle={
-          patronsQuery.isLoading
-            ? "Loading patron register"
-            : `${filtered.length} patrons visible`
-        }
-        title="Patron register"
-      >
-        <View style={styles.list}>
-          {filtered.length ? (
-            filtered.map((patron) => (
-              <Pressable
-                key={patron.id}
-                onPress={() =>
-                  router.push({
-                    pathname: "/patrons/[id]",
-                    params: { id: patron.id },
-                  })
-                }
-                style={styles.card}
-              >
-                <View style={styles.rowBetween}>
-                  <View style={styles.grow}>
-                    <Text style={styles.title}>
-                      {patron.firstName} {patron.lastName}
-                    </Text>
-                    <Text style={styles.meta}>
-                      Added {formatRelativeTimestamp(patron.createdAt)}
-                    </Text>
-                  </View>
-                  <StatusBadge
-                    status={patron.flag === "none" ? "archived" : patron.flag}
-                  />
-                </View>
-                <Text style={styles.copy}>
-                  {patron.notes ?? patron.email ?? patron.phone ?? "No notes or contact details recorded."}
-                </Text>
-                <Text style={styles.meta}>
-                  {[patron.email, patron.phone].filter(Boolean).join(" · ") || "No contact info"}
-                </Text>
-              </Pressable>
-            ))
-          ) : (
+      <View style={styles.section}>
+        <SectionHeader title="Patron register" />
+        {filtered.length ? (
+          <GroupedCard>
+            {filtered.map((patron, index) => (
+              <View key={patron.id}>
+                {index > 0 ? <GroupedCardDivider /> : null}
+                <SettingsListRow
+                  label={`${patron.firstName} ${patron.lastName}`.trim() || "Unnamed patron"}
+                  onPress={() =>
+                    router.push({
+                      pathname: "/patrons/[id]",
+                      params: { id: patron.id },
+                    })
+                  }
+                  subtitle={[
+                    patron.notes ?? patron.email ?? patron.phone ?? "No notes or contact details recorded.",
+                    [patron.email, patron.phone].filter(Boolean).join(" · ") ||
+                      "No contact info",
+                    `Added ${formatRelativeTimestamp(patron.createdAt)}`,
+                  ].join(" · ")}
+                  trailing={
+                    <StatusBadge
+                      status={patron.flag === "none" ? "archived" : patron.flag}
+                    />
+                  }
+                />
+              </View>
+            ))}
+          </GroupedCard>
+        ) : (
+          <View style={styles.emptyState}>
             <Text style={styles.emptyCopy}>
               No patrons match the current search and filter.
             </Text>
-          )}
-        </View>
-      </SectionCard>
+          </View>
+        )}
+      </View>
     </ScreenContainer>
   );
 }
 
 function createStyles(
   colors: ReturnType<typeof useThemeColors>,
-  layout: ReturnType<typeof useAdaptiveLayout>,
-  typography: ReturnType<typeof useThemeTypography>
+  typography: ReturnType<typeof useThemeTypography>,
+  layout: ReturnType<typeof useAdaptiveLayout>
 ) {
   return StyleSheet.create({
     accessory: {
       flexDirection: "row",
       flexWrap: "wrap",
       gap: layout.gridGap,
-    },
-    card: {
-      backgroundColor: colors.surfaceSecondary,
-      borderRadius: 18,
-      gap: 8,
-      padding: layout.listItemPadding,
-    },
-    copy: {
-      ...typography.subheadline,
-      color: colors.textSecondary,
+      paddingHorizontal: layout.horizontalPadding,
     },
     emptyCopy: {
       ...typography.subheadline,
       color: colors.textTertiary,
     },
-    grow: {
-      flex: 1,
-      gap: 4,
-    },
-    list: {
-      gap: layout.gridGap,
-    },
-    meta: {
-      ...typography.footnote,
-      color: colors.textTertiary,
-    },
-    rowBetween: {
-      alignItems: "flex-start",
-      flexDirection: "row",
-      gap: 12,
-      justifyContent: "space-between",
+    emptyState: {
+      backgroundColor: colors.surfaceTintSubtle,
+      borderColor: colors.borderLight,
+      borderRadius: 18,
+      borderWidth: 1,
+      marginHorizontal: layout.horizontalPadding,
+      padding: 16,
     },
     searchField: {
       width: "100%",
     },
-    title: {
-      ...typography.headline,
-      color: colors.textPrimary,
-      fontWeight: "700",
+    section: {
+      gap: 8,
     },
   });
 }

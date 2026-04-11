@@ -1,7 +1,8 @@
 import { Stack } from "expo-router";
 
 import { RequireAuth } from "@/components/auth/RouteGate";
-import { getTransparentBlurHeaderOptions } from "@/theme/headers";
+import { DETAIL_ROUTE_METADATA } from "@/navigation/route-metadata";
+import { buildStackScreenOptions } from "@/navigation/stack-screen-options";
 import { useThemeColors } from "@/theme";
 
 export default function DetailLayout() {
@@ -9,14 +10,15 @@ export default function DetailLayout() {
 
   return (
     <RequireAuth>
-      <Stack
-        screenOptions={{
-          ...getTransparentBlurHeaderOptions(colors.background),
-          headerTitle: "",
-          headerTintColor: colors.textPrimary,
-          headerShown: true,
-        }}
-      />
+      <Stack>
+        {Object.entries(DETAIL_ROUTE_METADATA).map(([name, metadata]) => (
+          <Stack.Screen
+            key={name}
+            name={name}
+            options={buildStackScreenOptions(colors, metadata)}
+          />
+        ))}
+      </Stack>
     </RequireAuth>
   );
 }

@@ -18,6 +18,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { Button } from "@/components/ui/Button";
+import { GlassPill } from "@/components/ui/glass/GlassPill";
 import { GlassSheet } from "@/components/ui/glass/GlassSheet";
 import { MaterialSurface } from "@/components/ui/MaterialSurface";
 import { signInWithPassword } from "@/lib/auth";
@@ -64,9 +65,8 @@ const DEMO_ACCOUNTS = [
   },
 ] as const;
 
+const DEFAULT_LOGIN_ACCOUNT = DEMO_ACCOUNTS[0];
 const DEMO_PASSWORD_ENV = process.env.EXPO_PUBLIC_DEMO_PASSWORD?.trim() ?? "";
-const SHOW_TEST_TOOLS = __DEV__ || Boolean(DEMO_PASSWORD_ENV);
-
 function getLogoutMessage(reason: string | null) {
   switch (reason) {
     case "manual_sign_out":
@@ -121,18 +121,19 @@ export default function LoginScreen() {
 
   const logoutMessage = getLogoutMessage(lastLogoutReason);
   const previewMessage = getPreviewMessage();
+  const toolsEnabled = __DEV__ || Boolean(DEMO_PASSWORD_ENV) || Boolean(previewMessage);
   const hasStatusBanner =
     !isOnline || processing || pendingCount > 0 || deadLetterCount > 0;
 
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
+  const [email, setEmail] = useState<string>(DEFAULT_LOGIN_ACCOUNT.email);
+  const [password, setPassword] = useState<string>(DEMO_PASSWORD_ENV);
   const [demoPassword, setDemoPassword] = useState(DEMO_PASSWORD_ENV);
   const [debugUnlocked, setDebugUnlocked] = useState(false);
   const [localError, setLocalError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
   const getStartedSnapPoints = useMemo(() => ["42%"], []);
-  const signInSnapPoints = useMemo(() => ["62%"], []);
+  const signInSnapPoints = useMemo(() => ["60%"], []);
   const debugSnapPoints = useMemo(() => ["64%"], []);
 
   const styles = createStyles({
@@ -213,11 +214,24 @@ export default function LoginScreen() {
   };
 
   const handleSelectDemoAccount = (account: (typeof DEMO_ACCOUNTS)[number]) => {
+    const sharedPassword = demoPassword.trim() || password.trim();
+
     setEmail(account.email);
-    if (demoPassword.trim()) {
-      setPassword(demoPassword.trim());
+
+    if (sharedPassword) {
+      setPassword(sharedPassword);
+      if (!demoPassword.trim()) {
+        setDemoPassword(sharedPassword);
+      }
+    } else {
+      setLocalError(
+        "Enter the shared demo password once, then choose an account to autofill both fields."
+      );
     }
-    setLocalError(null);
+
+    if (sharedPassword) {
+      setLocalError(null);
+    }
     debugSheetRef.current?.dismiss();
     setTimeout(() => {
       signInSheetRef.current?.present();
@@ -225,6 +239,10 @@ export default function LoginScreen() {
   };
 
   const handleBrandTap = () => {
+    if (!toolsEnabled) {
+      return;
+    }
+
     tapCountRef.current += 1;
 
     if (tapTimerRef.current) {
@@ -264,25 +282,31 @@ export default function LoginScreen() {
               <Text style={styles.brandText}>EZTRACK</Text>
             </MaterialSurface>
           </Pressable>
-          <Text style={styles.heroTitle}>Your events, simplified.</Text>
+          <View style={styles.heroMark}>
+            <View style={styles.heroMarkCore} />
+          </View>
+          <Text style={styles.heroTitle}>Run the floor.</Text>
           <Text style={styles.heroCopy}>
-            Access EZTrack with the work account your team issued.
+            Sign in with the account your team uses on shift.
           </Text>
         </View>
 
         <View style={styles.footer}>
-          <Button
+          <GlassPill
             label="Get Started"
             onPress={presentGetStartedSheet}
+            size="lg"
             style={styles.footerButton}
+            variant="filled"
           />
-          <Button
+          <GlassPill
             label="Sign In"
             onPress={presentSignInSheet}
+            size="lg"
             style={styles.footerButton}
-            variant="secondary"
+            variant="tinted"
           />
-          <Text style={styles.footerMeta}>Terms of Use · Privacy</Text>
+          <Text style={styles.footerMeta}>Terms of Use · Privacy Policy</Text>
         </View>
       </View>
 
@@ -304,17 +328,15 @@ export default function LoginScreen() {
             />
             <View style={styles.sheetSection}>
               <Text style={styles.sheetBodyCopy}>
-                EZTrack accounts are provisioned by your operations admin. If you already have
-                credentials, continue to sign in.
+                New access is issued by your organization. If you already have credentials, sign in
+                now.
               </Text>
               <Button
-                label="Continue with Work Account"
+                label="Continue to Sign In"
                 onPress={presentSignInSheet}
                 style={styles.sheetButton}
               />
-              <Text style={styles.sheetHint}>
-                Need access? Contact your operations admin.
-              </Text>
+              <Text style={styles.sheetHint}>Need access? Contact your admin.</Text>
             </View>
           </GlassSheet>
         </BottomSheetView>
@@ -337,17 +359,7 @@ export default function LoginScreen() {
               title="Sign in to EZTRACK"
             />
             <View style={styles.sheetSection}>
-              <Text style={styles.sheetBodyCopy}>Use your work email and password.</Text>
-
-              {SHOW_TEST_TOOLS ? (
-                <Pressable
-                  accessibilityRole="button"
-                  onPress={() => debugSheetRef.current?.present()}
-                  style={({ pressed }) => [pressed ? styles.linkPressed : null]}
-                >
-                  <Text style={styles.debugLink}>Use test account</Text>
-                </Pressable>
-              ) : null}
+              <Text style={styles.sheetBodyCopy}>Use your team email and password.</Text>
 
               {statusMessage ? (
                 <View
@@ -369,19 +381,24 @@ export default function LoginScreen() {
 
               <SheetField
                 autoCapitalize="none"
-                autoComplete="email"
+                autoComplete="username"
+                autoCorrect={false}
+                importantForAutofill="yes"
                 keyboardType="email-address"
                 label="Email"
                 onChangeText={setEmail}
                 placeholder="name@eztrack.io"
+                textContentType="username"
                 value={email}
               />
               <SheetField
                 autoComplete="password"
+                importantForAutofill="yes"
                 label="Password"
                 onChangeText={setPassword}
                 placeholder="Enter password"
                 secureTextEntry
+                textContentType="password"
                 value={password}
               />
               <Button
@@ -390,16 +407,16 @@ export default function LoginScreen() {
                 onPress={handleSignIn}
                 style={styles.sheetButton}
               />
-              {debugUnlocked && !SHOW_TEST_TOOLS ? (
+              {debugUnlocked && toolsEnabled ? (
                 <Pressable
                   accessibilityRole="button"
                   onPress={() => debugSheetRef.current?.present()}
                   style={({ pressed }) => [pressed ? styles.linkPressed : null]}
                 >
-                  <Text style={styles.debugLink}>Demo tools</Text>
+                  <Text style={styles.debugLink}>Internal tools</Text>
                 </Pressable>
               ) : (
-                <Text style={styles.sheetHint}>Need help? Contact your operations admin.</Text>
+                <Text style={styles.sheetHint}>Need help? Contact your admin.</Text>
               )}
             </View>
           </GlassSheet>
@@ -420,7 +437,7 @@ export default function LoginScreen() {
           <GlassSheet>
             <SheetHeader
               onClose={() => debugSheetRef.current?.dismiss()}
-              title="Debug tools"
+              title="Internal tools"
             />
             <View style={styles.sheetSection}>
               <Text style={styles.sheetBodyCopy}>
@@ -455,7 +472,7 @@ export default function LoginScreen() {
                   </Pressable>
                 ))}
               </View>
-              {previewMessage ? (
+              {toolsEnabled && previewMessage ? (
                 <Button
                   label="Continue in Preview"
                   onPress={handleEnterPreview}
@@ -485,8 +502,8 @@ function SheetField({
     },
     input: {
       ...typography.body,
-      backgroundColor: colors.input,
-      borderColor: focused ? colors.primaryStrong : colors.borderSubtle,
+      backgroundColor: colors.surfaceContainerLow,
+      borderColor: focused ? colors.focusBorder : colors.border,
       borderRadius: 16,
       borderWidth: 1,
       color: colors.textPrimary,
@@ -496,7 +513,7 @@ function SheetField({
     },
     label: {
       ...typography.subheadline,
-      color: focused ? colors.primaryInk : colors.textPrimary,
+      color: focused ? colors.brandText : colors.textPrimary,
       fontWeight: "600",
     },
   });
@@ -604,7 +621,7 @@ function createStyles({
       justifyContent: "center",
       minWidth: 132,
       paddingHorizontal: 18,
-      paddingVertical: 12,
+      paddingVertical: 10,
     },
     brandPressed: {
       opacity: 0.82,
@@ -618,6 +635,28 @@ function createStyles({
       fontWeight: "700",
       letterSpacing: 1.6,
       textTransform: "uppercase",
+    },
+    heroMark: {
+      alignItems: "center",
+      borderColor: colors.surfaceTintStrong,
+      borderRadius: 40,
+      borderWidth: 1,
+      height: 80,
+      justifyContent: "center",
+      width: 80,
+    },
+    heroMarkCore: {
+      backgroundColor: colors.interactiveSolid,
+      borderRadius: 15,
+      height: 30,
+      shadowColor: colors.interactiveSolid,
+      shadowOffset: {
+        width: 0,
+        height: 8,
+      },
+      shadowOpacity: 0.26,
+      shadowRadius: 18,
+      width: 30,
     },
     debugLink: {
       color: colors.primaryInk,
@@ -674,25 +713,27 @@ function createStyles({
       color: colors.textTertiary,
       fontSize: 12,
       lineHeight: 16,
+      marginTop: 4,
       textAlign: "center",
     },
     hero: {
       alignItems: "center",
-      gap: 16,
-      paddingTop: 48,
+      flex: 1,
+      gap: 18,
+      justifyContent: "center",
+      paddingTop: 12,
     },
     heroCopy: {
       ...typography.body,
       color: colors.textSecondary,
-      maxWidth: 280,
+      maxWidth: 284,
       textAlign: "center",
     },
     heroTitle: {
+      ...typography.largeTitle,
       color: colors.textPrimary,
-      fontSize: 34,
       fontWeight: "800",
-      letterSpacing: -1,
-      lineHeight: 38,
+      letterSpacing: -0.9,
       textAlign: "center",
     },
     linkPressed: {
@@ -712,8 +753,8 @@ function createStyles({
       color: colors.error,
     },
     messageNeutral: {
-      backgroundColor: colors.surfaceOverlay,
-      borderColor: colors.borderSubtle,
+      backgroundColor: colors.surfaceTintMedium,
+      borderColor: colors.borderLight,
     },
     messageText: {
       color: colors.textSecondary,
@@ -725,10 +766,10 @@ function createStyles({
       justifyContent: "space-between",
       paddingBottom: 16,
       paddingHorizontal: horizontalPadding,
-      paddingTop: topInset + (hasStatusBanner ? 104 : 56),
+      paddingTop: topInset + (hasStatusBanner ? 104 : 44),
     },
     primaryOrb: {
-      backgroundColor: colors.primaryStrong,
+      backgroundColor: colors.interactive,
       borderRadius: 999,
       height: 336,
       opacity: 0.16,
@@ -763,7 +804,7 @@ function createStyles({
       width: "100%",
     },
     sheetHint: {
-      color: colors.textTertiary,
+      color: colors.textSecondary,
       fontSize: 12,
       lineHeight: 16,
     },
@@ -772,7 +813,6 @@ function createStyles({
     },
     sheetViewport: {
       paddingBottom: bottomInset,
-      paddingHorizontal: horizontalPadding,
     },
     transparentSheetBackground: {
       backgroundColor: "transparent",

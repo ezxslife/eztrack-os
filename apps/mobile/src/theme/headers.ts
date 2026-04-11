@@ -2,12 +2,31 @@ import { Platform } from "react-native";
 
 import { getPlatformTier } from "@/hooks/useSupportsLiquidGlass";
 
+export type HeaderMode = "immersive" | "modal" | "seamless" | "tab-root";
+
 function getSupportFlags() {
   const tier = getPlatformTier();
   return {
     supportsGlass: tier === "glass",
     supportsBlur: tier === "glass" || tier === "blur",
   };
+}
+
+export function getHeaderModeOptions(
+  mode: HeaderMode,
+  backgroundColor: string
+) {
+  switch (mode) {
+    case "immersive":
+      return getTransparentBlurHeaderOptions(backgroundColor);
+    case "modal":
+      return getGlassHeaderOptions(backgroundColor);
+    case "tab-root":
+      return getBlurTabHeaderOptions(backgroundColor);
+    case "seamless":
+    default:
+      return getSeamlessHeaderOptions(backgroundColor);
+  }
 }
 
 export function getBlurTabHeaderOptions(backgroundColor: string) {
@@ -39,6 +58,7 @@ export function getBlurTabHeaderOptions(backgroundColor: string) {
     headerStyle: { backgroundColor, elevation: 4 },
     headerShadowVisible: true,
     headerBackButtonDisplayMode: "minimal" as const,
+    contentStyle: { backgroundColor },
   };
 }
 
@@ -57,6 +77,7 @@ export function getSeamlessHeaderOptions(backgroundColor: string) {
   }
 
   return {
+    contentStyle: { backgroundColor },
     headerStyle: { backgroundColor },
     headerShadowVisible: false,
     headerBackButtonDisplayMode: "minimal" as const,
@@ -89,17 +110,16 @@ export function getTransparentBlurHeaderOptions(backgroundColor: string) {
   }
 
   return {
-    headerTransparent: true,
-    headerStyle: { backgroundColor: "transparent" },
-    headerShadowVisible: false,
+    headerStyle: { backgroundColor, elevation: 4 },
+    headerShadowVisible: true,
     headerBackButtonDisplayMode: "minimal" as const,
-    headerTintColor: "#FFFFFF",
     contentStyle: { backgroundColor },
   };
 }
 
 export function getGlassHeaderOptions(backgroundColor: string) {
   return {
+    contentStyle: { backgroundColor },
     headerStyle: { backgroundColor },
     headerShadowVisible: false,
     headerBackButtonDisplayMode: "minimal" as const,

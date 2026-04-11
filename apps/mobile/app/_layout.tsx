@@ -48,6 +48,8 @@ function RootNavigator() {
         <Stack.Screen name="index" />
         <Stack.Screen name="(auth)" />
         <Stack.Screen name="(tabs)" />
+        <Stack.Screen name="(standalone)" />
+        <Stack.Screen name="settings" />
         <Stack.Screen
           name="(detail)"
           options={{ presentation: "card" }}
@@ -56,19 +58,6 @@ function RootNavigator() {
           name="(create)"
           options={{ presentation: "fullScreenModal" }}
         />
-        <Stack.Screen name="patrons/index" />
-        <Stack.Screen name="cases/index" />
-        <Stack.Screen name="lost-found/index" />
-        <Stack.Screen name="briefings/index" />
-        <Stack.Screen name="work-orders/index" />
-        <Stack.Screen name="visitors/index" />
-        <Stack.Screen name="vehicles/index" />
-        <Stack.Screen name="contacts/index" />
-        <Stack.Screen name="anonymous-reports/index" />
-        <Stack.Screen name="settings" />
-        <Stack.Screen name="sync-center/index" />
-        <Stack.Screen name="notifications/index" />
-        <Stack.Screen name="alerts/index" />
         <Stack.Screen name="+not-found" />
       </Stack>
     </>

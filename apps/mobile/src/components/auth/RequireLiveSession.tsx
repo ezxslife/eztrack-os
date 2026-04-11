@@ -46,22 +46,22 @@ export function RequireLiveSession({
 
   if (usePreviewData || authLifecycle !== "active") {
     const subtitle = !authEnabled
-      ? "This route is hidden in preview builds until a live auth session is available."
+      ? "This feature is unavailable on this build."
       : previewMode
-        ? "Exit preview and return with a live operator session to use this workflow."
-        : "Sign in with a live operator session to use this workflow.";
+        ? "Return to your live workspace to use this screen."
+        : "Sign in with your live EZTrack account to continue.";
 
     return (
       <ScreenContainer subtitle={subtitle} title={title}>
         <SectionCard title="Live session required">
           <View style={styles.stack}>
             <Text style={styles.copy}>
-              This screen talks directly to live Supabase records and is intentionally blocked in
-              preview mode.
+              This screen is available when you are signed in with your organization's live
+              account.
             </Text>
             {detail ? <Text style={styles.copy}>{detail}</Text> : null}
             <Button
-              label="Return to Dashboard"
+              label="Go to Dashboard"
               onPress={() => {
                 router.replace("/dashboard");
               }}

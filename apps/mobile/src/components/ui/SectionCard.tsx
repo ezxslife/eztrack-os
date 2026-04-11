@@ -40,14 +40,14 @@ export function SectionCard({
       lineHeight: 18,
     },
     title: {
-      ...typography.subheadline,
+      ...typography.title3,
       color: colors.textPrimary,
       fontWeight: "700",
     },
   });
 
   return (
-    <MaterialSurface padding={layout.cardPadding} style={styles.card} variant="grouped">
+    <MaterialSurface padding={layout.cardPadding} style={styles.card} variant="panel">
       <View style={styles.header}>
         <Text style={styles.title}>{title}</Text>
         {subtitle ? <Text style={styles.subtitle}>{subtitle}</Text> : null}

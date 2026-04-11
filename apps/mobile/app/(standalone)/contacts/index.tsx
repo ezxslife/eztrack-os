@@ -1,17 +1,15 @@
 import { useRouter } from "expo-router";
 import { useMemo } from "react";
-import {
-  Pressable,
-  StyleSheet,
-  Text,
-  View,
-} from "react-native";
+import { StyleSheet, Text, View } from "react-native";
 
 import { ScreenContainer } from "@/components/layout/ScreenContainer";
 import { useIOSNativeSearchHeader } from "@/navigation/useIOSNativeSearchHeader";
 import { Button } from "@/components/ui/Button";
+import { GroupedCard } from "@/components/ui/GroupedCard";
+import { GroupedCardDivider } from "@/components/ui/GroupedCardDivider";
 import { SearchField } from "@/components/ui/SearchField";
-import { SectionCard } from "@/components/ui/SectionCard";
+import { SectionHeader } from "@/components/ui/SectionHeader";
+import { SettingsListRow } from "@/components/ui/SettingsListRow";
 import { useContacts } from "@/lib/queries/secondary-modules";
 import {
   defaultFilterState,
@@ -40,7 +38,7 @@ export default function ContactsScreen() {
     setQuery: (value) => setFilter(moduleKey, { search: value }),
     title: "Contacts",
   });
-  const styles = createStyles(colors, layout, typography);
+  const styles = createStyles(colors, typography, layout);
 
   const filtered = useMemo(
     () =>
@@ -81,101 +79,85 @@ export default function ContactsScreen() {
           />
         </View>
       }
+      gutter="none"
       iosNativeHeader={nativeIOSHeader}
       onRefresh={() => {
         void contactsQuery.refetch();
       }}
       refreshing={contactsQuery.isRefetching}
-      subtitle="External, vendor, and operational contacts in a compact mobile directory."
+      subtitle="External, vendor, and operational contacts."
       title="Contacts"
     >
-      <SectionCard
-        subtitle={
-          contactsQuery.isLoading
-            ? "Loading contacts"
-            : `${filtered.length} contacts visible`
-        }
-        title="Contact directory"
-      >
-        <View style={styles.list}>
-          {filtered.length ? (
-            filtered.map((item) => (
-              <Pressable
-                key={item.id}
-                onPress={() =>
-                  router.push({
-                    pathname: "/contacts/[id]",
-                    params: { id: item.id },
-                  })
-                }
-                style={styles.card}
-              >
-                <Text style={styles.title}>
-                  {[item.firstName, item.lastName].filter(Boolean).join(" ") ||
+      <View style={styles.section}>
+        <SectionHeader title="Contact directory" />
+        {filtered.length ? (
+          <GroupedCard>
+            {filtered.map((item, index) => (
+              <View key={item.id}>
+                {index > 0 ? <GroupedCardDivider /> : null}
+                <SettingsListRow
+                  label={
+                    [item.firstName, item.lastName].filter(Boolean).join(" ") ||
                     item.organization ||
-                    "Unnamed contact"}
-                </Text>
-                <Text style={styles.copy}>
-                  {item.title ?? item.contactType} · {item.organization || "No organization"}
-                </Text>
-                <Text style={styles.meta}>
-                  {[item.phone, item.email].filter(Boolean).join(" · ") || "No contact info"}
-                </Text>
-                <Text style={styles.meta}>
-                  {item.category} · {item.contactType}
-                </Text>
-              </Pressable>
-            ))
-          ) : (
+                    "Unnamed contact"
+                  }
+                  onPress={() =>
+                    router.push({
+                      pathname: "/contacts/[id]",
+                      params: { id: item.id },
+                    })
+                  }
+                  subtitle={[
+                    `${item.title ?? item.contactType} · ${item.organization || "No organization"}`,
+                    [item.phone, item.email].filter(Boolean).join(" · ") ||
+                      "No contact info",
+                    `${item.category} · ${item.contactType}`,
+                  ].join(" · ")}
+                />
+              </View>
+            ))}
+          </GroupedCard>
+        ) : (
+          <View style={styles.emptyState}>
             <Text style={styles.emptyCopy}>
               No contacts match the current search.
             </Text>
-          )}
-        </View>
-      </SectionCard>
+          </View>
+        )}
+      </View>
     </ScreenContainer>
   );
 }
 
 function createStyles(
   colors: ReturnType<typeof useThemeColors>,
-  layout: ReturnType<typeof useAdaptiveLayout>,
-  typography: ReturnType<typeof useThemeTypography>
+  typography: ReturnType<typeof useThemeTypography>,
+  layout: ReturnType<typeof useAdaptiveLayout>
 ) {
   return StyleSheet.create({
     accessory: {
       flexDirection: "row",
       flexWrap: "wrap",
       gap: layout.gridGap,
-    },
-    card: {
-      backgroundColor: colors.surfaceSecondary,
-      borderRadius: 18,
-      gap: 6,
-      padding: layout.listItemPadding,
-    },
-    copy: {
-      ...typography.subheadline,
-      color: colors.textSecondary,
+      paddingHorizontal: layout.horizontalPadding,
     },
     emptyCopy: {
       ...typography.subheadline,
       color: colors.textTertiary,
     },
-    list: {
-      gap: layout.gridGap,
-    },
-    meta: {
-      ...typography.footnote,
-      color: colors.textTertiary,
+    emptyState: {
+      backgroundColor: colors.surfaceTintSubtle,
+      borderColor: colors.borderLight,
+      borderRadius: 18,
+      borderWidth: 1,
+      marginHorizontal: layout.horizontalPadding,
+      padding: 16,
     },
     searchField: {
       width: "100%",
     },
-    title: {
-      ...typography.headline,
-      color: colors.textPrimary,
-      fontWeight: "700",
+    section: {
+      gap: 8,
     },
   });
 }

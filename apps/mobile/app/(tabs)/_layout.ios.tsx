@@ -38,8 +38,17 @@ export default function IOSTabLayout() {
         tintColor={colors.primaryInk}
       >
         {tabs.map((tab) => (
-          <NativeTabs.Trigger key={tab.routeName} name={tab.routeName}>
-            <Icon sf={tab.sfSymbol as any} />
+          <NativeTabs.Trigger
+            key={tab.routeName}
+            name={tab.routeName}
+            role={tab.nativeRole}
+          >
+            <Icon
+              sf={{
+                default: tab.sfSymbol.default as any,
+                selected: tab.sfSymbol.selected as any,
+              }}
+            />
             <Label>{tab.title}</Label>
           </NativeTabs.Trigger>
         ))}

@@ -1,74 +1,40 @@
-import {
-  StyleSheet,
-  Text,
-  View,
-} from "react-native";
+import { View } from "react-native";
 
 import { ScreenContainer } from "@/components/layout/ScreenContainer";
-import { SectionCard } from "@/components/ui/SectionCard";
-import { useThemeColors } from "@/theme";
+import { GroupedCard } from "@/components/ui/GroupedCard";
+import { GroupedCardDivider } from "@/components/ui/GroupedCardDivider";
+import { SectionHeader } from "@/components/ui/SectionHeader";
+import { SettingsListRow } from "@/components/ui/SettingsListRow";
 
 const integrations = [
   { detail: "Project: eztrack-prod", name: "Supabase", status: "Connected" },
   { detail: "smtp.sendgrid.net:587", name: "Email (SMTP)", status: "Connected" },
   { detail: "Twilio account configured", name: "SMS", status: "Connected" },
-  { detail: "Managed on web", name: "Slack", status: "Disconnected" },
-  { detail: "Managed on web", name: "Webhooks", status: "Disconnected" },
+  { detail: "Configured in admin tools", name: "Slack", status: "Disconnected" },
+  { detail: "Configured in admin tools", name: "Webhooks", status: "Disconnected" },
 ];
 
 export default function IntegrationsSettingsScreen() {
-  const colors = useThemeColors();
-  const styles = createStyles(colors);
-
   return (
     <ScreenContainer
-      subtitle="Read-only parity. Integration configuration remains web-owned."
+      subtitle="Connection status for messaging and operations tools."
       title="Integrations"
     >
-      <SectionCard title="Managed on web">
-        <Text style={styles.copy}>
-          Mobile shows current integration posture but does not expose fake connect or configure actions where backend workflows are not yet mobile-safe.
-        </Text>
-      </SectionCard>
-      <SectionCard title="Integration status">
-        <View style={styles.stack}>
-          {integrations.map((integration) => (
-            <View key={integration.name} style={styles.row}>
-              <Text style={styles.title}>{integration.name}</Text>
-              <Text style={styles.meta}>{integration.status}</Text>
-              <Text style={styles.meta}>{integration.detail}</Text>
+      <View style={{ gap: 8 }}>
+        <SectionHeader title="Overview" />
+        <GroupedCard>
+          {integrations.map((integration, index) => (
+            <View key={integration.name}>
+              {index > 0 ? <GroupedCardDivider /> : null}
+              <SettingsListRow
+                label={integration.name}
+                subtitle={integration.detail}
+                value={integration.status}
+              />
             </View>
           ))}
-        </View>
-      </SectionCard>
+        </GroupedCard>
+      </View>
     </ScreenContainer>
   );
-}
-
-function createStyles(colors: ReturnType<typeof useThemeColors>) {
-  return StyleSheet.create({
-    copy: {
-      color: colors.textSecondary,
-      fontSize: 15,
-      lineHeight: 22,
-    },
-    meta: {
-      color: colors.textTertiary,
-      fontSize: 13,
-    },
-    row: {
-      backgroundColor: colors.surfaceSecondary,
-      borderRadius: 18,
-      gap: 4,
-      padding: 14,
-    },
-    stack: {
-      gap: 12,
-    },
-    title: {
-      color: colors.textPrimary,
-      fontSize: 15,
-      fontWeight: "700",
-    },
-  });
 }

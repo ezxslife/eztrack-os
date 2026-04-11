@@ -18,6 +18,7 @@ export type TabRouteName =
 export interface TabSpec {
   androidIcon: IoniconName;
   href: string;
+  nativeRole?: "more" | "search";
   routeName: TabRouteName;
   sfSymbol: {
     default: string;
@@ -106,6 +107,7 @@ const REPORTS: TabSpec = {
 const MORE: TabSpec = {
   androidIcon: "ellipsis-horizontal-circle-outline",
   href: "/more",
+  nativeRole: "more",
   routeName: "more/index",
   sfSymbol: {
     default: "ellipsis.circle",

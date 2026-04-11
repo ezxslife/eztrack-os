@@ -1,16 +1,12 @@
 import { useMemo, useState } from "react";
-import {
-  Alert,
-  StyleSheet,
-  Text,
-  View,
-} from "react-native";
+import { Alert, StyleSheet, Text, View } from "react-native";
 
 import { RequireLiveSession } from "@/components/auth/RequireLiveSession";
 import { ScreenContainer } from "@/components/layout/ScreenContainer";
 import { Button } from "@/components/ui/Button";
 import { FilterChips } from "@/components/ui/FilterChips";
-import { SectionCard } from "@/components/ui/SectionCard";
+import { MaterialSurface } from "@/components/ui/MaterialSurface";
+import { SectionHeader } from "@/components/ui/SectionHeader";
 import { TextField } from "@/components/ui/TextField";
 import { useSessionContext } from "@/hooks/useSessionContext";
 import { formatShortDateTime } from "@/lib/format";
@@ -21,7 +17,8 @@ import {
   useUpdateAnonymousReportStatusMutation,
 } from "@/lib/queries/anonymous-reports";
 import { useToast } from "@/providers/ToastProvider";
-import { useThemeColors } from "@/theme";
+import { useThemeColors, useThemeTypography } from "@/theme";
+import { useAdaptiveLayout } from "@/theme/layout";
 
 const CATEGORY_OPTIONS = [
   { label: "Safety Concern", value: "safety_concern" },
@@ -46,7 +43,9 @@ function getTrackingCode(id: string) {
 
 function AnonymousReportsContent() {
   const colors = useThemeColors();
-  const styles = createStyles(colors);
+  const typography = useThemeTypography();
+  const layout = useAdaptiveLayout();
+  const styles = createStyles(colors, typography, layout);
   const { showToast } = useToast();
   const { profile } = useSessionContext();
   const reportsQuery = useAnonymousReports();
@@ -62,12 +61,9 @@ function AnonymousReportsContent() {
   const reports = reportsQuery.data ?? [];
   const canReviewStatuses = useMemo(
     () =>
-      [
-        "super_admin",
-        "org_admin",
-        "manager",
-        "supervisor",
-      ].includes(profile?.role ?? ""),
+      ["super_admin", "org_admin", "manager", "supervisor"].includes(
+        profile?.role ?? ""
+      ),
     [profile?.role]
   );
   const descriptionError =
@@ -97,7 +93,7 @@ function AnonymousReportsContent() {
       setTrackingCode(getTrackingCode(result.id));
       setReportText("");
       showToast({
-        message: "The anonymous report is now in the live queue.",
+        message: "The anonymous report has been received.",
         title: "Report submitted",
         tone: "success",
       });
@@ -127,6 +123,7 @@ function AnonymousReportsContent() {
 
   return (
     <ScreenContainer
+      gutter="none"
       onRefresh={() => {
         void reportsQuery.refetch();
         if (lookupCode.trim().length >= 6) {
@@ -134,14 +131,12 @@ function AnonymousReportsContent() {
         }
       }}
       refreshing={reportsQuery.isRefetching}
-      subtitle="Live anonymous submission, tracking-code lookup, and supervisor review."
+      subtitle="Confidential reporting, tracking, and review."
       title="Anonymous Reports"
     >
-      <SectionCard
-        subtitle="Send a confidential report straight to the live anonymous reports queue."
-        title="Submit Report"
-      >
-        <View style={styles.stack}>
+      <View style={styles.section}>
+        <SectionHeader title="Submit report" />
+        <MaterialSurface style={styles.panel} variant="panel">
           <View style={styles.field}>
             <Text style={styles.label}>Category</Text>
             <FilterChips
@@ -173,14 +168,12 @@ function AnonymousReportsContent() {
               </Text>
             </View>
           ) : null}
-        </View>
-      </SectionCard>
+        </MaterialSurface>
+      </View>
 
-      <SectionCard
-        subtitle="Use the submission code to check the current case status."
-        title="Status Lookup"
-      >
-        <View style={styles.stack}>
+      <View style={styles.section}>
+        <SectionHeader title="Status lookup" />
+        <MaterialSurface style={styles.panel} variant="panel">
           <TextField
             autoCapitalize="characters"
             label="Tracking Code"
@@ -190,12 +183,13 @@ function AnonymousReportsContent() {
           />
           {lookupCode.trim().length >= 6 ? (
             lookupQuery.data ? (
-              <View style={styles.row}>
+              <View style={styles.lookupCard}>
                 <Text style={styles.rowTitle}>
                   {getTrackingCode(lookupQuery.data.id)}
                 </Text>
                 <Text style={styles.meta}>
-                  {lookupQuery.data.status} · {formatShortDateTime(lookupQuery.data.submittedAt)}
+                  {lookupQuery.data.status} ·{" "}
+                  {formatShortDateTime(lookupQuery.data.submittedAt)}
                 </Text>
                 <Text style={styles.copy}>{lookupQuery.data.reportText}</Text>
                 {lookupQuery.data.adminNotes ? (
@@ -218,21 +212,15 @@ function AnonymousReportsContent() {
               Enter a tracking code to look up a previously submitted report.
             </Text>
           )}
-        </View>
-      </SectionCard>
+        </MaterialSurface>
+      </View>
 
-      <SectionCard
-        subtitle={
-          reportsQuery.isLoading
-            ? "Loading submitted reports"
-            : `${reports.length} reports visible`
-        }
-        title="Submitted Reports"
-      >
+      <View style={styles.section}>
+        <SectionHeader title="Submitted reports" />
         <View style={styles.list}>
           {reports.length ? (
             reports.map((report) => (
-              <View key={report.id} style={styles.row}>
+              <MaterialSurface key={report.id} style={styles.reportCard} variant="panel">
                 <Text style={styles.rowTitle}>{getTrackingCode(report.id)}</Text>
                 <Text style={styles.meta}>
                   {CATEGORY_OPTIONS.find((option) => option.value === report.category)?.label ??
@@ -260,13 +248,15 @@ function AnonymousReportsContent() {
                     }
                   />
                 ) : null}
-              </View>
+              </MaterialSurface>
             ))
           ) : (
-            <Text style={styles.copy}>No anonymous reports are available yet.</Text>
+            <View style={styles.emptyState}>
+              <Text style={styles.copy}>No reports have been submitted yet.</Text>
+            </View>
           )}
         </View>
-      </SectionCard>
+      </View>
     </ScreenContainer>
   );
 }
@@ -274,7 +264,7 @@ function AnonymousReportsContent() {
 export default function AnonymousReportsScreen() {
   return (
     <RequireLiveSession
-      detail="Anonymous report submission and queue review stay live-only in this tranche."
+      detail="Anonymous reports are available with a live account and current data access."
       title="Anonymous Reports"
     >
       <AnonymousReportsContent />
@@ -282,58 +272,80 @@ export default function AnonymousReportsScreen() {
   );
 }
 
-function createStyles(colors: ReturnType<typeof useThemeColors>) {
+function createStyles(
+  colors: ReturnType<typeof useThemeColors>,
+  typography: ReturnType<typeof useThemeTypography>,
+  layout: ReturnType<typeof useAdaptiveLayout>
+) {
   return StyleSheet.create({
     confirmation: {
-      backgroundColor: colors.surfaceSecondary,
+      backgroundColor: colors.surfaceFrosted,
+      borderColor: colors.borderLight,
       borderRadius: 18,
+      borderWidth: 1,
       gap: 6,
       padding: 14,
     },
     confirmationCopy: {
+      ...typography.subheadline,
       color: colors.textSecondary,
-      fontSize: 14,
-      lineHeight: 20,
     },
     confirmationTitle: {
+      ...typography.subheadline,
       color: colors.textPrimary,
-      fontSize: 15,
       fontWeight: "700",
     },
     copy: {
+      ...typography.subheadline,
       color: colors.textSecondary,
-      fontSize: 15,
       lineHeight: 22,
+    },
+    emptyState: {
+      backgroundColor: colors.surfaceTintSubtle,
+      borderColor: colors.borderLight,
+      borderRadius: 18,
+      borderWidth: 1,
+      padding: 16,
     },
     field: {
       gap: 8,
     },
     label: {
+      ...typography.caption1,
       color: colors.textPrimary,
-      fontSize: 12,
-      fontWeight: "600",
+      fontWeight: "700",
     },
     list: {
       gap: 12,
+      paddingHorizontal: layout.horizontalPadding,
     },
-    meta: {
-      color: colors.textTertiary,
-      fontSize: 13,
-      lineHeight: 18,
-    },
-    row: {
-      backgroundColor: colors.surfaceSecondary,
+    lookupCard: {
+      backgroundColor: colors.surfaceFrosted,
+      borderColor: colors.borderLight,
       borderRadius: 18,
+      borderWidth: 1,
       gap: 8,
       padding: 14,
     },
+    meta: {
+      ...typography.footnote,
+      color: colors.textTertiary,
+      lineHeight: 18,
+    },
+    panel: {
+      gap: 16,
+      marginHorizontal: layout.horizontalPadding,
+    },
+    reportCard: {
+      gap: 8,
+    },
     rowTitle: {
+      ...typography.subheadline,
       color: colors.textPrimary,
-      fontSize: 15,
       fontWeight: "700",
     },
-    stack: {
-      gap: 16,
+    section: {
+      gap: 8,
     },
   });
 }

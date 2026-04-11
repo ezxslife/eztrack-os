@@ -10,7 +10,7 @@ interface LoadingScreenProps {
 }
 
 export function LoadingScreen({
-  label = "Preparing the command surface",
+  label = "Loading",
 }: LoadingScreenProps) {
   const colors = useThemeColors();
   const typography = useThemeTypography();

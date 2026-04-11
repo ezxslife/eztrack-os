@@ -1,11 +1,5 @@
 import { useState } from "react";
-import {
-  Alert,
-  Pressable,
-  StyleSheet,
-  Text,
-  View,
-} from "react-native";
+import { Alert, StyleSheet, Text, View } from "react-native";
 
 import { useRouter } from "expo-router";
 import { useQueryClient } from "@tanstack/react-query";
@@ -14,7 +8,11 @@ import type { ThemePreference } from "@/theme/colors";
 import { ScreenContainer } from "@/components/layout/ScreenContainer";
 import { Button } from "@/components/ui/Button";
 import { FilterChips } from "@/components/ui/FilterChips";
-import { SectionCard } from "@/components/ui/SectionCard";
+import { GroupedCard } from "@/components/ui/GroupedCard";
+import { GroupedCardDivider } from "@/components/ui/GroupedCardDivider";
+import { MaterialSurface } from "@/components/ui/MaterialSurface";
+import { SectionHeader } from "@/components/ui/SectionHeader";
+import { SettingsListRow } from "@/components/ui/SettingsListRow";
 import { GlassSwitch } from "@/components/ui/glass/GlassSwitch";
 import { formatRelativeTimestamp } from "@/lib/format";
 import {
@@ -32,13 +30,9 @@ import { useOfflineStore } from "@/stores/offline-store";
 import { useRecentSearchStore } from "@/stores/recent-search-store";
 import { useStorageHealthStore } from "@/stores/storage-health-store";
 import { useUIStore } from "@/stores/ui-store";
-import { useThemeColors } from "@/theme";
+import { useThemeColors, useThemeTypography } from "@/theme";
 
-const themeOptions: ThemePreference[] = [
-  "system",
-  "light",
-  "dark",
-];
+const themeOptions: ThemePreference[] = ["system", "light", "dark"];
 
 const timeoutOptions = [
   { label: "Immediate", seconds: 0 },
@@ -61,7 +55,8 @@ const adminDestinations = [
 
 export default function SettingsScreen() {
   const colors = useThemeColors();
-  const styles = createStyles(colors);
+  const typography = useThemeTypography();
+  const styles = createStyles(colors, typography);
   const router = useRouter();
   const queryClient = useQueryClient();
   const { showToast } = useToast();
@@ -86,12 +81,8 @@ export default function SettingsScreen() {
     (state) => state.setColorSchemePreference
   );
   const setSensoryEnabled = useUIStore((state) => state.setSensoryEnabled);
-  const draftCount = useDraftStore(
-    (state) => Object.keys(state.drafts).length
-  );
-  const filterCount = useFilterStore(
-    (state) => Object.keys(state.filters).length
-  );
+  const draftCount = useDraftStore((state) => Object.keys(state.drafts).length);
+  const filterCount = useFilterStore((state) => Object.keys(state.filters).length);
   const recentSearchCount = useRecentSearchStore((state) =>
     Object.values(state.entriesByScope).reduce(
       (total, entries) => total + entries.length,
@@ -145,7 +136,10 @@ export default function SettingsScreen() {
     }
 
     if (authStatus !== "signed_in" || !profile) {
-      Alert.alert("Unavailable", "A signed-in operator profile is required to sync.");
+      Alert.alert(
+        "Unavailable",
+        "A signed-in operator profile is required to sync."
+      );
       return;
     }
 
@@ -179,28 +173,30 @@ export default function SettingsScreen() {
 
   return (
     <ScreenContainer
-      subtitle="Preferences, persistence health, and maintenance actions for the current device."
+      subtitle="Preferences, device controls, and operational health."
       title="Settings"
     >
-      <SectionCard subtitle="Web-parity admin surfaces now live under mobile settings." title="Admin hub">
-        <View style={styles.list}>
-          {adminDestinations.map((destination) => (
-            <Pressable
-              key={destination.href}
-              onPress={() => router.push(destination.href as never)}
-              style={styles.row}
-            >
-              <Text style={styles.title}>{destination.label}</Text>
-              <Text style={styles.meta}>{destination.href}</Text>
-            </Pressable>
+      <View style={styles.section}>
+        <SectionHeader title="Admin hub" />
+        <GroupedCard>
+          {adminDestinations.map((destination, index) => (
+            <View key={destination.href}>
+              {index > 0 ? <GroupedCardDivider /> : null}
+              <SettingsListRow
+                label={destination.label}
+                onPress={() => router.push(destination.href as never)}
+                subtitle="Open setup and access controls."
+              />
+            </View>
           ))}
-        </View>
-      </SectionCard>
+        </GroupedCard>
+      </View>
 
-      <SectionCard subtitle="Persisted in the preferences tier." title="Appearance">
-        <View style={styles.list}>
+      <View style={styles.section}>
+        <SectionHeader title="Appearance & device" />
+        <GroupedCard>
           <View style={styles.block}>
-            <Text style={styles.label}>Theme preference</Text>
+            <Text style={styles.blockLabel}>Theme preference</Text>
             <FilterChips
               onSelect={(value) =>
                 setColorSchemePreference(value.toLowerCase() as ThemePreference)
@@ -212,21 +208,20 @@ export default function SettingsScreen() {
             />
           </View>
 
-          <SettingRow
+          <GroupedCardDivider />
+          <SettingsListRow
             label="Sensory feedback"
-            meta="Controls haptics on primary actions."
-            control={
-              <GlassSwitch
-                onToggle={setSensoryEnabled}
-                value={sensoryEnabled}
-              />
+            subtitle="Haptics on primary actions and confirmations."
+            trailing={
+              <GlassSwitch onToggle={setSensoryEnabled} value={sensoryEnabled} />
             }
           />
 
-          <SettingRow
+          <GroupedCardDivider />
+          <SettingsListRow
             label="Biometric lock"
-            meta="Preference is stored now; auth enforcement lands in the advanced tranche."
-            control={
+            subtitle="Require unlock again after the selected idle time."
+            trailing={
               <GlassSwitch
                 onToggle={setBiometricLockEnabled}
                 value={biometricLockEnabled}
@@ -235,97 +230,124 @@ export default function SettingsScreen() {
           />
 
           {biometricLockEnabled ? (
-            <View style={styles.block}>
-              <Text style={styles.label}>Biometric timeout</Text>
-              <FilterChips
-                onSelect={(value) => {
-                  const match = timeoutOptions.find(
-                    (option) => option.label === value
-                  );
-                  if (match) {
-                    setBiometricTimeoutSeconds(match.seconds);
-                  }
-                }}
-                options={timeoutOptions.map((option) => option.label)}
-                selected={selectedTimeoutLabel}
-              />
-            </View>
+            <>
+              <GroupedCardDivider />
+              <View style={styles.block}>
+                <Text style={styles.blockLabel}>Biometric timeout</Text>
+                <FilterChips
+                  onSelect={(value) => {
+                    const match = timeoutOptions.find(
+                      (option) => option.label === value
+                    );
+                    if (match) {
+                      setBiometricTimeoutSeconds(match.seconds);
+                    }
+                  }}
+                  options={timeoutOptions.map((option) => option.label)}
+                  selected={selectedTimeoutLabel}
+                />
+              </View>
+            </>
           ) : null}
-        </View>
-      </SectionCard>
+        </GroupedCard>
+      </View>
 
-      <SectionCard title="Diagnostics">
-        <View style={styles.list}>
-          <DiagnosticRow label="Network" value={isOnline ? "online" : "offline"} />
-          <DiagnosticRow label="Storage tier" value={storageTier} />
-          <DiagnosticRow
+      <View style={styles.section}>
+        <SectionHeader title="Diagnostics" />
+        <GroupedCard>
+          <SettingsListRow label="Network" value={isOnline ? "Online" : "Offline"} />
+          <GroupedCardDivider />
+          <SettingsListRow label="Storage tier" value={storageTier} />
+          <GroupedCardDivider />
+          <SettingsListRow
             label="Query cache"
             value={
               queryCache.available
                 ? queryCache.encrypted
-                  ? `encrypted (${queryCache.cipherVersion ?? "cipher"})`
+                  ? `Encrypted (${queryCache.cipherVersion ?? "cipher"})`
                   : queryCache.backend
-                : queryCache.reason ?? "disabled"
+                : queryCache.reason ?? "Disabled"
             }
           />
-          <DiagnosticRow label="Saved drafts" value={String(draftCount)} />
-          <DiagnosticRow label="Saved filters" value={String(filterCount)} />
-          <DiagnosticRow label="Recent searches" value={String(recentSearchCount)} />
-          <DiagnosticRow
+          <GroupedCardDivider />
+          <SettingsListRow label="Saved drafts" value={String(draftCount)} />
+          <GroupedCardDivider />
+          <SettingsListRow label="Saved filters" value={String(filterCount)} />
+          <GroupedCardDivider />
+          <SettingsListRow
+            label="Recent searches"
+            value={String(recentSearchCount)}
+          />
+          <GroupedCardDivider />
+          <SettingsListRow
             label="Dismissed coach marks"
             value={String(dismissedCoachMarkCount)}
           />
-          <DiagnosticRow
-            label="Queued offline actions"
-            value={`${pendingQueueCount} pending / ${deadLetterCount} needs review`}
+          <GroupedCardDivider />
+          <SettingsListRow
+            label="Offline queue"
+            value={`${pendingQueueCount} pending · ${deadLetterCount} review`}
           />
-        </View>
-      </SectionCard>
+        </GroupedCard>
+      </View>
 
-      <SectionCard
-        subtitle="Pending actions replay automatically on reconnect. Dead letters stay visible until reviewed."
-        title="Offline queue"
-      >
-        <View style={styles.list}>
-          <View style={styles.actions}>
-            <Button
-              label="Open Sync Center"
-              onPress={() => router.push("/sync-center")}
-              variant="secondary"
-            />
-            <Button
-              label="Sync Now"
-              loading={clearing === "sync"}
-              onPress={() => {
-                void handleSyncNow();
-              }}
-              variant="secondary"
-            />
-            <Button
-              label="Clear Failed"
-              loading={clearing === "dead_letters"}
-              onPress={() => {
-                setClearing("dead_letters");
-                clearDeadLetters();
-                setClearing(null);
-                showToast({
-                  message: "Dead-letter queue entries were removed.",
-                  title: "Failed actions cleared",
-                  tone: "success",
-                });
-              }}
-              variant="secondary"
-            />
-          </View>
+      <View style={styles.section}>
+        <SectionHeader title="Offline queue" />
+        <GroupedCard>
+          <SettingsListRow
+            label="Queue health"
+            subtitle="Pending actions replay on reconnect. Failed items stay visible until reviewed."
+            value={`${pendingQueueCount} / ${deadLetterCount}`}
+          />
+          <GroupedCardDivider />
+          <SettingsListRow
+            label="Open Sync Center"
+            onPress={() => router.push("/sync-center")}
+            subtitle="Review everything queued on this device."
+          />
+          <GroupedCardDivider />
+          <SettingsListRow
+            label="Sync now"
+            onPress={() => {
+              void handleSyncNow();
+            }}
+            subtitle="Replay queued actions immediately."
+            value={clearing === "sync" ? "Working…" : undefined}
+          />
+          <GroupedCardDivider />
+          <SettingsListRow
+            label="Clear failed"
+            onPress={() => {
+              setClearing("dead_letters");
+              clearDeadLetters();
+              setClearing(null);
+              showToast({
+                message: "Dead-letter queue entries were removed.",
+                title: "Failed actions cleared",
+                tone: "success",
+              });
+            }}
+            subtitle="Remove items that need manual review."
+            value={deadLetterCount ? `${deadLetterCount}` : "0"}
+          />
+        </GroupedCard>
 
-          {pendingActions.length ? (
-            pendingActions.map((action) => (
-              <View key={action.id} style={styles.queueRow}>
+        {pendingActions.length ? (
+          <View style={styles.queueList}>
+            {pendingActions.map((action) => (
+              <MaterialSurface
+                key={action.id}
+                style={styles.queueCard}
+                variant="panel"
+              >
                 <Text style={styles.queueTitle}>{getOfflineActionTitle(action)}</Text>
-                <Text style={styles.queueMeta}>{getOfflineActionDescription(action)}</Text>
+                <Text style={styles.queueMeta}>
+                  {getOfflineActionDescription(action)}
+                </Text>
                 <Text style={styles.queueMeta}>
                   {action.syncState === "pending" ? "Pending sync" : "Needs review"} ·{" "}
-                  {formatRelativeTimestamp(action.createdAt)} · Attempts {action.attempts}/3
+                  {formatRelativeTimestamp(action.createdAt)} · Attempts{" "}
+                  {action.attempts}/3
                 </Text>
                 {action.error ? (
                   <Text style={styles.queueError}>{action.error}</Text>
@@ -350,19 +372,17 @@ export default function SettingsScreen() {
                     variant="plain"
                   />
                 </View>
-              </View>
-            ))
-          ) : (
-            <Text style={styles.emptyCopy}>No queued actions on this device.</Text>
-          )}
-        </View>
-      </SectionCard>
+              </MaterialSurface>
+            ))}
+          </View>
+        ) : null}
+      </View>
 
-      <SectionCard title="Maintenance">
-        <View style={styles.actions}>
-          <Button
-            label="Clear Drafts"
-            loading={clearing === "drafts"}
+      <View style={styles.section}>
+        <SectionHeader title="Maintenance" />
+        <GroupedCard>
+          <SettingsListRow
+            label="Clear drafts"
             onPress={() => {
               setClearing("drafts");
               clearAllDrafts();
@@ -373,11 +393,12 @@ export default function SettingsScreen() {
                 tone: "success",
               });
             }}
-            variant="secondary"
+            subtitle="Remove all locally saved incident and log drafts."
+            value={clearing === "drafts" ? "Working…" : `${draftCount}`}
           />
-          <Button
-            label="Clear Filters"
-            loading={clearing === "filters"}
+          <GroupedCardDivider />
+          <SettingsListRow
+            label="Clear filters"
             onPress={() => {
               setClearing("filters");
               clearAllFilters();
@@ -388,26 +409,12 @@ export default function SettingsScreen() {
                 tone: "success",
               });
             }}
-            variant="secondary"
+            subtitle="Reset saved list states across modules."
+            value={clearing === "filters" ? "Working…" : `${filterCount}`}
           />
-          <Button
-            label="Reset Preferences"
-            loading={clearing === "prefs"}
-            onPress={() => {
-              setClearing("prefs");
-              resetPreferences();
-              setClearing(null);
-              showToast({
-                message: "Theme and device preferences were reset.",
-                title: "Preferences reset",
-                tone: "success",
-              });
-            }}
-            variant="secondary"
-          />
-          <Button
-            label="Clear Recent Searches"
-            loading={clearing === "recent_searches"}
+          <GroupedCardDivider />
+          <SettingsListRow
+            label="Clear recent searches"
             onPress={() => {
               setClearing("recent_searches");
               clearRecentSearches();
@@ -418,11 +425,14 @@ export default function SettingsScreen() {
                 tone: "success",
               });
             }}
-            variant="secondary"
+            subtitle="Remove device-level search history."
+            value={
+              clearing === "recent_searches" ? "Working…" : `${recentSearchCount}`
+            }
           />
-          <Button
-            label="Reset Coach Marks"
-            loading={clearing === "coach_marks"}
+          <GroupedCardDivider />
+          <SettingsListRow
+            label="Reset coach marks"
             onPress={() => {
               setClearing("coach_marks");
               resetCoachMarks();
@@ -433,158 +443,81 @@ export default function SettingsScreen() {
                 tone: "success",
               });
             }}
-            variant="secondary"
+            subtitle="Show first-run guidance again."
+            value={
+              clearing === "coach_marks"
+                ? "Working…"
+                : `${dismissedCoachMarkCount}`
+            }
           />
-        </View>
-      </SectionCard>
+          <GroupedCardDivider />
+          <SettingsListRow
+            label="Reset preferences"
+            onPress={() => {
+              setClearing("prefs");
+              resetPreferences();
+              setClearing(null);
+              showToast({
+                message: "Theme and device preferences were reset.",
+                title: "Preferences reset",
+                tone: "success",
+              });
+            }}
+            subtitle="Restore display and device behavior defaults."
+            value={clearing === "prefs" ? "Working…" : undefined}
+          />
+        </GroupedCard>
+      </View>
     </ScreenContainer>
   );
 }
 
-function SettingRow({
-  control,
-  label,
-  meta,
-}: {
-  control: React.ReactNode;
-  label: string;
-  meta: string;
-}) {
-  const colors = useThemeColors();
-  const styles = StyleSheet.create({
-    meta: {
-      color: colors.textTertiary,
-      fontSize: 13,
-      lineHeight: 18,
-      marginTop: 4,
-    },
-    row: {
-      alignItems: "center",
-      backgroundColor: colors.surfaceSecondary,
-      borderRadius: 18,
-      flexDirection: "row",
-      justifyContent: "space-between",
-      padding: 14,
-    },
-    rowCopy: {
-      flex: 1,
-      paddingRight: 16,
-    },
-    title: {
-      color: colors.textPrimary,
-      fontSize: 15,
-      fontWeight: "700",
-    },
-  });
-
-  return (
-    <View style={styles.row}>
-      <View style={styles.rowCopy}>
-        <Text style={styles.title}>{label}</Text>
-        <Text style={styles.meta}>{meta}</Text>
-      </View>
-      {control}
-    </View>
-  );
-}
-
-function DiagnosticRow({
-  label,
-  value,
-}: {
-  label: string;
-  value: string;
-}) {
-  const colors = useThemeColors();
-  const styles = StyleSheet.create({
-    label: {
-      color: colors.textPrimary,
-      fontSize: 15,
-      fontWeight: "700",
-    },
-    row: {
-      backgroundColor: colors.surfaceSecondary,
-      borderRadius: 18,
-      gap: 4,
-      padding: 14,
-    },
-    value: {
-      color: colors.textTertiary,
-      fontSize: 13,
-    },
-  });
-
-  return (
-    <View style={styles.row}>
-      <Text style={styles.label}>{label}</Text>
-      <Text style={styles.value}>{value}</Text>
-    </View>
-  );
-}
-
-function createStyles(colors: ReturnType<typeof useThemeColors>) {
+function createStyles(
+  colors: ReturnType<typeof useThemeColors>,
+  typography: ReturnType<typeof useThemeTypography>
+) {
   return StyleSheet.create({
-    actions: {
-      gap: 12,
-    },
     block: {
-      gap: 10,
-    },
-    emptyCopy: {
-      color: colors.textTertiary,
-      fontSize: 14,
-    },
-    label: {
-      color: colors.textPrimary,
-      fontSize: 15,
-      fontWeight: "700",
-    },
-    list: {
       gap: 12,
+      padding: 16,
     },
-    meta: {
-      color: colors.textTertiary,
-      fontSize: 13,
-      marginTop: 4,
+    blockLabel: {
+      ...typography.subheadline,
+      color: colors.textPrimary,
+      fontWeight: "700",
     },
     queueActions: {
       flexDirection: "row",
+      flexWrap: "wrap",
       gap: 12,
+      marginTop: 2,
     },
     queueButton: {
-      minHeight: 36,
+      minHeight: 40,
+    },
+    queueCard: {
+      gap: 10,
     },
     queueError: {
+      ...typography.footnote,
       color: colors.error,
-      fontSize: 12,
-      lineHeight: 18,
+      fontWeight: "600",
+    },
+    queueList: {
+      gap: 12,
+      marginTop: 12,
     },
     queueMeta: {
+      ...typography.footnote,
       color: colors.textTertiary,
-      fontSize: 13,
-      lineHeight: 18,
-    },
-    queueRow: {
-      backgroundColor: colors.surfaceSecondary,
-      borderRadius: 18,
-      gap: 6,
-      padding: 14,
     },
     queueTitle: {
+      ...typography.subheadline,
       color: colors.textPrimary,
-      fontSize: 15,
       fontWeight: "700",
     },
-    row: {
-      backgroundColor: colors.surfaceSecondary,
-      borderRadius: 14,
-      paddingHorizontal: 14,
-      paddingVertical: 12,
-    },
-    title: {
-      color: colors.textPrimary,
-      fontSize: 15,
-      fontWeight: "600",
+    section: {
+      gap: 8,
     },
   });
 }

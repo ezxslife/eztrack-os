@@ -19,15 +19,15 @@ export default function NotFoundScreen() {
       padding: 20,
     },
     link: {
-      backgroundColor: colors.primaryStrong,
-      borderRadius: 12,
+      backgroundColor: colors.interactiveSolid,
+      borderRadius: 18,
       marginTop: 20,
-      paddingHorizontal: 16,
-      paddingVertical: 12,
+      paddingHorizontal: 20,
+      paddingVertical: 14,
     },
     linkText: {
-      ...typography.footnote,
-      color: colors.primaryText,
+      ...typography.subheadline,
+      color: colors.brandContrastText,
       fontWeight: "700",
     },
     subtitle: {
@@ -38,7 +38,7 @@ export default function NotFoundScreen() {
       textAlign: "center",
     },
     title: {
-      ...typography.title3,
+      ...typography.title2,
       color: colors.textPrimary,
     },
   });
@@ -52,14 +52,14 @@ export default function NotFoundScreen() {
         }}
       />
       <View style={styles.container}>
-        <Text style={styles.title}>This screen does not exist yet.</Text>
+        <Text style={styles.title}>This screen is not available.</Text>
         <Text style={styles.subtitle}>
-          The mobile app foundation is in place, but most EZTrack modules are still being built.
+          The link may be out of date, or you may not have access to this area.
         </Text>
 
         <Link href="/dashboard" asChild>
           <Pressable style={styles.link}>
-            <Text style={styles.linkText}>Return to dashboard</Text>
+            <Text style={styles.linkText}>Back to dashboard</Text>
           </Pressable>
         </Link>
       </View>

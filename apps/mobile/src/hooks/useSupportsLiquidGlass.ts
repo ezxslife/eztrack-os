@@ -8,6 +8,15 @@ type GlassViewComponent = ComponentType<any>;
 let cachedGlassSupport: boolean | null = null;
 let cachedGlassView: GlassViewComponent | null = null;
 
+function getIOSVersionNumber() {
+  if (typeof Platform.Version === "string") {
+    const parsed = Number.parseInt(Platform.Version, 10);
+    return Number.isNaN(parsed) ? 0 : parsed;
+  }
+
+  return Platform.Version;
+}
+
 function resolveGlassModule() {
   if (cachedGlassSupport !== null) {
     return;
@@ -28,8 +37,17 @@ export function getPlatformTier(): PlatformTier {
     return "opaque";
   }
 
+  const iosVersion = getIOSVersionNumber();
+  if (iosVersion < 18) {
+    return "opaque";
+  }
+
   resolveGlassModule();
-  return cachedGlassSupport ? "glass" : "blur";
+  if (iosVersion >= 26 && cachedGlassSupport) {
+    return "glass";
+  }
+
+  return "blur";
 }
 
 export function getGlassView() {

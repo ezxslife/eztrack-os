@@ -1,37 +1,20 @@
-import {
-  useLocalSearchParams,
-  useRouter,
-} from "expo-router";
-import {
-  useEffect,
-  useMemo,
-  useState,
-} from "react";
-import {
-  Alert,
-  StyleSheet,
-  Text,
-  View,
-} from "react-native";
+import { useLocalSearchParams, useRouter } from "expo-router";
+import { useEffect, useMemo, useState } from "react";
+import { Alert, StyleSheet, Text, View } from "react-native";
 
-import {
-  INCIDENT_TYPES,
-  IncidentSeverity,
-} from "@eztrack/shared";
+import { INCIDENT_TYPES, IncidentSeverity } from "@eztrack/shared";
 
 import { ScreenContainer } from "@/components/layout/ScreenContainer";
 import { Button } from "@/components/ui/Button";
 import { FilterChips } from "@/components/ui/FilterChips";
 import { MaterialSurface } from "@/components/ui/MaterialSurface";
-import { SectionCard } from "@/components/ui/SectionCard";
+import { SectionHeader } from "@/components/ui/SectionHeader";
 import { TextField } from "@/components/ui/TextField";
 import { useCreateIncidentMutation } from "@/lib/queries/incidents";
 import { useLocations } from "@/lib/queries/locations";
-import {
-  getDraftKey,
-  useDraftStore,
-} from "@/stores/draft-store";
-import { useThemeColors } from "@/theme";
+import { getDraftKey, useDraftStore } from "@/stores/draft-store";
+import { useThemeColors, useThemeTypography } from "@/theme";
+import { useAdaptiveLayout } from "@/theme/layout";
 
 const severities: IncidentSeverity[] = [
   IncidentSeverity.Low,
@@ -43,7 +26,9 @@ const draftModuleKey = "incident-create";
 
 export default function NewIncidentScreen() {
   const colors = useThemeColors();
-  const styles = createStyles(colors);
+  const typography = useThemeTypography();
+  const layout = useAdaptiveLayout();
+  const styles = createStyles(colors, typography, layout);
   const router = useRouter();
   const params = useLocalSearchParams<{
     reportedBy?: string;
@@ -165,50 +150,52 @@ export default function NewIncidentScreen() {
 
   return (
     <ScreenContainer
-      accessory={
-        <MaterialSurface intensity={80} style={styles.hero} variant="panel">
-          <Text style={styles.heroTitle}>New Incident</Text>
-          <Text style={styles.heroCopy}>
-            Keep the top of the form short and decisive. Operators should be
-            able to start the report without hunting through the interface.
-          </Text>
-        </MaterialSurface>
-      }
-      subtitle="Validated incident mutation routed through the mobile Supabase client."
+      gutter="none"
+      subtitle="Capture the report and save it for the team."
       title="Incident Draft"
     >
-      <SectionCard title="Incident type">
-        <FilterChips
-          onSelect={setIncidentType}
-          options={[...INCIDENT_TYPES] as unknown as string[]}
-          selected={incidentType}
-        />
-      </SectionCard>
-
-      <SectionCard title="Severity">
-        <FilterChips
-          onSelect={(value) => setSelectedSeverity(value as IncidentSeverity)}
-          options={severities}
-          selected={selectedSeverity}
-        />
-      </SectionCard>
-
-      <SectionCard title="Location">
-        {locationOptions.length ? (
+      <View style={styles.section}>
+        <SectionHeader title="Incident type" />
+        <MaterialSurface style={styles.panel} variant="panel">
           <FilterChips
-            onSelect={setSelectedLocationName}
-            options={locationOptions.map((location) => location.name)}
-            selected={selectedLocationName}
+            onSelect={setIncidentType}
+            options={[...INCIDENT_TYPES] as unknown as string[]}
+            selected={incidentType}
           />
-        ) : (
-          <Text style={styles.helper}>
-            A saved location is required before incidents can be created.
-          </Text>
-        )}
-      </SectionCard>
+        </MaterialSurface>
+      </View>
 
-      <SectionCard title="Draft form">
-        <View style={styles.stack}>
+      <View style={styles.section}>
+        <SectionHeader title="Severity" />
+        <MaterialSurface style={styles.panel} variant="panel">
+          <FilterChips
+            onSelect={(value) => setSelectedSeverity(value as IncidentSeverity)}
+            options={severities}
+            selected={selectedSeverity}
+          />
+        </MaterialSurface>
+      </View>
+
+      <View style={styles.section}>
+        <SectionHeader title="Location" />
+        <MaterialSurface style={styles.panel} variant="panel">
+          {locationOptions.length ? (
+            <FilterChips
+              onSelect={setSelectedLocationName}
+              options={locationOptions.map((location) => location.name)}
+              selected={selectedLocationName}
+            />
+          ) : (
+            <Text style={styles.helper}>
+              A saved location is required before incidents can be created.
+            </Text>
+          )}
+        </MaterialSurface>
+      </View>
+
+      <View style={styles.section}>
+        <SectionHeader title="Report details" />
+        <MaterialSurface style={styles.panel} variant="panel">
           <TextField
             label="Reported by"
             onChangeText={setReportedBy}
@@ -235,13 +222,17 @@ export default function NewIncidentScreen() {
               onPress={submit}
             />
           </View>
-        </View>
-      </SectionCard>
+        </MaterialSurface>
+      </View>
     </ScreenContainer>
   );
 }
 
-function createStyles(colors: ReturnType<typeof useThemeColors>) {
+function createStyles(
+  colors: ReturnType<typeof useThemeColors>,
+  typography: ReturnType<typeof useThemeTypography>,
+  layout: ReturnType<typeof useAdaptiveLayout>
+) {
   return StyleSheet.create({
     actions: {
       flexDirection: "row",
@@ -249,25 +240,16 @@ function createStyles(colors: ReturnType<typeof useThemeColors>) {
       gap: 12,
     },
     helper: {
+      ...typography.subheadline,
       color: colors.textTertiary,
-      fontSize: 14,
       lineHeight: 20,
     },
-    hero: {
-      gap: 8,
-    },
-    heroCopy: {
-      color: colors.textSecondary,
-      fontSize: 14,
-      lineHeight: 20,
-    },
-    heroTitle: {
-      color: colors.textPrimary,
-      fontSize: 22,
-      fontWeight: "700",
-    },
-    stack: {
+    panel: {
       gap: 16,
+      marginHorizontal: layout.horizontalPadding,
+    },
+    section: {
+      gap: 8,
     },
   });
 }

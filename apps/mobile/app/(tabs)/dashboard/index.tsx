@@ -1,16 +1,17 @@
-import { Link, useRouter } from "expo-router";
+import { useRouter } from "expo-router";
 import { useState } from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 
-import { NAV_ITEMS, ROLE_DISPLAY } from "@eztrack/shared";
+import { NAV_ITEMS } from "@eztrack/shared";
 
 import { ScreenContainer } from "@/components/layout/ScreenContainer";
-import { useIOSNativeSearchHeader } from "@/navigation/useIOSNativeSearchHeader";
 import { Button } from "@/components/ui/Button";
-import { MaterialSurface } from "@/components/ui/MaterialSurface";
+import { GroupedCard } from "@/components/ui/GroupedCard";
+import { GroupedCardDivider } from "@/components/ui/GroupedCardDivider";
 import { SearchField } from "@/components/ui/SearchField";
-import { SectionCard } from "@/components/ui/SectionCard";
-import { useSessionContext } from "@/hooks/useSessionContext";
+import { SectionHeader } from "@/components/ui/SectionHeader";
+import { SettingsListRow } from "@/components/ui/SettingsListRow";
+import { useIOSNativeSearchHeader } from "@/navigation/useIOSNativeSearchHeader";
 import { formatRelativeTimestamp } from "@/lib/format";
 import {
   useDashboardStats,
@@ -22,6 +23,8 @@ import { useThemeColors, useThemeTypography } from "@/theme";
 import { useAdaptiveLayout } from "@/theme/layout";
 
 const searchScope = "dashboard-global";
+
+type ResultScope = "daily-log" | "dispatch" | "incidents";
 
 export default function DashboardScreen() {
   const colors = useThemeColors();
@@ -44,10 +47,9 @@ export default function DashboardScreen() {
     placeholder: "Search incidents, dispatches, or logs",
     query,
     setQuery,
-    title: "Operations Overview",
+    title: "Operations",
   });
   const styles = createStyles(colors, layout, typography);
-  const { profile, usePreviewData } = useSessionContext();
   const statsQuery = useDashboardStats();
   const activityQuery = useRecentActivity(8);
   const searchQuery = useOperationalSearch(query);
@@ -56,10 +58,10 @@ export default function DashboardScreen() {
   const stats = statsQuery.data;
   const statCards = stats
     ? [
-        { label: "Open Incidents", value: stats.totalIncidents },
-        { label: "Active Dispatches", value: stats.activeDispatches },
-        { label: "Daily Logs Today", value: stats.dailyLogsToday },
-        { label: "Staff On Duty", value: stats.officersOnDuty },
+        { label: "Open incidents", value: stats.totalIncidents },
+        { label: "Active dispatches", value: stats.activeDispatches },
+        { label: "Daily logs today", value: stats.dailyLogsToday },
+        { label: "Staff on duty", value: stats.officersOnDuty },
       ]
     : [];
   const recentActivity = activityQuery.data ?? [];
@@ -80,6 +82,7 @@ export default function DashboardScreen() {
           </View>
         ) : undefined
       }
+      gutter="none"
       iosNativeHeader={nativeIOSHeader}
       onRefresh={() => {
         void Promise.all([
@@ -88,128 +91,121 @@ export default function DashboardScreen() {
           showSearchResults ? searchQuery.refetch() : Promise.resolve(null),
         ]);
       }}
-      refreshing={statsQuery.isRefetching || activityQuery.isRefetching || searchQuery.isRefetching}
-      subtitle="A native command surface for the same incident and dispatch modules that already exist on the web app."
-      title="Operations Overview"
+      refreshing={
+        statsQuery.isRefetching ||
+        activityQuery.isRefetching ||
+        searchQuery.isRefetching
+      }
+      subtitle="Live incidents, dispatches, and recent activity."
+      title="Operations"
     >
-      <MaterialSurface intensity={84} style={styles.hero} variant="panel">
-        <View style={styles.heroHeader}>
-          <Text style={styles.heroEyebrow}>Current Shift</Text>
-          <Text style={styles.heroTitle}>{profile?.full_name ?? "Harbor Pavilion Command"}</Text>
-          <Text style={styles.heroCopy}>
-            Dispatch, incident intake, and field notes stay one gesture away. Keep the top layer
-            fast and the operational data dense underneath it.
-          </Text>
-          {usePreviewData ? <Text style={styles.preview}>Preview data only</Text> : null}
-        </View>
-        <View style={styles.heroActions}>
-          <Button label="New Incident" onPress={() => router.push("/incidents/new")} />
-          <Button label="Quick Log" onPress={() => router.push("/daily-log/new")} variant="secondary" />
-        </View>
-      </MaterialSurface>
-
       {showSearchResults ? (
-        <SectionCard
-          subtitle={searchQuery.isLoading ? "Searching live operational records" : "Cross-module results"}
-          title="Search Results"
-        >
-          <View style={styles.list}>
-            <SearchGroup
-              emptyCopy="No matching incidents"
-              hrefBase="/incidents"
-              items={searchResults?.incidents ?? []}
-              title="Incidents"
-            />
-            <SearchGroup
-              emptyCopy="No matching dispatches"
-              hrefBase="/dispatch"
-              items={searchResults?.dispatches ?? []}
-              title="Dispatches"
-            />
-            <SearchGroup
-              emptyCopy="No matching daily logs"
-              hrefBase="/daily-log"
-              items={searchResults?.dailyLogs ?? []}
-              title="Daily Log"
-            />
-          </View>
-        </SectionCard>
+        <>
+          <SearchGroup
+            emptyCopy="No matching incidents"
+            items={searchResults?.incidents ?? []}
+            scope="incidents"
+            title="Incidents"
+          />
+          <SearchGroup
+            emptyCopy="No matching dispatches"
+            items={searchResults?.dispatches ?? []}
+            scope="dispatch"
+            title="Dispatches"
+          />
+          <SearchGroup
+            emptyCopy="No matching daily logs"
+            items={searchResults?.dailyLogs ?? []}
+            scope="daily-log"
+            title="Daily log"
+          />
+        </>
       ) : (
         <>
           {recentSearches.length ? (
-            <SectionCard
-              subtitle="Persisted per operator on this device."
-              title="Recent searches"
-            >
-              <View style={styles.recentSearchList}>
-                <View style={styles.recentSearchChips}>
-                  {recentSearches.map((entry) => (
-                    <Pressable
-                      key={entry.query}
-                      onPress={() => setQuery(entry.query)}
-                      style={styles.recentSearchChip}
-                    >
-                      <Text style={styles.recentSearchLabel}>{entry.query}</Text>
-                    </Pressable>
-                  ))}
-                </View>
+            <View style={styles.section}>
+              <View style={styles.sectionHeaderRow}>
+                <SectionHeader title="Recent searches" />
                 <Button
-                  label="Clear Recent Searches"
+                  label="Clear"
                   onPress={() => clearRecentSearches(searchScope)}
                   variant="plain"
                 />
               </View>
-            </SectionCard>
+              <View style={styles.recentSearchChips}>
+                {recentSearches.map((entry) => (
+                  <Pressable
+                    key={entry.query}
+                    onPress={() => setQuery(entry.query)}
+                    style={styles.recentSearchChip}
+                  >
+                    <Text style={styles.recentSearchLabel}>{entry.query}</Text>
+                  </Pressable>
+                ))}
+              </View>
+            </View>
           ) : null}
 
-          <View style={styles.statsGrid}>
-            {statCards.map((item) => (
-              <View key={item.label} style={styles.statCard}>
-                <Text style={styles.statLabel}>{item.label}</Text>
-                <Text style={styles.statValue}>{item.value}</Text>
-              </View>
-            ))}
+          <View style={styles.section}>
+            <SectionHeader title="Shift overview" />
+            <View style={styles.statsGrid}>
+              {statCards.map((item) => (
+                <View key={item.label} style={styles.statCard}>
+                  <Text style={styles.statLabel}>{item.label}</Text>
+                  <Text style={styles.statValue}>{item.value}</Text>
+                </View>
+              ))}
+            </View>
           </View>
 
-          <SectionCard
-            subtitle={activityQuery.isLoading ? "Loading live activity feed" : `${recentActivity.length} recent entries`}
-            title="Recent activity"
-          >
-            <View style={styles.list}>
-              {recentActivity.map((item) => (
-                <View key={item.id} style={styles.row}>
-                  <Text style={styles.rowTitle}>
-                    {item.actorName ?? "System"} · {item.action.replace(/_/g, " ")}
-                  </Text>
-                  <Text style={styles.rowMeta}>
-                    {item.entityType} · {formatRelativeTimestamp(item.createdAt)}
-                  </Text>
-                </View>
-              ))}
+          <View style={styles.section}>
+            <SectionHeader title="Quick actions" />
+            <View style={styles.actionRow}>
+              <Button label="New Incident" onPress={() => router.push("/incidents/new")} />
+              <Button
+                label="Quick Log"
+                onPress={() => router.push("/daily-log/new")}
+                variant="secondary"
+              />
             </View>
-          </SectionCard>
+          </View>
 
-          <SectionCard subtitle="The primary app map comes from shared route metadata." title="Operational modules">
-            <View style={styles.list}>
-              {NAV_ITEMS.slice(0, 6).map((item) => (
-                <View key={item.label} style={styles.row}>
-                  <Text style={styles.rowTitle}>{item.label}</Text>
-                  <Text style={styles.rowMeta}>Route {item.href}</Text>
-                </View>
-              ))}
-            </View>
-          </SectionCard>
+          <View style={styles.section}>
+            <SectionHeader title="Recent activity" />
+            {recentActivity.length ? (
+              <GroupedCard>
+                {recentActivity.map((item, index) => (
+                  <View key={item.id}>
+                    {index > 0 ? <GroupedCardDivider /> : null}
+                    <SettingsListRow
+                      label={`${item.actorName ?? "System"} · ${item.action.replace(/_/g, " ")}`}
+                      subtitle={`${item.entityType} · ${formatRelativeTimestamp(item.createdAt)}`}
+                    />
+                  </View>
+                ))}
+              </GroupedCard>
+            ) : (
+              <View style={styles.emptyState}>
+                <Text style={styles.emptyCopy}>No recent activity yet.</Text>
+              </View>
+            )}
+          </View>
 
-          <SectionCard subtitle="Shared roles already available to the mobile shell." title="Role model">
-            <View style={styles.list}>
-              {Object.entries(ROLE_DISPLAY).slice(0, 4).map(([key, label]) => (
-                <View key={key} style={styles.row}>
-                  <Text style={styles.rowTitle}>{label}</Text>
-                  <Text style={styles.rowMeta}>{key}</Text>
+          <View style={styles.section}>
+            <SectionHeader title="Open modules" />
+            <GroupedCard>
+              {NAV_ITEMS.slice(0, 6).map((item, index) => (
+                <View key={item.label}>
+                  {index > 0 ? <GroupedCardDivider /> : null}
+                  <SettingsListRow
+                    label={item.label}
+                    onPress={() => router.push(item.href as never)}
+                    subtitle={`Open ${item.label.toLowerCase()} tools.`}
+                  />
                 </View>
               ))}
-            </View>
-          </SectionCard>
+            </GroupedCard>
+          </View>
         </>
       )}
     </ScreenContainer>
@@ -218,40 +214,52 @@ export default function DashboardScreen() {
 
 interface SearchGroupProps {
   emptyCopy: string;
-  hrefBase: "/daily-log" | "/dispatch" | "/incidents";
   items: Array<{ id: string; subtitle: string | null; title: string }>;
+  scope: ResultScope;
   title: string;
 }
 
-function SearchGroup({
-  emptyCopy,
-  hrefBase,
-  items,
-  title,
-}: SearchGroupProps) {
+function SearchGroup({ emptyCopy, items, scope, title }: SearchGroupProps) {
   const colors = useThemeColors();
   const typography = useThemeTypography();
   const layout = useAdaptiveLayout();
+  const router = useRouter();
   const styles = createStyles(colors, layout, typography);
 
+  const openResult = (id: string) => {
+    if (scope === "incidents") {
+      router.push({ pathname: "/incidents/[id]", params: { id } });
+      return;
+    }
+
+    if (scope === "dispatch") {
+      router.push({ pathname: "/dispatch/[id]", params: { id } });
+      return;
+    }
+
+    router.push({ pathname: "/daily-log/[id]", params: { id } });
+  };
+
   return (
-    <View style={styles.list}>
-      <Text style={styles.sectionLabel}>{title}</Text>
+    <View style={styles.section}>
+      <SectionHeader title={title} />
       {items.length ? (
-        items.map((item) => (
-          <Link
-            key={`${title}-${item.id}`}
-            asChild
-            href={hrefBase === "/incidents" ? { pathname: "/incidents/[id]", params: { id: item.id } } : hrefBase}
-          >
-            <Pressable style={styles.row}>
-              <Text style={styles.rowTitle}>{item.title}</Text>
-              <Text style={styles.rowMeta}>{item.subtitle ?? "No record number"}</Text>
-            </Pressable>
-          </Link>
-        ))
+        <GroupedCard>
+          {items.map((item, index) => (
+            <View key={`${scope}-${item.id}`}>
+              {index > 0 ? <GroupedCardDivider /> : null}
+              <SettingsListRow
+                label={item.title}
+                onPress={() => openResult(item.id)}
+                subtitle={item.subtitle ?? "No record number"}
+              />
+            </View>
+          ))}
+        </GroupedCard>
       ) : (
-        <Text style={styles.emptyCopy}>{emptyCopy}</Text>
+        <View style={styles.emptyState}>
+          <Text style={styles.emptyCopy}>{emptyCopy}</Text>
+        </View>
       )}
     </View>
   );
@@ -264,54 +272,31 @@ function createStyles(
 ) {
   return StyleSheet.create({
     accessory: {
+      paddingHorizontal: layout.horizontalPadding,
+    },
+    actionRow: {
       flexDirection: "row",
       flexWrap: "wrap",
       gap: layout.gridGap,
+      paddingHorizontal: layout.horizontalPadding,
     },
     emptyCopy: {
       ...typography.subheadline,
       color: colors.textTertiary,
     },
-    hero: {
-      gap: layout.gridGap,
-      padding: layout.cardPadding,
-    },
-    heroActions: {
-      flexDirection: "row",
-      flexWrap: "wrap",
-      gap: layout.gridGap,
-    },
-    heroCopy: {
-      ...typography.subheadline,
-      color: colors.textSecondary,
-    },
-    heroEyebrow: {
-      ...typography.caption1,
-      color: colors.accentSoft,
-      fontWeight: "700",
-      letterSpacing: 0.4,
-      textTransform: "uppercase",
-    },
-    heroHeader: {
-      gap: 6,
-    },
-    heroTitle: {
-      ...typography.title1,
-      color: colors.textPrimary,
-      fontWeight: "700",
-      letterSpacing: -0.5,
-    },
-    list: {
-      gap: layout.gridGap,
-    },
-    preview: {
-      ...typography.footnote,
-      color: colors.accentSoft,
-      fontWeight: "700",
+    emptyState: {
+      backgroundColor: colors.surfaceTintSubtle,
+      borderColor: colors.borderLight,
+      borderRadius: 18,
+      borderWidth: 1,
+      marginHorizontal: layout.horizontalPadding,
+      padding: 16,
     },
     recentSearchChip: {
-      backgroundColor: colors.surfaceSecondary,
+      backgroundColor: colors.surfaceTintMedium,
+      borderColor: colors.borderLight,
       borderRadius: 999,
+      borderWidth: 1,
       paddingHorizontal: 14,
       paddingVertical: 10,
     },
@@ -319,27 +304,9 @@ function createStyles(
       flexDirection: "row",
       flexWrap: "wrap",
       gap: 10,
+      paddingHorizontal: layout.horizontalPadding,
     },
     recentSearchLabel: {
-      ...typography.subheadline,
-      color: colors.textPrimary,
-      fontWeight: "600",
-    },
-    recentSearchList: {
-      gap: 14,
-    },
-    row: {
-      backgroundColor: colors.surfaceSecondary,
-      borderRadius: 14,
-      paddingHorizontal: layout.listItemPadding,
-      paddingVertical: layout.listItemPadding - 2,
-    },
-    rowMeta: {
-      ...typography.footnote,
-      color: colors.textTertiary,
-      marginTop: 4,
-    },
-    rowTitle: {
       ...typography.subheadline,
       color: colors.textPrimary,
       fontWeight: "600",
@@ -347,15 +314,19 @@ function createStyles(
     searchField: {
       width: "100%",
     },
-    sectionLabel: {
-      ...typography.subheadline,
-      color: colors.textPrimary,
-      fontWeight: "700",
+    section: {
+      gap: 8,
+    },
+    sectionHeaderRow: {
+      alignItems: "center",
+      flexDirection: "row",
+      justifyContent: "space-between",
+      paddingHorizontal: layout.horizontalPadding,
     },
     statCard: {
-      backgroundColor: colors.surfaceElevated,
-      borderColor: colors.divider,
-      borderRadius: 22,
+      backgroundColor: colors.surfaceFrosted,
+      borderColor: colors.borderLight,
+      borderRadius: 20,
       borderWidth: 1,
       flexBasis: layout.isRegularWidth ? layout.minGridColumnWidth : "47%",
       flexGrow: 1,
@@ -379,6 +350,7 @@ function createStyles(
       flexDirection: "row",
       flexWrap: "wrap",
       gap: layout.gridGap,
+      paddingHorizontal: layout.horizontalPadding,
     },
   });
 }

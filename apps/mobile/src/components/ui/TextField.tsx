@@ -41,33 +41,33 @@ export function TextField({
       gap: 8,
     },
     input: {
-      backgroundColor: colors.input,
-      borderColor: colors.borderSubtle,
-      borderRadius: 18,
+      ...typography.body,
+      backgroundColor: colors.surfaceContainerLow,
+      borderColor: colors.border,
+      borderRadius: 16,
       borderWidth: 1,
       color: colors.textPrimary,
-      fontSize: 15,
-      minHeight: 48,
-      paddingHorizontal: 14,
-      paddingVertical: 12,
+      minHeight: 54,
+      paddingHorizontal: 16,
+      paddingVertical: 14,
     },
     inputError: {
       borderColor: colors.error,
     },
     inputFocused: {
-      backgroundColor: colors.surfaceOverlay,
-      borderColor: colors.primaryStrong,
+      backgroundColor: colors.surface,
+      borderColor: colors.focusBorder,
     },
     inputMultiline: {
       minHeight: 120,
     },
     label: {
-      ...typography.caption1,
+      ...typography.subheadline,
       color: colors.textPrimary,
       fontWeight: "600",
     },
     labelFocused: {
-      color: colors.primaryInk,
+      color: colors.brandText,
     },
   });
 

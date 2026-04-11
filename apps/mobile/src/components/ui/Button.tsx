@@ -41,20 +41,20 @@ export function Button({
   const styles = StyleSheet.create({
     base: {
       alignItems: "center",
-      borderRadius: 999,
+      borderRadius: 22,
       justifyContent: "center",
       minHeight:
         variant === "plain"
           ? layout.compactControlMinHeight
-          : layout.controlMinHeight,
+          : Math.max(layout.controlMinHeight + 8, 52),
       paddingHorizontal: variant === "plain" ? 0 : layout.isRegularWidth ? 20 : 18,
-      paddingVertical: variant === "plain" ? 0 : Platform.OS === "ios" ? 10 : 11,
+      paddingVertical: variant === "plain" ? 0 : Platform.OS === "ios" ? 14 : 12,
     },
     disabled: {
       opacity: 0.52,
     },
     label: {
-      ...typography.subheadline,
+      ...typography.headline,
       fontWeight: "700",
     },
     plain: {
@@ -64,14 +64,14 @@ export function Button({
       color: colors.primaryInk,
     },
     pressed: {
-      opacity: Platform.OS === "ios" ? 0.72 : 0.84,
-      transform: Platform.OS === "ios" ? [] : [{ scale: 0.985 }],
+      opacity: Platform.OS === "ios" ? 0.78 : 0.84,
+      transform: [{ scale: 0.985 }],
     },
     primary: {
-      backgroundColor: colors.primaryStrong,
+      backgroundColor: colors.interactiveSolid,
       ...Platform.select({
         ios: {
-          shadowColor: colors.primaryStrong,
+          shadowColor: colors.interactiveSolid,
           shadowOffset: {
             width: 0,
             height: 10,
@@ -86,12 +86,12 @@ export function Button({
       }),
     },
     primaryLabel: {
-      color: colors.primaryText,
+      color: colors.brandContrastText,
     },
     secondary: {
       backgroundColor: controls.secondaryButtonFill,
-      borderColor: Platform.OS === "ios" ? "transparent" : colors.borderSubtle,
-      borderWidth: Platform.OS === "ios" ? 0 : 1,
+      borderColor: colors.borderLight,
+      borderWidth: 1,
     },
     secondaryLabel: {
       color: Platform.OS === "ios" ? controls.secondaryButtonLabel : colors.textPrimary,
@@ -104,9 +104,9 @@ export function Button({
       spinner: colors.primaryInk,
     },
     primary: {
-      background: colors.primaryStrong,
-      foreground: colors.primaryText,
-      spinner: colors.primaryText,
+      background: colors.interactiveSolid,
+      foreground: colors.brandContrastText,
+      spinner: colors.brandContrastText,
     },
     secondary: {
       background: controls.secondaryButtonFill,
