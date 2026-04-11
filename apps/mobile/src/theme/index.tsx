@@ -69,16 +69,19 @@ function ThemeInner({ children }: { children: ReactNode }) {
   const overlayOpacity = useRef(new Animated.Value(0)).current;
   const [overlayColor, setOverlayColor] = useState<string | null>(null);
 
-  if (preference === "light" || preference === "dark") {
-    Appearance.setColorScheme(preference);
-  } else if (previousPreferenceRef.current !== "system") {
-    Appearance.setColorScheme(undefined);
-  }
-
   const glass = useMemo(() => createGlassTheme(scheme === "dark"), [scheme]);
 
   useEffect(() => {
     previousPreferenceRef.current = preference;
+  }, [preference]);
+
+  useEffect(() => {
+    if (preference === "light" || preference === "dark") {
+      Appearance.setColorScheme(preference);
+      return;
+    }
+
+    Appearance.setColorScheme(undefined);
   }, [preference]);
 
   useEffect(() => {

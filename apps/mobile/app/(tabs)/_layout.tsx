@@ -47,7 +47,7 @@ export default function TabLayout() {
               options={{
                 headerTitle:
                   TAB_ROOT_ROUTE_METADATA[
-                    spec.routeName.replace("/index", "") as keyof typeof TAB_ROOT_ROUTE_METADATA
+                    spec.routeName as keyof typeof TAB_ROOT_ROUTE_METADATA
                   ]?.title ?? spec.title,
                 href: visibleRoutes.has(spec.routeName) ? undefined : null,
                 title: spec.title,

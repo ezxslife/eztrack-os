@@ -6,14 +6,14 @@ import { StaffRole } from "@eztrack/shared";
 type IoniconName = ComponentProps<typeof Ionicons>["name"];
 
 export type TabRouteName =
-  | "analytics/index"
-  | "daily-log/index"
-  | "dashboard/index"
-  | "dispatch/index"
-  | "incidents/index"
-  | "more/index"
-  | "personnel/index"
-  | "reports/index";
+  | "analytics"
+  | "daily-log"
+  | "dashboard"
+  | "dispatch"
+  | "incidents"
+  | "more"
+  | "personnel"
+  | "reports";
 
 export interface TabSpec {
   androidIcon: IoniconName;
@@ -30,7 +30,7 @@ export interface TabSpec {
 const DASHBOARD: TabSpec = {
   androidIcon: "grid-outline",
   href: "/dashboard",
-  routeName: "dashboard/index",
+  routeName: "dashboard",
   sfSymbol: {
     default: "rectangle.grid.2x2",
     selected: "rectangle.grid.2x2.fill",
@@ -41,7 +41,7 @@ const DASHBOARD: TabSpec = {
 const DAILY_LOG: TabSpec = {
   androidIcon: "document-text-outline",
   href: "/daily-log",
-  routeName: "daily-log/index",
+  routeName: "daily-log",
   sfSymbol: {
     default: "doc.text",
     selected: "doc.text.fill",
@@ -52,7 +52,7 @@ const DAILY_LOG: TabSpec = {
 const INCIDENTS: TabSpec = {
   androidIcon: "warning-outline",
   href: "/incidents",
-  routeName: "incidents/index",
+  routeName: "incidents",
   sfSymbol: {
     default: "exclamationmark.shield",
     selected: "exclamationmark.shield.fill",
@@ -63,7 +63,7 @@ const INCIDENTS: TabSpec = {
 const DISPATCH: TabSpec = {
   androidIcon: "radio-outline",
   href: "/dispatch",
-  routeName: "dispatch/index",
+  routeName: "dispatch",
   sfSymbol: {
     default: "dot.radiowaves.left.and.right",
     selected: "dot.radiowaves.left.and.right",
@@ -74,7 +74,7 @@ const DISPATCH: TabSpec = {
 const ANALYTICS: TabSpec = {
   androidIcon: "stats-chart-outline",
   href: "/analytics",
-  routeName: "analytics/index",
+  routeName: "analytics",
   sfSymbol: {
     default: "chart.bar",
     selected: "chart.bar.fill",
@@ -85,7 +85,7 @@ const ANALYTICS: TabSpec = {
 const PERSONNEL: TabSpec = {
   androidIcon: "people-outline",
   href: "/personnel",
-  routeName: "personnel/index",
+  routeName: "personnel",
   sfSymbol: {
     default: "person.2",
     selected: "person.2.fill",
@@ -96,7 +96,7 @@ const PERSONNEL: TabSpec = {
 const REPORTS: TabSpec = {
   androidIcon: "reader-outline",
   href: "/reports",
-  routeName: "reports/index",
+  routeName: "reports",
   sfSymbol: {
     default: "doc.text.magnifyingglass",
     selected: "doc.text.fill",
@@ -108,7 +108,7 @@ const MORE: TabSpec = {
   androidIcon: "ellipsis-horizontal-circle-outline",
   href: "/more",
   nativeRole: "more",
-  routeName: "more/index",
+  routeName: "more",
   sfSymbol: {
     default: "ellipsis.circle",
     selected: "ellipsis.circle.fill",
