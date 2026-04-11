@@ -11,8 +11,12 @@ import {
   TextInput,
   View,
 } from "react-native";
+import { Stack } from "expo-router";
 
 import { ScreenContainer } from "@/components/layout/ScreenContainer";
+import { ScreenTitleStrip } from "@/components/ui/glass/ScreenTitleStrip";
+import { HeaderAddButton, HeaderFilterButton } from "@/navigation/header-buttons";
+import { NativeHeaderActionGroup } from "@/navigation/NativeHeaderActionGroup";
 import { useIOSNativeSearchHeader } from "@/navigation/useIOSNativeSearchHeader";
 import { Button } from "@/components/ui/Button";
 import { MaterialSurface } from "@/components/ui/MaterialSurface";
@@ -146,25 +150,36 @@ export default function DailyLogScreen() {
   };
 
   return (
-    <ScreenContainer
-      accessory={
-        !nativeIOSHeader ? (
-          <SearchField
-            onChangeText={(value) => setFilter(filterModuleKey, { search: value })}
-            placeholder="Search previous log entries or people"
-            style={styles.searchField}
-            value={query}
-          />
-        ) : undefined
-      }
-      iosNativeHeader={nativeIOSHeader}
-      onRefresh={() => {
-        void Promise.all([logsQuery.refetch(), locationsQuery.refetch()]);
-      }}
-      refreshing={logsQuery.isRefetching || locationsQuery.isRefetching}
-      subtitle="This module should feel like the fastest path in the app from thought to saved field note."
-      title="Daily Log"
-    >
+    <>
+      <Stack.Screen
+        options={{
+          headerRight: () => (
+            <NativeHeaderActionGroup>
+              <HeaderAddButton onPress={() => router.push("/daily-log/new")} />
+              <HeaderFilterButton onPress={() => {}} />
+            </NativeHeaderActionGroup>
+          ),
+        }}
+      />
+      <ScreenContainer
+        accessory={
+          !nativeIOSHeader ? (
+            <SearchField
+              onChangeText={(value) => setFilter(filterModuleKey, { search: value })}
+              placeholder="Search previous log entries or people"
+              style={styles.searchField}
+              value={query}
+            />
+          ) : undefined
+        }
+        iosNativeHeader={nativeIOSHeader}
+        onRefresh={() => {
+          void Promise.all([logsQuery.refetch(), locationsQuery.refetch()]);
+        }}
+        refreshing={logsQuery.isRefetching || locationsQuery.isRefetching}
+        title="Daily Log"
+      >
+        <ScreenTitleStrip title="Daily Log" />
       <MaterialSurface intensity={78} style={styles.hero} variant="panel">
         <Text style={styles.heroTitle}>Quick Entry</Text>
         <Text style={styles.heroCopy}>
@@ -269,7 +284,8 @@ export default function DailyLogScreen() {
           />
         </View>
       </SectionCard>
-    </ScreenContainer>
+      </ScreenContainer>
+    </>
   );
 }
 

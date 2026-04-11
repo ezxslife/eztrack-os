@@ -1,5 +1,6 @@
 import { useMemo } from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
+import { Stack } from "expo-router";
 
 import {
   buildReportRoute,
@@ -12,6 +13,9 @@ import { AppSymbol } from "@/components/ui/AppSymbol";
 import { GroupedCard } from "@/components/ui/GroupedCard";
 import { GroupedCardDivider } from "@/components/ui/GroupedCardDivider";
 import { ScreenContainer } from "@/components/layout/ScreenContainer";
+import { ScreenTitleStrip } from "@/components/ui/glass/ScreenTitleStrip";
+import { HeaderAddButton, HeaderFilterButton } from "@/navigation/header-buttons";
+import { NativeHeaderActionGroup } from "@/navigation/NativeHeaderActionGroup";
 import { SectionHeader } from "@/components/ui/SectionHeader";
 import { SettingsListRow } from "@/components/ui/SettingsListRow";
 import { useReportCatalog } from "@/lib/queries/reports";
@@ -65,15 +69,26 @@ function ReportsContent() {
   const quickReports = catalog.filter((report) => report.quick).slice(0, 4);
 
   return (
-    <ScreenContainer
-      gutter="none"
-      onRefresh={() => {
-        void catalogQuery.refetch();
-      }}
-      refreshing={catalogQuery.isRefetching}
-      subtitle="Run and export operational reports."
-      title="Reports"
-    >
+    <>
+      <Stack.Screen
+        options={{
+          headerRight: () => (
+            <NativeHeaderActionGroup>
+              <HeaderAddButton onPress={() => router.push("/reports/new")} />
+              <HeaderFilterButton onPress={() => {}} />
+            </NativeHeaderActionGroup>
+          ),
+        }}
+      />
+      <ScreenContainer
+        gutter="none"
+        onRefresh={() => {
+          void catalogQuery.refetch();
+        }}
+        refreshing={catalogQuery.isRefetching}
+        title="Reports"
+      >
+        <ScreenTitleStrip title="Reports" />
       {quickReports.length ? (
         <View style={styles.section}>
           <SectionHeader title="Favorites" />
@@ -131,8 +146,9 @@ function ReportsContent() {
           </GroupedCard>
         </View>
       ))}
-    </ScreenContainer>
-  );
+      </ScreenContainer>
+    </>
+    );
 }
 
 export default function ReportsScreen() {

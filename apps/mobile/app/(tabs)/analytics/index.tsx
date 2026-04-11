@@ -1,6 +1,10 @@
 import { StyleSheet, Text, View } from "react-native";
+import { Stack } from "expo-router";
 
 import { ScreenContainer } from "@/components/layout/ScreenContainer";
+import { ScreenTitleStrip } from "@/components/ui/glass/ScreenTitleStrip";
+import { HeaderFilterButton } from "@/navigation/header-buttons";
+import { NativeHeaderActionGroup } from "@/navigation/NativeHeaderActionGroup";
 import { GroupedCard } from "@/components/ui/GroupedCard";
 import { GroupedCardDivider } from "@/components/ui/GroupedCardDivider";
 import { SectionHeader } from "@/components/ui/SectionHeader";
@@ -49,29 +53,39 @@ export default function AnalyticsScreen() {
   ];
 
   return (
-    <ScreenContainer
-      gutter="none"
-      onRefresh={() => {
-        void Promise.all([
-          byStatusQuery.refetch(),
-          byTypeQuery.refetch(),
-          overTimeQuery.refetch(),
-          responseQuery.refetch(),
-          flagsQuery.refetch(),
-          moduleCountsQuery.refetch(),
-        ]);
-      }}
-      refreshing={
-        byStatusQuery.isRefetching ||
-        byTypeQuery.isRefetching ||
-        overTimeQuery.isRefetching ||
-        responseQuery.isRefetching ||
-        flagsQuery.isRefetching ||
-        moduleCountsQuery.isRefetching
-      }
-      subtitle="Response times, incident volume, and activity trends."
-      title="Analytics"
-    >
+    <>
+      <Stack.Screen
+        options={{
+          headerRight: () => (
+            <NativeHeaderActionGroup>
+              <HeaderFilterButton onPress={() => {}} />
+            </NativeHeaderActionGroup>
+          ),
+        }}
+      />
+      <ScreenContainer
+        gutter="none"
+        onRefresh={() => {
+          void Promise.all([
+            byStatusQuery.refetch(),
+            byTypeQuery.refetch(),
+            overTimeQuery.refetch(),
+            responseQuery.refetch(),
+            flagsQuery.refetch(),
+            moduleCountsQuery.refetch(),
+          ]);
+        }}
+        refreshing={
+          byStatusQuery.isRefetching ||
+          byTypeQuery.isRefetching ||
+          overTimeQuery.isRefetching ||
+          responseQuery.isRefetching ||
+          flagsQuery.isRefetching ||
+          moduleCountsQuery.isRefetching
+        }
+        title="Analytics"
+      >
+        <ScreenTitleStrip title="Analytics" />
       <View style={styles.section}>
         <SectionHeader title="Current KPIs" />
         <View style={styles.grid}>
@@ -134,7 +148,8 @@ export default function AnalyticsScreen() {
           </View>
         )}
       </View>
-    </ScreenContainer>
+      </ScreenContainer>
+    </>
   );
 }
 

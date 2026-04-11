@@ -1,10 +1,14 @@
 import { useRouter } from "expo-router";
 import { useMemo, useState } from "react";
 import { Alert, StyleSheet, Text, View } from "react-native";
+import { Stack } from "expo-router";
 
 import { DispatchStatus } from "@eztrack/shared";
 
 import { ScreenContainer } from "@/components/layout/ScreenContainer";
+import { ScreenTitleStrip } from "@/components/ui/glass/ScreenTitleStrip";
+import { HeaderAddButton, HeaderFilterButton } from "@/navigation/header-buttons";
+import { NativeHeaderActionGroup } from "@/navigation/NativeHeaderActionGroup";
 import { useIOSNativeSearchHeader } from "@/navigation/useIOSNativeSearchHeader";
 import { Button } from "@/components/ui/Button";
 import { FilterChips } from "@/components/ui/FilterChips";
@@ -192,38 +196,49 @@ export default function DispatchScreen() {
   };
 
   return (
-    <ScreenContainer
-      accessory={
-        <View style={styles.accessory}>
-          {!nativeIOSHeader ? (
-            <SearchField
-              onChangeText={setQuery}
-              placeholder="Search calls, units, and locations"
-              style={styles.searchField}
-              value={query}
+    <>
+      <Stack.Screen
+        options={{
+          headerRight: () => (
+            <NativeHeaderActionGroup>
+              <HeaderAddButton onPress={() => router.push("/dispatch/new")} />
+              <HeaderFilterButton onPress={() => {}} />
+            </NativeHeaderActionGroup>
+          ),
+        }}
+      />
+      <ScreenContainer
+        accessory={
+          <View style={styles.accessory}>
+            {!nativeIOSHeader ? (
+              <SearchField
+                onChangeText={setQuery}
+                placeholder="Search calls, units, and locations"
+                style={styles.searchField}
+                value={query}
+              />
+            ) : null}
+            <FilterChips
+              onSelect={setSelectedFilter}
+              options={filters}
+              selected={selectedFilter}
             />
-          ) : null}
-          <FilterChips
-            onSelect={setSelectedFilter}
-            options={filters}
-            selected={selectedFilter}
-          />
-          <Button
-            label="New Dispatch"
-            onPress={() => router.push("/dispatch/new")}
-            variant="secondary"
-          />
-        </View>
-      }
-      gutter="none"
-      iosNativeHeader={nativeIOSHeader}
-      onRefresh={() => {
-        void Promise.all([dispatchesQuery.refetch(), officersQuery.refetch()]);
-      }}
-      refreshing={dispatchesQuery.isRefetching || officersQuery.isRefetching}
-      subtitle="Live calls, unit assignment, and status changes."
-      title="Dispatch"
-    >
+            <Button
+              label="New Dispatch"
+              onPress={() => router.push("/dispatch/new")}
+              variant="secondary"
+            />
+          </View>
+        }
+        gutter="none"
+        iosNativeHeader={nativeIOSHeader}
+        onRefresh={() => {
+          void Promise.all([dispatchesQuery.refetch(), officersQuery.refetch()]);
+        }}
+        refreshing={dispatchesQuery.isRefetching || officersQuery.isRefetching}
+        title="Dispatch"
+      >
+        <ScreenTitleStrip title="Dispatch" />
       <View style={styles.section}>
         <SectionHeader title="Live board" />
         <View style={styles.list}>
@@ -371,7 +386,8 @@ export default function DispatchScreen() {
           </View>
         )}
       </View>
-    </ScreenContainer>
+      </ScreenContainer>
+    </>
   );
 }
 

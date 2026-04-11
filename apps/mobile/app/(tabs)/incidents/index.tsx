@@ -6,8 +6,12 @@ import {
   Text,
   View,
 } from "react-native";
+import { Stack } from "expo-router";
 
 import { ScreenContainer } from "@/components/layout/ScreenContainer";
+import { ScreenTitleStrip } from "@/components/ui/glass/ScreenTitleStrip";
+import { HeaderAddButton, HeaderFilterButton, HeaderSearchButton } from "@/navigation/header-buttons";
+import { NativeHeaderActionGroup } from "@/navigation/NativeHeaderActionGroup";
 import { useIOSNativeSearchHeader } from "@/navigation/useIOSNativeSearchHeader";
 import { Button } from "@/components/ui/Button";
 import { FilterChips } from "@/components/ui/FilterChips";
@@ -74,35 +78,47 @@ export default function IncidentsScreen() {
   }, [incidents, query, selectedFilterValue]);
 
   return (
-    <ScreenContainer
-      accessory={
-        <View style={styles.accessory}>
-          {!nativeIOSHeader ? (
-            <SearchField
-              onChangeText={(value) => setFilter(moduleKey, { search: value })}
-              placeholder="Search by record, type, or location"
-              style={styles.searchField}
-              value={query}
+    <>
+      <Stack.Screen
+        options={{
+          headerRight: () => (
+            <NativeHeaderActionGroup>
+              <HeaderAddButton onPress={() => router.push("/incidents/new")} />
+              <HeaderFilterButton onPress={() => {}} />
+              <HeaderSearchButton onPress={() => {}} />
+            </NativeHeaderActionGroup>
+          ),
+        }}
+      />
+      <ScreenContainer
+        accessory={
+          <View style={styles.accessory}>
+            {!nativeIOSHeader ? (
+              <SearchField
+                onChangeText={(value) => setFilter(moduleKey, { search: value })}
+                placeholder="Search by record, type, or location"
+                style={styles.searchField}
+                value={query}
+              />
+            ) : null}
+            <FilterChips
+              onSelect={(value) => {
+                const match = filters.find((filter) => filter.label === value);
+                setFilter(moduleKey, { status: match?.value ?? "" });
+              }}
+              options={filters.map((filter) => filter.label)}
+              selected={selectedFilterLabel}
             />
-          ) : null}
-          <FilterChips
-            onSelect={(value) => {
-              const match = filters.find((filter) => filter.label === value);
-              setFilter(moduleKey, { status: match?.value ?? "" });
-            }}
-            options={filters.map((filter) => filter.label)}
-            selected={selectedFilterLabel}
-          />
-        </View>
-      }
-      iosNativeHeader={nativeIOSHeader}
-      onRefresh={() => {
-        void incidentsQuery.refetch();
-      }}
-      refreshing={incidentsQuery.isRefetching}
-      subtitle="Use native navigation for the high-level structure, then keep the incident queue dense and readable."
-      title="Incidents"
-    >
+          </View>
+        }
+        iosNativeHeader={nativeIOSHeader}
+        onRefresh={() => {
+          void incidentsQuery.refetch();
+        }}
+        refreshing={incidentsQuery.isRefetching}
+        title="Incidents"
+      >
+        <ScreenTitleStrip title="Incidents" />
       <SectionCard
         footer={
           <Button
@@ -153,7 +169,8 @@ export default function IncidentsScreen() {
           )}
         </View>
       </SectionCard>
-    </ScreenContainer>
+      </ScreenContainer>
+    </>
   );
 }
 

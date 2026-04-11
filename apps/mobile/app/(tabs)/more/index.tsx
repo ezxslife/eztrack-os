@@ -1,11 +1,15 @@
 import { useRouter } from "expo-router";
 import { useState } from "react";
 import { Alert, StyleSheet, View } from "react-native";
+import { Stack } from "expo-router";
 
 import { NAV_BOTTOM_ITEMS, NAV_ITEMS } from "@eztrack/shared";
 import { useQueryClient } from "@tanstack/react-query";
 
 import { ScreenContainer } from "@/components/layout/ScreenContainer";
+import { ScreenTitleStrip } from "@/components/ui/glass/ScreenTitleStrip";
+import { HeaderSettingsButton } from "@/navigation/header-buttons";
+import { NativeHeaderActionGroup } from "@/navigation/NativeHeaderActionGroup";
 import { Button } from "@/components/ui/Button";
 import { GroupedCard } from "@/components/ui/GroupedCard";
 import { GroupedCardDivider } from "@/components/ui/GroupedCardDivider";
@@ -126,11 +130,21 @@ export default function MoreScreen() {
   };
 
   return (
-    <ScreenContainer
-      gutter="none"
-      subtitle="Account, sync health, and additional tools."
-      title="More"
-    >
+    <>
+      <Stack.Screen
+        options={{
+          headerRight: () => (
+            <NativeHeaderActionGroup>
+              <HeaderSettingsButton onPress={() => router.push("/settings")} />
+            </NativeHeaderActionGroup>
+          ),
+        }}
+      />
+      <ScreenContainer
+        gutter="none"
+        title="More"
+      >
+        <ScreenTitleStrip title="More" />
       {!syncCoachMarkDismissed ? (
         <View style={styles.alertWrap}>
           <GlassAlert
@@ -236,7 +250,8 @@ export default function MoreScreen() {
           ))}
         </GroupedCard>
       </View>
-    </ScreenContainer>
+      </ScreenContainer>
+    </>
   );
 }
 

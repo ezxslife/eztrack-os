@@ -1,16 +1,20 @@
 import { useRouter } from "expo-router";
 import { useState } from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
+import { Stack } from "expo-router";
 
 import { NAV_ITEMS } from "@eztrack/shared";
 
 import { ScreenContainer } from "@/components/layout/ScreenContainer";
+import { ScreenTitleStrip } from "@/components/ui/glass/ScreenTitleStrip";
 import { Button } from "@/components/ui/Button";
 import { GroupedCard } from "@/components/ui/GroupedCard";
 import { GroupedCardDivider } from "@/components/ui/GroupedCardDivider";
 import { SearchField } from "@/components/ui/SearchField";
 import { SectionHeader } from "@/components/ui/SectionHeader";
 import { SettingsListRow } from "@/components/ui/SettingsListRow";
+import { HeaderNotificationBell, HeaderSettingsButton } from "@/navigation/header-buttons";
+import { NativeHeaderActionGroup } from "@/navigation/NativeHeaderActionGroup";
 import { useIOSNativeSearchHeader } from "@/navigation/useIOSNativeSearchHeader";
 import { formatRelativeTimestamp } from "@/lib/format";
 import {
@@ -70,38 +74,49 @@ export default function DashboardScreen() {
   const searchResults = searchQuery.data;
 
   return (
-    <ScreenContainer
-      accessory={
-        !nativeIOSHeader ? (
-          <View style={styles.accessory}>
-            <SearchField
-              onChangeText={setQuery}
-              onSubmitEditing={() => handleSearchSubmit(query)}
-              placeholder="Search incidents, dispatches, or logs"
-              style={styles.searchField}
-              value={query}
-            />
-          </View>
-        ) : undefined
-      }
-      gutter="none"
-      iosNativeHeader={nativeIOSHeader}
-      onRefresh={() => {
-        void Promise.all([
-          statsQuery.refetch(),
-          activityQuery.refetch(),
-          showSearchResults ? searchQuery.refetch() : Promise.resolve(null),
-        ]);
-      }}
-      refreshing={
-        statsQuery.isRefetching ||
-        activityQuery.isRefetching ||
-        searchQuery.isRefetching
-      }
-      subtitle="Live incidents, dispatches, and recent activity."
-      title="Operations"
-    >
-      {showSearchResults ? (
+    <>
+      <Stack.Screen
+        options={{
+          headerRight: () => (
+            <NativeHeaderActionGroup>
+              <HeaderNotificationBell onPress={() => router.push("/notifications")} />
+              <HeaderSettingsButton onPress={() => router.push("/settings")} />
+            </NativeHeaderActionGroup>
+          ),
+        }}
+      />
+      <ScreenContainer
+        accessory={
+          !nativeIOSHeader ? (
+            <View style={styles.accessory}>
+              <SearchField
+                onChangeText={setQuery}
+                onSubmitEditing={() => handleSearchSubmit(query)}
+                placeholder="Search incidents, dispatches, or logs"
+                style={styles.searchField}
+                value={query}
+              />
+            </View>
+          ) : undefined
+        }
+        gutter="none"
+        iosNativeHeader={nativeIOSHeader}
+        onRefresh={() => {
+          void Promise.all([
+            statsQuery.refetch(),
+            activityQuery.refetch(),
+            showSearchResults ? searchQuery.refetch() : Promise.resolve(null),
+          ]);
+        }}
+        refreshing={
+          statsQuery.isRefetching ||
+          activityQuery.isRefetching ||
+          searchQuery.isRefetching
+        }
+        title="Dashboard"
+      >
+        <ScreenTitleStrip title="Dashboard" />
+        {showSearchResults ? (
         <>
           <SearchGroup
             emptyCopy="No matching incidents"
@@ -210,7 +225,8 @@ export default function DashboardScreen() {
           </View>
         </>
       )}
-    </ScreenContainer>
+      </ScreenContainer>
+    </>
   );
 }
 

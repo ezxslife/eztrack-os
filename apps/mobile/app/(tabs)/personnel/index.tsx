@@ -6,8 +6,12 @@ import {
 } from "react-native";
 
 import { useRouter } from "expo-router";
+import { Stack } from "expo-router";
 
 import { ScreenContainer } from "@/components/layout/ScreenContainer";
+import { ScreenTitleStrip } from "@/components/ui/glass/ScreenTitleStrip";
+import { HeaderSearchButton, HeaderFilterButton } from "@/navigation/header-buttons";
+import { NativeHeaderActionGroup } from "@/navigation/NativeHeaderActionGroup";
 import { MaterialSurface } from "@/components/ui/MaterialSurface";
 import { SectionCard } from "@/components/ui/SectionCard";
 import { StatusBadge } from "@/components/ui/StatusBadge";
@@ -28,14 +32,25 @@ export default function PersonnelScreen() {
   ).length;
 
   return (
-    <ScreenContainer
-      onRefresh={() => {
-        void officersQuery.refetch();
-      }}
-      refreshing={officersQuery.isRefetching}
-      subtitle="Real personnel board backed by profiles, with drilldown detail per operator."
-      title="Personnel"
-    >
+    <>
+      <Stack.Screen
+        options={{
+          headerRight: () => (
+            <NativeHeaderActionGroup>
+              <HeaderSearchButton onPress={() => {}} />
+              <HeaderFilterButton onPress={() => {}} />
+            </NativeHeaderActionGroup>
+          ),
+        }}
+      />
+      <ScreenContainer
+        onRefresh={() => {
+          void officersQuery.refetch();
+        }}
+        refreshing={officersQuery.isRefetching}
+        title="Personnel"
+      >
+        <ScreenTitleStrip title="Personnel" />
       <MaterialSurface intensity={78} style={styles.hero} variant="panel">
         <Text style={styles.eyebrow}>Staffing Board</Text>
         <Text style={styles.value}>{officers.length} active personnel records</Text>
@@ -90,7 +105,8 @@ export default function PersonnelScreen() {
           ))}
         </View>
       </SectionCard>
-    </ScreenContainer>
+      </ScreenContainer>
+    </>
   );
 }
 
