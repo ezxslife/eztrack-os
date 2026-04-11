@@ -10,6 +10,7 @@ import {
 } from "@/lib/storage";
 
 const MAX_RECENT_SEARCHES_PER_SCOPE = 8;
+const EMPTY_RECENT_SEARCHES: RecentSearchEntry[] = [];
 
 export interface RecentSearchEntry {
   query: string;
@@ -30,6 +31,11 @@ function normalizeQuery(value: string) {
   return value.trim().replace(/\s+/g, " ");
 }
 
+export function selectRecentSearches(scope: string) {
+  return (state: RecentSearchStore) =>
+    state.entriesByScope[scope] ?? EMPTY_RECENT_SEARCHES;
+}
+
 export const useRecentSearchStore = create<RecentSearchStore>()(
   persist(
     (set, get) => ({
@@ -45,7 +51,7 @@ export const useRecentSearchStore = create<RecentSearchStore>()(
         const now = new Date().toISOString();
 
         set((state) => {
-          const currentEntries = state.entriesByScope[scope] ?? [];
+          const currentEntries = state.entriesByScope[scope] ?? EMPTY_RECENT_SEARCHES;
           const nextEntries = [
             {
               query: normalizedQuery,
@@ -78,7 +84,8 @@ export const useRecentSearchStore = create<RecentSearchStore>()(
             entriesByScope: nextEntriesByScope,
           };
         }),
-      getRecentSearches: (scope) => get().entriesByScope[scope] ?? [],
+      getRecentSearches: (scope) =>
+        get().entriesByScope[scope] ?? EMPTY_RECENT_SEARCHES,
       removeRecentSearch: (scope, query) => {
         const normalizedQuery = normalizeQuery(query);
 

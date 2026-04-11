@@ -1,5 +1,5 @@
 import { useRouter } from "expo-router";
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { Alert, StyleSheet, Text, View } from "react-native";
 
 import { DispatchStatus } from "@eztrack/shared";
@@ -72,33 +72,43 @@ export default function DispatchScreen() {
   const officersQuery = useOnDutyOfficers();
   const assignDispatchOfficer = useAssignDispatchOfficerMutation();
   const updateDispatchStatus = useUpdateDispatchStatusMutation();
-  const pendingDispatchStatusIds = useOfflineStore((state) =>
-    new Set(
-      state.pendingActions
-        .filter(
-          (
-            action
-          ): action is OfflineUpdateDispatchStatusAction =>
-            action.kind === "update-dispatch-status" &&
-            action.syncState === "pending"
-        )
-        .map((action) => action.payload.dispatchId)
-    )
+  const pendingActions = useOfflineStore((state) => state.pendingActions);
+  const pendingDispatchStatusIds = useMemo(
+    () =>
+      new Set(
+        pendingActions
+          .filter(
+            (
+              action
+            ): action is OfflineUpdateDispatchStatusAction =>
+              action.kind === "update-dispatch-status" &&
+              action.syncState === "pending"
+          )
+          .map((action) => action.payload.dispatchId)
+      ),
+    [pendingActions]
   );
-  const pendingDispatchAssignmentIds = useOfflineStore((state) =>
-    new Set(
-      state.pendingActions
-        .filter(
-          (action): action is OfflineAssignDispatchAction =>
-            action.kind === "assign-dispatch" && action.syncState === "pending"
-        )
-        .map((action) => action.payload.dispatchId)
-    )
+  const pendingDispatchAssignmentIds = useMemo(
+    () =>
+      new Set(
+        pendingActions
+          .filter(
+            (action): action is OfflineAssignDispatchAction =>
+              action.kind === "assign-dispatch" &&
+              action.syncState === "pending"
+          )
+          .map((action) => action.payload.dispatchId)
+      ),
+    [pendingActions]
   );
-  const pendingDispatchActionIds = new Set([
-    ...pendingDispatchStatusIds,
-    ...pendingDispatchAssignmentIds,
-  ]);
+  const pendingDispatchActionIds = useMemo(
+    () =>
+      new Set([
+        ...pendingDispatchStatusIds,
+        ...pendingDispatchAssignmentIds,
+      ]),
+    [pendingDispatchAssignmentIds, pendingDispatchStatusIds]
+  );
   const { nativeIOSHeader } = useIOSNativeSearchHeader({
     placeholder: "Search calls, units, and locations",
     query,

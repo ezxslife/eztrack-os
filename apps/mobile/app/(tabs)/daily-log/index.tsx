@@ -1,6 +1,7 @@
 import { useRouter } from "expo-router";
 import {
   useEffect,
+  useMemo,
   useState,
 } from "react";
 import {
@@ -61,15 +62,19 @@ export default function DailyLogScreen() {
   const logsQuery = useDailyLogs();
   const locationsQuery = useLocations();
   const createLogMutation = useCreateDailyLogMutation();
-  const pendingDailyLogUpdateIds = useOfflineStore((state) =>
-    new Set(
-      state.pendingActions
-        .filter(
-          (action): action is OfflineUpdateDailyLogAction =>
-            action.kind === "update-daily-log" && action.syncState === "pending"
-        )
-        .map((action) => action.payload.dailyLogId)
-    )
+  const pendingActions = useOfflineStore((state) => state.pendingActions);
+  const pendingDailyLogUpdateIds = useMemo(
+    () =>
+      new Set(
+        pendingActions
+          .filter(
+            (action): action is OfflineUpdateDailyLogAction =>
+              action.kind === "update-daily-log" &&
+              action.syncState === "pending"
+          )
+          .map((action) => action.payload.dailyLogId)
+      ),
+    [pendingActions]
   );
   const query = filtersState.search;
   const { nativeIOSHeader } = useIOSNativeSearchHeader({

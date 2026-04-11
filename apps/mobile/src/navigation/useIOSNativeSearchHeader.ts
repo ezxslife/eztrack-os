@@ -1,9 +1,8 @@
 import { useNavigation } from "expo-router";
-import { useEffect, useLayoutEffect, useRef } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef } from "react";
 import {
   Platform,
   type NativeSyntheticEvent,
-  type TextInputFocusEventData,
 } from "react-native";
 import type { SearchBarCommands } from "react-native-screens";
 
@@ -18,6 +17,12 @@ interface UseIOSNativeSearchHeaderProps {
   title: string;
 }
 
+interface SearchHeaderTextEvent {
+  nativeEvent: {
+    text: string;
+  };
+}
+
 export function useIOSNativeSearchHeader({
   onSubmit,
   placeholder,
@@ -26,18 +31,54 @@ export function useIOSNativeSearchHeader({
   title,
 }: UseIOSNativeSearchHeaderProps) {
   const navigation = useNavigation();
+  const navigationRef = useRef(navigation);
   const colors = useThemeColors();
   const controls = useThemeControls();
   const typography = useThemeTypography();
   const searchRef = useRef<SearchBarCommands | null>(null);
+  const onSubmitRef = useRef(onSubmit);
+  const setQueryRef = useRef(setQuery);
+  const syncedQueryRef = useRef<string | null>(null);
   const nativeIOSHeader = Platform.OS === "ios";
 
-  useLayoutEffect(() => {
+  useEffect(() => {
+    navigationRef.current = navigation;
+  }, [navigation]);
+
+  useEffect(() => {
+    onSubmitRef.current = onSubmit;
+  }, [onSubmit]);
+
+  useEffect(() => {
+    setQueryRef.current = setQuery;
+  }, [setQuery]);
+
+  const handleCancelButtonPress = useCallback(() => {
+    setQueryRef.current("");
+  }, []);
+
+  const handleChangeText = useCallback(
+    (event: NativeSyntheticEvent<SearchHeaderTextEvent["nativeEvent"]>) => {
+      setQueryRef.current(event.nativeEvent.text);
+    },
+    []
+  );
+
+  const handleSearchButtonPress = useCallback(
+    (event: NativeSyntheticEvent<SearchHeaderTextEvent["nativeEvent"]>) => {
+      const nextQuery = event.nativeEvent.text;
+      setQueryRef.current(nextQuery);
+      onSubmitRef.current?.(nextQuery);
+    },
+    []
+  );
+
+  const headerOptions = useMemo(() => {
     if (!nativeIOSHeader) {
-      return;
+      return null;
     }
 
-    navigation.setOptions({
+    return {
       ...getBlurTabHeaderOptions(colors.background),
       headerLargeTitle: true,
       headerLargeTitleShadowVisible: false,
@@ -48,22 +89,14 @@ export function useIOSNativeSearchHeader({
       },
       headerSearchBarOptions: {
         allowToolbarIntegration: true,
-        autoCapitalize: "none",
+        autoCapitalize: "none" as const,
         barTintColor: controls.searchFieldFill,
         hideWhenScrolling: false,
         obscureBackground: false,
-        onCancelButtonPress: () => setQuery(""),
-        onChangeText: (event: NativeSyntheticEvent<TextInputFocusEventData>) => {
-          setQuery(event.nativeEvent.text);
-        },
-        onSearchButtonPress: (
-          event: NativeSyntheticEvent<TextInputFocusEventData>
-        ) => {
-          const nextQuery = event.nativeEvent.text;
-          setQuery(nextQuery);
-          onSubmit?.(nextQuery);
-        },
-        placement: "automatic",
+        onCancelButtonPress: handleCancelButtonPress,
+        onChangeText: handleChangeText,
+        onSearchButtonPress: handleSearchButtonPress,
+        placement: "automatic" as const,
         placeholder,
         ref: searchRef,
         textColor: colors.textPrimary,
@@ -78,16 +111,17 @@ export function useIOSNativeSearchHeader({
         fontWeight: typography.headline.fontWeight,
       },
       title,
-    });
+    };
   }, [
+    colors.background,
     colors.primaryInk,
     colors.textPrimary,
     controls.searchFieldFill,
-    navigation,
+    handleCancelButtonPress,
+    handleChangeText,
+    handleSearchButtonPress,
     nativeIOSHeader,
-    onSubmit,
     placeholder,
-    setQuery,
     title,
     typography.headline.fontSize,
     typography.headline.fontWeight,
@@ -95,10 +129,24 @@ export function useIOSNativeSearchHeader({
     typography.largeTitle.fontWeight,
   ]);
 
+  useLayoutEffect(() => {
+    if (!headerOptions) {
+      return;
+    }
+
+    navigationRef.current.setOptions(headerOptions);
+  }, [headerOptions]);
+
   useEffect(() => {
     if (!nativeIOSHeader || !searchRef.current) {
       return;
     }
+
+    if (syncedQueryRef.current === query) {
+      return;
+    }
+
+    syncedQueryRef.current = query;
 
     if (query) {
       searchRef.current.setText(query);

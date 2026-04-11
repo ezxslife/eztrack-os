@@ -18,11 +18,15 @@ import {
   useRecentActivity,
 } from "@/lib/queries/dashboard";
 import { useOperationalSearch } from "@/lib/queries/search";
-import { useRecentSearchStore } from "@/stores/recent-search-store";
+import {
+  selectRecentSearches,
+  useRecentSearchStore,
+} from "@/stores/recent-search-store";
 import { useThemeColors, useThemeTypography } from "@/theme";
 import { useAdaptiveLayout } from "@/theme/layout";
 
 const searchScope = "dashboard-global";
+const selectDashboardRecentSearches = selectRecentSearches(searchScope);
 
 type ResultScope = "daily-log" | "dispatch" | "incidents";
 
@@ -32,9 +36,7 @@ export default function DashboardScreen() {
   const layout = useAdaptiveLayout();
   const router = useRouter();
   const [query, setQuery] = useState("");
-  const recentSearches = useRecentSearchStore(
-    (state) => state.entriesByScope[searchScope] ?? []
-  );
+  const recentSearches = useRecentSearchStore(selectDashboardRecentSearches);
   const addRecentSearch = useRecentSearchStore((state) => state.addRecentSearch);
   const clearRecentSearches = useRecentSearchStore(
     (state) => state.clearRecentSearches
