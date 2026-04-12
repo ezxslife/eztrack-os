@@ -21,6 +21,7 @@ import { Button } from "@/components/ui/Button";
 import { GlassPill } from "@/components/ui/glass/GlassPill";
 import { GlassSheet } from "@/components/ui/glass/GlassSheet";
 import { MaterialSurface } from "@/components/ui/MaterialSurface";
+import { useSupportsLiquidGlass } from "@/hooks/useSupportsLiquidGlass";
 import { signInWithPassword } from "@/lib/auth";
 import { getPreviewMessage } from "@/lib/env";
 import { useAuthStore } from "@/stores/auth-store";
@@ -31,41 +32,12 @@ import {
   useThemeTypography,
 } from "@/theme";
 import { useAdaptiveLayout } from "@/theme/layout";
+import {
+  DEMO_AUTH_PROFILES,
+  getDemoAuthProfileByEmail,
+  type DemoAuthProfile,
+} from "@eztrack/shared";
 
-const DEMO_ACCOUNTS = [
-  {
-    email: "sarah.kim@eztrack.io",
-    name: "Sarah Kim",
-    role: "manager",
-  },
-  {
-    email: "james.reid@eztrack.io",
-    name: "James Reid",
-    role: "dispatcher",
-  },
-  {
-    email: "diana.torres@eztrack.io",
-    name: "Diana Torres",
-    role: "supervisor",
-  },
-  {
-    email: "tom.walsh@eztrack.io",
-    name: "Tom Walsh",
-    role: "staff",
-  },
-  {
-    email: "lisa.nguyen@eztrack.io",
-    name: "Lisa Nguyen",
-    role: "staff",
-  },
-  {
-    email: "raj.patel@eztrack.io",
-    name: "Raj Patel",
-    role: "staff",
-  },
-] as const;
-
-const DEFAULT_LOGIN_ACCOUNT = DEMO_ACCOUNTS[0];
 const DEMO_PASSWORD_ENV = process.env.EXPO_PUBLIC_DEMO_PASSWORD?.trim() ?? "";
 function getLogoutMessage(reason: string | null) {
   switch (reason) {
@@ -84,14 +56,11 @@ function getLogoutMessage(reason: string | null) {
   }
 }
 
-function formatRoleLabel(role: string) {
-  return role.charAt(0).toUpperCase() + role.slice(1);
-}
-
 export default function LoginScreen() {
   const colors = useThemeColors();
   const typography = useThemeTypography();
   const layout = useAdaptiveLayout();
+  const { supportsGlass } = useSupportsLiquidGlass();
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const authEnabled = useAuthStore((state) => state.authEnabled);
@@ -115,9 +84,7 @@ export default function LoginScreen() {
 
   const signInSheetRef = useRef<BottomSheetModal>(null);
   const getStartedSheetRef = useRef<BottomSheetModal>(null);
-  const debugSheetRef = useRef<BottomSheetModal>(null);
-  const tapCountRef = useRef(0);
-  const tapTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const demoSheetRef = useRef<BottomSheetModal>(null);
 
   const logoutMessage = getLogoutMessage(lastLogoutReason);
   const previewMessage = getPreviewMessage();
@@ -125,22 +92,22 @@ export default function LoginScreen() {
   const hasStatusBanner =
     !isOnline || processing || pendingCount > 0 || deadLetterCount > 0;
 
-  const [email, setEmail] = useState<string>(DEFAULT_LOGIN_ACCOUNT.email);
+  const [email, setEmail] = useState<string>("");
   const [password, setPassword] = useState<string>(DEMO_PASSWORD_ENV);
-  const [demoPassword, setDemoPassword] = useState(DEMO_PASSWORD_ENV);
-  const [debugUnlocked, setDebugUnlocked] = useState(false);
   const [localError, setLocalError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  const selectedDemoProfile = getDemoAuthProfileByEmail(email);
 
   const getStartedSnapPoints = useMemo(() => ["42%"], []);
-  const signInSnapPoints = useMemo(() => ["60%"], []);
-  const debugSnapPoints = useMemo(() => ["64%"], []);
+  const signInSnapPoints = useMemo(() => ["68%"], []);
+  const demoSnapPoints = useMemo(() => ["64%"], []);
 
   const styles = createStyles({
     bottomInset: Math.max(insets.bottom, 18),
     colors,
     hasStatusBanner,
     horizontalPadding: layout.horizontalPadding,
+    supportsGlass,
     topInset: Math.max(insets.top, 18),
     typography,
   });
@@ -163,7 +130,7 @@ export default function LoginScreen() {
 
   const presentSignInSheet = () => {
     getStartedSheetRef.current?.dismiss();
-    debugSheetRef.current?.dismiss();
+    demoSheetRef.current?.dismiss();
     setTimeout(() => {
       signInSheetRef.current?.present();
     }, 160);
@@ -171,7 +138,7 @@ export default function LoginScreen() {
 
   const presentGetStartedSheet = () => {
     signInSheetRef.current?.dismiss();
-    debugSheetRef.current?.dismiss();
+    demoSheetRef.current?.dismiss();
     setTimeout(() => {
       getStartedSheetRef.current?.present();
     }, 160);
@@ -206,58 +173,22 @@ export default function LoginScreen() {
   };
 
   const handleEnterPreview = () => {
-    debugSheetRef.current?.dismiss();
+    demoSheetRef.current?.dismiss();
     signInSheetRef.current?.dismiss();
     getStartedSheetRef.current?.dismiss();
     enterPreviewMode();
     router.replace("/dashboard");
   };
 
-  const handleSelectDemoAccount = (account: (typeof DEMO_ACCOUNTS)[number]) => {
-    const sharedPassword = demoPassword.trim() || password.trim();
+  const handleSelectDemoProfile = (profile: DemoAuthProfile) => {
+    const sharedPassword = DEMO_PASSWORD_ENV || password.trim();
 
-    setEmail(account.email);
-
+    setEmail(profile.email);
     if (sharedPassword) {
       setPassword(sharedPassword);
-      if (!demoPassword.trim()) {
-        setDemoPassword(sharedPassword);
-      }
-    } else {
-      setLocalError(
-        "Enter the shared demo password once, then choose an account to autofill both fields."
-      );
     }
-
-    if (sharedPassword) {
-      setLocalError(null);
-    }
-    debugSheetRef.current?.dismiss();
-    setTimeout(() => {
-      signInSheetRef.current?.present();
-    }, 160);
-  };
-
-  const handleBrandTap = () => {
-    if (!toolsEnabled) {
-      return;
-    }
-
-    tapCountRef.current += 1;
-
-    if (tapTimerRef.current) {
-      clearTimeout(tapTimerRef.current);
-    }
-
-    tapTimerRef.current = setTimeout(() => {
-      tapCountRef.current = 0;
-    }, 1200);
-
-    if (tapCountRef.current >= 5) {
-      tapCountRef.current = 0;
-      setDebugUnlocked(true);
-      debugSheetRef.current?.present();
-    }
+    setLocalError(null);
+    demoSheetRef.current?.dismiss();
   };
 
   return (
@@ -270,18 +201,11 @@ export default function LoginScreen() {
 
       <View style={styles.page}>
         <View style={styles.hero}>
-          <Pressable
-            accessibilityRole="button"
-            onPress={handleBrandTap}
-            style={({ pressed }) => [
-              styles.brandPressable,
-              pressed ? styles.brandPressed : null,
-            ]}
-          >
+          <View style={styles.brandPressable}>
             <MaterialSurface padding={0} style={styles.brandPill} variant="grouped">
               <Text style={styles.brandText}>EZTRACK</Text>
             </MaterialSurface>
-          </Pressable>
+          </View>
           <View style={styles.heroMark}>
             <View style={styles.heroMarkCore} />
           </View>
@@ -361,6 +285,25 @@ export default function LoginScreen() {
             <View style={styles.sheetSection}>
               <Text style={styles.sheetBodyCopy}>Use your team email and password.</Text>
 
+              {toolsEnabled ? (
+                <SheetSelectField
+                  description={
+                    selectedDemoProfile
+                      ? `${selectedDemoProfile.email} · ${selectedDemoProfile.roleLabel}`
+                      : "Choose a test profile to fill the sign-in form."
+                  }
+                  helperText={
+                    DEMO_PASSWORD_ENV
+                      ? "Shared demo password fills automatically on this build."
+                      : "Anything already entered in the password field stays filled."
+                  }
+                  label="Test profile"
+                  onPress={() => demoSheetRef.current?.present()}
+                  placeholder="Choose a test profile"
+                  value={selectedDemoProfile?.name}
+                />
+              ) : null}
+
               {statusMessage ? (
                 <View
                   style={[
@@ -407,17 +350,7 @@ export default function LoginScreen() {
                 onPress={handleSignIn}
                 style={styles.sheetButton}
               />
-              {debugUnlocked && toolsEnabled ? (
-                <Pressable
-                  accessibilityRole="button"
-                  onPress={() => debugSheetRef.current?.present()}
-                  style={({ pressed }) => [pressed ? styles.linkPressed : null]}
-                >
-                  <Text style={styles.debugLink}>Internal tools</Text>
-                </Pressable>
-              ) : (
-                <Text style={styles.sheetHint}>Need help? Contact your admin.</Text>
-              )}
+              <Text style={styles.sheetHint}>Need help? Contact your admin.</Text>
             </View>
           </GlassSheet>
         </BottomSheetView>
@@ -430,37 +363,32 @@ export default function LoginScreen() {
         handleComponent={() => null}
         keyboardBehavior="interactive"
         keyboardBlurBehavior="restore"
-        ref={debugSheetRef}
-        snapPoints={debugSnapPoints}
+        ref={demoSheetRef}
+        snapPoints={demoSnapPoints}
       >
         <BottomSheetView style={styles.sheetViewport}>
           <GlassSheet>
             <SheetHeader
-              onClose={() => debugSheetRef.current?.dismiss()}
-              title="Internal tools"
+              onClose={() => demoSheetRef.current?.dismiss()}
+              title="Demo access"
             />
             <View style={styles.sheetSection}>
               <Text style={styles.sheetBodyCopy}>
-                Select a demo account to autofill sign-in. If a shared demo password is available,
-                it will fill too.
+                Pick a test profile to fill the sign-in form. The shared demo password will carry
+                over when this build already has it, or when you have already entered it once.
               </Text>
-              <SheetField
-                autoCapitalize="none"
-                autoCorrect={false}
-                label="Demo password"
-                onChangeText={setDemoPassword}
-                placeholder="Shared demo password"
-                secureTextEntry
-                value={demoPassword}
-              />
               <View style={styles.demoList}>
-                {DEMO_ACCOUNTS.map((account) => (
+                {DEMO_AUTH_PROFILES.map((account) => {
+                  const selected = selectedDemoProfile?.email === account.email;
+
+                  return (
                   <Pressable
                     accessibilityRole="button"
                     key={account.email}
-                    onPress={() => handleSelectDemoAccount(account)}
+                    onPress={() => handleSelectDemoProfile(account)}
                     style={({ pressed }) => [
                       styles.demoRow,
+                      selected ? styles.demoRowSelected : null,
                       pressed ? styles.rowPressed : null,
                     ]}
                   >
@@ -468,9 +396,17 @@ export default function LoginScreen() {
                       <Text style={styles.demoRowName}>{account.name}</Text>
                       <Text style={styles.demoRowEmail}>{account.email}</Text>
                     </View>
-                    <Text style={styles.demoRowRole}>{formatRoleLabel(account.role)}</Text>
+                    <Text
+                      style={[
+                        styles.demoRowRole,
+                        selected ? styles.demoRowRoleSelected : null,
+                      ]}
+                    >
+                      {account.roleLabel}
+                    </Text>
                   </Pressable>
-                ))}
+                  );
+                })}
               </View>
               {toolsEnabled && previewMessage ? (
                 <Button
@@ -533,6 +469,103 @@ function SheetField({
   );
 }
 
+function SheetSelectField({
+  description,
+  helperText,
+  label,
+  onPress,
+  placeholder,
+  value,
+}: {
+  description?: string;
+  helperText?: string;
+  label: string;
+  onPress: () => void;
+  placeholder: string;
+  value?: string;
+}) {
+  const colors = useThemeColors();
+  const typography = useThemeTypography();
+  const styles = StyleSheet.create({
+    content: {
+      flex: 1,
+      gap: 4,
+      minWidth: 0,
+    },
+    description: {
+      ...typography.caption1,
+      color: colors.textSecondary,
+      lineHeight: 18,
+    },
+    field: {
+      gap: 8,
+    },
+    helperText: {
+      ...typography.caption1,
+      color: colors.textTertiary,
+      lineHeight: 18,
+    },
+    label: {
+      ...typography.subheadline,
+      color: colors.textPrimary,
+      fontWeight: "600",
+    },
+    placeholder: {
+      color: colors.textTertiary,
+    },
+    trigger: {
+      alignItems: "center",
+      backgroundColor: colors.surfaceContainerLow,
+      borderColor: colors.border,
+      borderRadius: 16,
+      borderWidth: 1,
+      flexDirection: "row",
+      gap: 12,
+      minHeight: 54,
+      paddingHorizontal: 16,
+      paddingVertical: 14,
+    },
+    triggerPressed: {
+      opacity: 0.8,
+    },
+    value: {
+      ...typography.body,
+      color: colors.textPrimary,
+      fontWeight: "600",
+    },
+  });
+
+  return (
+    <View style={styles.field}>
+      <Text style={styles.label}>{label}</Text>
+      <Pressable
+        accessibilityRole="button"
+        onPress={onPress}
+        style={({ pressed }) => [
+          styles.trigger,
+          pressed ? styles.triggerPressed : null,
+        ]}
+      >
+        <View style={styles.content}>
+          <Text
+            numberOfLines={1}
+            style={[styles.value, !value ? styles.placeholder : null]}
+          >
+            {value ?? placeholder}
+          </Text>
+          {description ? (
+            <Text numberOfLines={2} style={styles.description}>
+              {description}
+            </Text>
+          ) : null}
+        </View>
+        <Ionicons color={colors.textTertiary} name="chevron-down" size={18} />
+      </Pressable>
+      {helperText ? <Text style={styles.helperText}>{helperText}</Text> : null}
+    </View>
+  );
+}
+
 function SheetHeader({
   onClose,
   title,
@@ -589,6 +622,7 @@ function createStyles({
   colors,
   hasStatusBanner,
   horizontalPadding,
+  supportsGlass,
   topInset,
   typography,
 }: {
@@ -596,6 +630,7 @@ function createStyles({
   colors: ReturnType<typeof useThemeColors>;
   hasStatusBanner: boolean;
   horizontalPadding: number;
+  supportsGlass: boolean;
   topInset: number;
   typography: ReturnType<typeof useThemeTypography>;
 }) {
@@ -623,9 +658,6 @@ function createStyles({
       paddingHorizontal: 18,
       paddingVertical: 10,
     },
-    brandPressed: {
-      opacity: 0.82,
-    },
     brandPressable: {
       alignSelf: "center",
     },
@@ -649,20 +681,18 @@ function createStyles({
       backgroundColor: colors.interactiveSolid,
       borderRadius: 15,
       height: 30,
-      shadowColor: colors.interactiveSolid,
-      shadowOffset: {
-        width: 0,
-        height: 8,
-      },
-      shadowOpacity: 0.26,
-      shadowRadius: 18,
+      ...(supportsGlass
+        ? {}
+        : {
+            shadowColor: colors.interactiveSolid,
+            shadowOffset: {
+              width: 0,
+              height: 8,
+            },
+            shadowOpacity: 0.26,
+            shadowRadius: 18,
+          }),
       width: 30,
-    },
-    debugLink: {
-      color: colors.primaryInk,
-      fontSize: 13,
-      fontWeight: "600",
-      lineHeight: 18,
     },
     demoList: {
       gap: 10,
@@ -671,12 +701,19 @@ function createStyles({
       alignItems: "center",
       backgroundColor: colors.input,
       borderColor: colors.borderSubtle,
-      borderRadius: 18,
+      borderRadius: 12,
       borderWidth: 1,
       flexDirection: "row",
       justifyContent: "space-between",
       paddingHorizontal: 14,
       paddingVertical: 14,
+    },
+    demoRowRoleSelected: {
+      color: colors.brandText,
+    },
+    demoRowSelected: {
+      backgroundColor: colors.surfaceTintMedium,
+      borderColor: colors.focusBorder,
     },
     demoRowBody: {
       flex: 1,
@@ -700,7 +737,6 @@ function createStyles({
       fontWeight: "700",
       letterSpacing: 0.4,
       lineHeight: 14,
-      textTransform: "uppercase",
     },
     footer: {
       gap: 12,
@@ -735,9 +771,6 @@ function createStyles({
       fontWeight: "800",
       letterSpacing: -0.9,
       textAlign: "center",
-    },
-    linkPressed: {
-      opacity: 0.72,
     },
     message: {
       borderRadius: 16,

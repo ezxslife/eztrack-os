@@ -1,18 +1,40 @@
 "use client";
 
-import { Suspense, useActionState } from "react";
+import { Suspense, useActionState, useEffect, useRef, useState } from "react";
 import { useSearchParams } from "next/navigation";
-import { ArrowRight, LockKeyhole, Shield } from "lucide-react";
+import clsx from "clsx";
+import { ArrowRight, Check, ChevronDown, LockKeyhole, Shield } from "lucide-react";
+import {
+  DEMO_AUTH_PROFILES,
+  getDemoAuthProfileByEmail,
+  type DemoAuthProfile,
+} from "@eztrack/shared";
 import { AuthCard, AuthShell } from "@/components/layout/AuthShell";
 import { Input } from "@/components/ui/Input";
 import { Button } from "@/components/ui/Button";
 import { signIn } from "@/lib/auth-actions";
+
+const DEMO_PASSWORD_ENV = process.env.NEXT_PUBLIC_DEMO_PASSWORD?.trim() ?? "";
+const DEMO_ACCESS_ENABLED =
+  process.env.NODE_ENV !== "production" || Boolean(DEMO_PASSWORD_ENV);
 
 function LoginForm() {
   const searchParams = useSearchParams();
   const redirectTo = searchParams.get("redirectTo") || "/dashboard";
   const [state, formAction, loading] = useActionState(signIn, { error: "" });
   const showReturnTarget = redirectTo !== "/dashboard";
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState(DEMO_PASSWORD_ENV);
+  const selectedDemoProfile = getDemoAuthProfileByEmail(email) ?? null;
+
+  const handleSelectDemoProfile = (profile: DemoAuthProfile) => {
+    const sharedPassword = DEMO_PASSWORD_ENV || password.trim();
+
+    setEmail(profile.email);
+    if (sharedPassword) {
+      setPassword(sharedPassword);
+    }
+  };
 
   return (
     <AuthShell>
@@ -57,6 +79,14 @@ function LoginForm() {
             </div>
           ) : null}
 
+          {DEMO_ACCESS_ENABLED ? (
+            <DemoProfileField
+              passwordAutofillEnabled={Boolean(DEMO_PASSWORD_ENV)}
+              selectedProfile={selectedDemoProfile}
+              onSelect={handleSelectDemoProfile}
+            />
+          ) : null}
+
           <Input
             autoCapitalize="none"
             autoComplete="email"
@@ -65,10 +95,12 @@ function LoginForm() {
             inputMode="email"
             label="Email"
             name="email"
+            onChange={(event) => setEmail(event.target.value)}
             placeholder="operator@eztrack.io"
             required
             spellCheck={false}
             type="email"
+            value={email}
           />
 
           <Input
@@ -76,9 +108,11 @@ function LoginForm() {
             id="password"
             label="Password"
             name="password"
+            onChange={(event) => setPassword(event.target.value)}
             placeholder="Enter password"
             required
             type="password"
+            value={password}
           />
 
           <Button
@@ -98,6 +132,156 @@ function LoginForm() {
         </p>
       </AuthCard>
     </AuthShell>
+  );
+}
+
+function DemoProfileField({
+  onSelect,
+  passwordAutofillEnabled,
+  selectedProfile,
+}: {
+  onSelect: (profile: DemoAuthProfile) => void;
+  passwordAutofillEnabled: boolean;
+  selectedProfile: DemoAuthProfile | null;
+}) {
+  const [open, setOpen] = useState(false);
+  const containerRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!open) {
+      return;
+    }
+
+    const handlePointerDown = (event: MouseEvent) => {
+      if (!containerRef.current?.contains(event.target as Node)) {
+        setOpen(false);
+      }
+    };
+
+    const handleEscape = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        setOpen(false);
+      }
+    };
+
+    document.addEventListener("mousedown", handlePointerDown);
+    document.addEventListener("keydown", handleEscape);
+
+    return () => {
+      document.removeEventListener("mousedown", handlePointerDown);
+      document.removeEventListener("keydown", handleEscape);
+    };
+  }, [open]);
+
+  return (
+    <div className="w-full">
+      <div className="mb-2 flex items-center justify-between gap-3">
+        <div className="text-[13px] font-semibold tracking-[0.01em] text-[var(--text-secondary)]">
+          Test profile
+        </div>
+        <span className="rounded-full border border-white/10 bg-white/5 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.14em] text-[var(--text-tertiary)]">
+          Demo
+        </span>
+      </div>
+
+      <div ref={containerRef} className="relative">
+        <button
+          aria-expanded={open}
+          aria-haspopup="listbox"
+          className={clsx(
+            "flex min-h-13 w-full items-center justify-between gap-3 rounded-[var(--input-radius)] border bg-[var(--surface-primary)] px-[var(--input-padding-x)] py-3 text-left shadow-[var(--shadow-xs)] transition-all duration-150 ease-out",
+            open
+              ? "border-[var(--border-focused)] shadow-[var(--focus-ring)]"
+              : "border-[var(--border-default)] hover:border-[var(--border-hover)]"
+          )}
+          onClick={() => setOpen((current) => !current)}
+          type="button"
+        >
+          <div className="min-w-0 flex-1">
+            <div
+              className={clsx(
+                "truncate text-[14px] font-medium",
+                selectedProfile ? "text-[var(--text-primary)]" : "text-[var(--text-secondary)]"
+              )}
+            >
+              {selectedProfile ? selectedProfile.name : "Choose a test profile"}
+            </div>
+            <div className="mt-1 truncate text-[12px] leading-5 text-[var(--text-tertiary)]">
+              {selectedProfile
+                ? `${selectedProfile.email} · ${selectedProfile.roleLabel}`
+                : "Select a test profile to autofill demo sign-in."}
+            </div>
+          </div>
+          <ChevronDown
+            className={clsx(
+              "h-4 w-4 shrink-0 text-[var(--text-tertiary)] transition-transform duration-150",
+              open ? "rotate-180" : null
+            )}
+          />
+        </button>
+
+        {open ? (
+          <div
+            className="absolute left-0 right-0 top-[calc(100%+0.5rem)] z-20 max-h-80 overflow-y-auto rounded-[24px] border border-white/10 bg-[color-mix(in_srgb,var(--surface-primary)_94%,transparent)] p-2 shadow-[0_24px_72px_rgba(0,0,0,0.34)] backdrop-blur-2xl"
+            role="listbox"
+          >
+            {DEMO_AUTH_PROFILES.map((profile) => {
+              const selected = selectedProfile?.email === profile.email;
+
+              return (
+                <button
+                  aria-selected={selected}
+                  className={clsx(
+                    "flex w-full items-center justify-between gap-3 rounded-[18px] px-3.5 py-3 text-left transition-colors duration-150",
+                    selected
+                      ? "bg-[var(--action-primary-surface)] text-[var(--action-primary)]"
+                      : "text-[var(--text-primary)] hover:bg-white/5"
+                  )}
+                  key={profile.email}
+                  onClick={() => {
+                    onSelect(profile);
+                    setOpen(false);
+                  }}
+                  role="option"
+                  type="button"
+                >
+                  <div className="min-w-0 flex-1">
+                    <div className="truncate text-[13px] font-semibold">{profile.name}</div>
+                    <div className="mt-1 truncate text-[12px] leading-5 text-[var(--text-tertiary)]">
+                      {profile.email}
+                    </div>
+                  </div>
+                  <div className="flex shrink-0 items-center gap-2">
+                    <span
+                      className={clsx(
+                        "rounded-full border px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.12em]",
+                        selected
+                          ? "border-[var(--action-primary-border)] bg-[var(--action-primary-surface)] text-[var(--action-primary)]"
+                          : "border-white/10 bg-white/5 text-[var(--text-tertiary)]"
+                      )}
+                    >
+                      {profile.roleLabel}
+                    </span>
+                    <Check
+                      className={clsx(
+                        "h-4 w-4 transition-opacity duration-150",
+                        selected ? "opacity-100" : "opacity-0"
+                      )}
+                    />
+                  </div>
+                </button>
+              );
+            })}
+          </div>
+        ) : null}
+      </div>
+
+      <p className="mt-1.5 text-[12px] leading-5 text-[var(--text-tertiary)]">
+        {passwordAutofillEnabled
+          ? "Shared demo password fills automatically on this build."
+          : "Anything already entered in the password field stays filled when you switch profiles."}
+      </p>
+    </div>
   );
 }
 
