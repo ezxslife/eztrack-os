@@ -151,7 +151,7 @@ export default function ShiftHandoffScreen() {
           {/* Summary Section */}
           <MaterialSurface
             variant="panel"
-            style={{ marginHorizontal: spacing[4] }}
+            style={{ marginHorizontal: layout.horizontalPadding }}
           >
             <View style={[styles.summaryGrid, { gap: spacing[3] }]}>
               <View style={styles.summaryItem}>
@@ -239,10 +239,10 @@ export default function ShiftHandoffScreen() {
           </MaterialSurface>
 
           {/* Handoff Notes */}
-          <View style={{ paddingHorizontal: spacing[4] }}>
+          <View style={{ paddingHorizontal: layout.horizontalPadding }}>
             <Text
               style={[
-                typography.subheading,
+                typography.subheadline,
                 { color: colors.text, fontWeight: "600" },
               ]}
             >
@@ -274,10 +274,10 @@ export default function ShiftHandoffScreen() {
 
           {/* Outstanding Items */}
           {MOCK_OUTSTANDING_ITEMS.length > 0 && (
-            <View style={{ paddingHorizontal: spacing[4] }}>
+            <View style={{ paddingHorizontal: layout.horizontalPadding }}>
               <Text
                 style={[
-                  typography.subheading,
+                  typography.subheadline,
                   { color: colors.text, fontWeight: "600", marginBottom: spacing[2] },
                 ]}
               >
@@ -351,7 +351,7 @@ export default function ShiftHandoffScreen() {
           {/* Complete Handoff Button */}
           <View
             style={{
-              paddingHorizontal: spacing[4],
+              paddingHorizontal: layout.horizontalPadding,
               paddingBottom: spacing[4],
             }}
           >

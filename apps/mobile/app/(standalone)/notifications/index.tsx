@@ -134,7 +134,7 @@ function createStyles(
     emptyState: {
       backgroundColor: colors.surfaceTintSubtle,
       borderColor: colors.borderLight,
-      borderRadius: 18,
+      borderRadius: 12,
       borderWidth: 1,
       marginHorizontal: layout.horizontalPadding,
       padding: 16,

@@ -68,6 +68,26 @@ export const STANDALONE_ROUTE_METADATA = {
     headerMode: "seamless",
     title: "Patrons",
   },
+  "photo-capture/index": {
+    headerMode: "modal",
+    title: "Capture Photo",
+  },
+  "report-generator/index": {
+    headerMode: "modal",
+    title: "Generate Report",
+  },
+  "scanner/index": {
+    headerMode: "modal",
+    title: "Scanner",
+  },
+  "search/index": {
+    headerMode: "modal",
+    title: "Search",
+  },
+  "shift-handoff/index": {
+    headerMode: "seamless",
+    title: "Shift Handoff",
+  },
   "sync-center/index": {
     headerMode: "seamless",
     title: "Sync Center",
@@ -76,9 +96,21 @@ export const STANDALONE_ROUTE_METADATA = {
     headerMode: "seamless",
     title: "Vehicles",
   },
+  "vehicles/plate-scanner": {
+    headerMode: "seamless",
+    title: "Plate Scanner",
+  },
+  "visitor-checkin/index": {
+    headerMode: "seamless",
+    title: "Visitor Check-in",
+  },
   "visitors/index": {
     headerMode: "seamless",
     title: "Visitors",
+  },
+  "visitors/badge-print": {
+    headerMode: "seamless",
+    title: "Visitor Badge",
   },
   "work-orders/index": {
     headerMode: "seamless",
@@ -87,9 +119,25 @@ export const STANDALONE_ROUTE_METADATA = {
 } satisfies Record<string, RouteScreenMetadata>;
 
 export const SETTINGS_ROUTE_METADATA = {
+  about: {
+    headerMode: "seamless",
+    title: "About",
+  },
+  appearance: {
+    headerMode: "seamless",
+    title: "Appearance",
+  },
+  "data-storage": {
+    headerMode: "seamless",
+    title: "Data & Storage",
+  },
   dropdowns: {
     headerMode: "seamless",
     title: "Dropdowns",
+  },
+  "export-backup": {
+    headerMode: "seamless",
+    title: "Export & Backup",
   },
   "form-templates": {
     headerMode: "seamless",
@@ -115,6 +163,10 @@ export const SETTINGS_ROUTE_METADATA = {
     headerMode: "seamless",
     title: "Organization",
   },
+  profile: {
+    headerMode: "seamless",
+    title: "Profile",
+  },
   properties: {
     headerMode: "seamless",
     title: "Properties",
@@ -122,6 +174,10 @@ export const SETTINGS_ROUTE_METADATA = {
   roles: {
     headerMode: "seamless",
     title: "Roles & Permissions",
+  },
+  security: {
+    headerMode: "seamless",
+    title: "Security",
   },
   users: {
     headerMode: "seamless",

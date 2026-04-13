@@ -1,5 +1,5 @@
 import { CASE_STAGES } from "@eztrack/shared";
-import { useLocalSearchParams, useRouter } from "expo-router";
+import { useLocalSearchParams, useRouter, Stack } from "expo-router";
 import {
   Alert,
   StyleSheet,
@@ -9,6 +9,8 @@ import {
 
 import { RequireLiveSession } from "@/components/auth/RequireLiveSession";
 import { ScreenContainer } from "@/components/layout/ScreenContainer";
+import { NativeHeaderActionGroup } from "@/navigation/NativeHeaderActionGroup";
+import { HeaderEditButton, HeaderShareButton, HeaderMoreButton } from "@/navigation/header-buttons";
 import { Button } from "@/components/ui/Button";
 import { FilterChips } from "@/components/ui/FilterChips";
 import { PriorityBadge } from "@/components/ui/PriorityBadge";
@@ -33,14 +35,17 @@ import {
   useUpdateCaseMutation,
   useUpdateCaseStatusMutation,
 } from "@/lib/queries/cases";
-import { useThemeColors } from "@/theme";
+import { useThemeColors, useThemeTypography } from "@/theme";
+import { useAdaptiveLayout } from "@/theme/layout";
 
 const escalationOptions = ["none", "low", "medium", "high", "critical"];
 const statuses = ["open", "on_hold", "closed"];
 
 function CaseDetailContent({ caseId }: { caseId: string }) {
   const colors = useThemeColors();
-  const styles = createStyles(colors);
+  const typography = useThemeTypography();
+  const layout = useAdaptiveLayout();
+  const styles = createStyles(colors, typography, layout);
   const router = useRouter();
   const detailQuery = useCaseDetail(caseId);
   const evidenceQuery = useCaseEvidence(caseId);
@@ -75,20 +80,41 @@ function CaseDetailContent({ caseId }: { caseId: string }) {
   const selectedEscalation = record.escalationLevel ?? "none";
 
   return (
-    <ScreenContainer
-      onRefresh={() => {
-        void Promise.all([
-          detailQuery.refetch(),
-          evidenceQuery.refetch(),
-          tasksQuery.refetch(),
-          narrativesQuery.refetch(),
-          costsQuery.refetch(),
-          relatedQuery.refetch(),
-          transfersQuery.refetch(),
-          auditQuery.refetch(),
-          resourcesQuery.refetch(),
-        ]);
-      }}
+    <>
+      <Stack.Screen options={{
+        headerRight: () => (
+          <NativeHeaderActionGroup>
+            <HeaderEditButton onPress={() => {
+              router.push({
+                pathname: "/(create)/cases/new",
+              });
+            }} />
+            <HeaderShareButton onPress={() => {
+              router.push({
+                pathname: "/(create)/cases/task/[id]",
+                params: { id: record.id },
+              });
+            }} />
+            <HeaderMoreButton onPress={() => {
+              // TODO: wire to action menu
+            }} />
+          </NativeHeaderActionGroup>
+        ),
+      }} />
+      <ScreenContainer
+        onRefresh={() => {
+          void Promise.all([
+            detailQuery.refetch(),
+            evidenceQuery.refetch(),
+            tasksQuery.refetch(),
+            narrativesQuery.refetch(),
+            costsQuery.refetch(),
+            relatedQuery.refetch(),
+            transfersQuery.refetch(),
+            auditQuery.refetch(),
+            resourcesQuery.refetch(),
+          ]);
+        }}
       refreshing={
         detailQuery.isRefetching ||
         evidenceQuery.isRefetching ||
@@ -444,6 +470,7 @@ function CaseDetailContent({ caseId }: { caseId: string }) {
         </View>
       </SectionCard>
     </ScreenContainer>
+    </>
   );
 }
 
@@ -461,7 +488,11 @@ export default function CaseDetailScreen() {
   );
 }
 
-function createStyles(colors: ReturnType<typeof useThemeColors>) {
+function createStyles(
+  colors: ReturnType<typeof useThemeColors>,
+  typography: ReturnType<typeof useThemeTypography>,
+  layout: ReturnType<typeof useAdaptiveLayout>
+) {
   return StyleSheet.create({
     actions: {
       flexDirection: "row",
@@ -475,30 +506,29 @@ function createStyles(colors: ReturnType<typeof useThemeColors>) {
     },
     copy: {
       color: colors.textSecondary,
-      fontSize: 15,
-      lineHeight: 22,
+      ...typography.subheadline,
     },
     field: {
       gap: 8,
     },
     label: {
       color: colors.textPrimary,
-      fontSize: 12,
+      ...typography.caption1,
       fontWeight: "600",
     },
     meta: {
       color: colors.textTertiary,
-      fontSize: 13,
+      ...typography.footnote,
     },
     row: {
       backgroundColor: colors.surfaceSecondary,
-      borderRadius: 18,
+      borderRadius: 12,
       gap: 8,
-      padding: 14,
+      padding: layout.listItemPadding,
     },
     rowTitle: {
       color: colors.textPrimary,
-      fontSize: 15,
+      ...typography.subheadline,
       fontWeight: "700",
     },
     stack: {

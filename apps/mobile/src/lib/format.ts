@@ -44,6 +44,16 @@ function formatShortDate(value: Date) {
   return value.toLocaleString("en-US");
 }
 
+export function formatDate(value: Date | string) {
+  const timestamp = value instanceof Date ? value : new Date(value);
+
+  if (Number.isNaN(timestamp.getTime())) {
+    return String(value);
+  }
+
+  return formatShortDate(timestamp);
+}
+
 export function formatRelativeTimestamp(value: string) {
   const timestamp = new Date(value);
 

@@ -1,4 +1,4 @@
-import { useLocalSearchParams, useRouter } from "expo-router";
+import { useLocalSearchParams, useRouter, Stack } from "expo-router";
 import { useMemo, useState } from "react";
 import {
   Alert,
@@ -8,6 +8,8 @@ import {
 } from "react-native";
 
 import { ScreenContainer } from "@/components/layout/ScreenContainer";
+import { NativeHeaderActionGroup } from "@/navigation/NativeHeaderActionGroup";
+import { HeaderCancelButton, HeaderSaveButton } from "@/navigation/header-buttons";
 import { Button } from "@/components/ui/Button";
 import { FilterChips } from "@/components/ui/FilterChips";
 import { MaterialSurface } from "@/components/ui/MaterialSurface";
@@ -49,7 +51,7 @@ export default function NewDispatchScreen() {
     [locationsQuery.data, selectedLocationName]
   );
 
-  const handleSubmit = async () => {
+  const handleSave = async () => {
     if (!selectedLocation) {
       Alert.alert("Location required", "Select a location before creating the dispatch.");
       return;
@@ -76,7 +78,23 @@ export default function NewDispatchScreen() {
   };
 
   return (
-    <ScreenContainer
+    <>
+      <Stack.Screen options={{
+        headerLeft: () => (
+          <HeaderCancelButton onPress={() => router.back()} />
+        ),
+        headerRight: () => (
+          <NativeHeaderActionGroup>
+            <HeaderSaveButton
+              loading={createMutation.isPending}
+              onPress={() => {
+                void handleSave();
+              }}
+            />
+          </NativeHeaderActionGroup>
+        ),
+      }} />
+      <ScreenContainer
       accessory={
         <MaterialSurface intensity={76} style={styles.hero} variant="panel">
           <Text style={styles.heroTitle}>Create Dispatch</Text>
@@ -146,23 +164,11 @@ export default function NewDispatchScreen() {
             placeholder="radio"
             value={callSource}
           />
-          <View style={styles.actions}>
-            <Button
-              label="Cancel"
-              onPress={() => router.back()}
-              variant="secondary"
-            />
-            <Button
-              label="Create Dispatch"
-              loading={createMutation.isPending}
-              onPress={() => {
-                void handleSubmit();
-              }}
-            />
-          </View>
+          <View style={styles.actions} />
         </View>
       </SectionCard>
     </ScreenContainer>
+    </>
   );
 }
 

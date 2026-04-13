@@ -25,7 +25,7 @@ interface ScreenContainerProps {
   onRefresh?: () => void;
   padded?: boolean;
   refreshing?: boolean;
-  title: string;
+  title?: string;
   subtitle?: string;
 }
 
@@ -33,12 +33,12 @@ export function ScreenContainer({
   accessory,
   children,
   gutter = "standard",
-  iosNativeHeader = false,
+  iosNativeHeader,
   nativeHeader,
   onRefresh,
   padded = true,
   refreshing = false,
-  title,
+  title = "",
   subtitle,
 }: ScreenContainerProps) {
   const colors = useThemeColors();
@@ -51,7 +51,7 @@ export function ScreenContainer({
     inheritedNativeHeader;
   const styles = StyleSheet.create({
     accessory: {
-      marginBottom: spacing[5],
+      marginBottom: spacing[4],
     },
     body: {
       gap: layout.bodyGap,
@@ -69,6 +69,9 @@ export function ScreenContainer({
       alignSelf: "center",
       maxWidth: layout.contentMaxWidth,
       width: "100%",
+    },
+    titlePadding: {
+      paddingHorizontal: gutter === "none" ? layout.horizontalPadding : 0,
     },
     contentCompact: {
       paddingTop:
@@ -115,7 +118,9 @@ export function ScreenContainer({
       >
         <View style={styles.contentInner}>
           {headerManaged ? null : (
-            <ScreenTitleStrip subtitle={subtitle} title={title} />
+            <View style={styles.titlePadding}>
+              <ScreenTitleStrip subtitle={subtitle} title={title} />
+            </View>
           )}
           {accessory ? <View style={styles.accessory}>{accessory}</View> : null}
           <View style={styles.body}>{children}</View>

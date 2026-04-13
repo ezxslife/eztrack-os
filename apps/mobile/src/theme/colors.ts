@@ -80,6 +80,14 @@ export interface ThemeColors {
   brand: string;
   brandText: string;
   brandContrastText: string;
+  foreground: string;
+  overlay: string;
+  primaryLight: string;
+  successBackground: string;
+  successForeground: string;
+  surfaceGrouped: string;
+  surfacePrimary: string;
+  text: string;
 }
 
 export const lightColors: ThemeColors = {
@@ -150,6 +158,14 @@ export const lightColors: ThemeColors = {
   brand: "#0891B2",
   brandText: "#0E7490",
   brandContrastText: "#FFFFFF",
+  foreground: "#1F2937",
+  overlay: "rgba(255, 255, 255, 0.84)",
+  primaryLight: brand.primaryLight,
+  successBackground: "#D1FAE5",
+  successForeground: "#047857",
+  surfaceGrouped: "#F7F5FA",
+  surfacePrimary: "#FFFFFF",
+  text: "#1F2937",
 };
 
 export const darkColors: ThemeColors = {
@@ -220,6 +236,14 @@ export const darkColors: ThemeColors = {
   brand: "#0891B2",
   brandText: "#67E8F9",
   brandContrastText: "#FFFFFF",
+  foreground: "#FAFAFA",
+  overlay: "rgba(10, 15, 23, 0.8)",
+  primaryLight: brand.primaryLight,
+  successBackground: "rgba(16, 185, 129, 0.18)",
+  successForeground: "#10B981",
+  surfaceGrouped: "#1D1B20",
+  surfacePrimary: "#1C1C1E",
+  text: "#FAFAFA",
 };
 
 export function createThemeColors(scheme: ResolvedThemeScheme) {

@@ -1,4 +1,4 @@
-import { useRouter } from "expo-router";
+import { useRouter, Stack } from "expo-router";
 import {
   useEffect,
   useMemo,
@@ -14,6 +14,8 @@ import {
 import { type DailyLogInput } from "@eztrack/shared";
 
 import { ScreenContainer } from "@/components/layout/ScreenContainer";
+import { NativeHeaderActionGroup } from "@/navigation/NativeHeaderActionGroup";
+import { HeaderCancelButton, HeaderSaveButton } from "@/navigation/header-buttons";
 import { Button } from "@/components/ui/Button";
 import { FilterChips } from "@/components/ui/FilterChips";
 import { MaterialSurface } from "@/components/ui/MaterialSurface";
@@ -98,7 +100,7 @@ export default function NewDailyLogScreen() {
     topic,
   ]);
 
-  const handleSubmit = async () => {
+  const handleSave = async () => {
     if (!selectedLocation) {
       Alert.alert(
         "Location required",
@@ -134,7 +136,23 @@ export default function NewDailyLogScreen() {
   };
 
   return (
-    <ScreenContainer
+    <>
+      <Stack.Screen options={{
+        headerLeft: () => (
+          <HeaderCancelButton onPress={() => router.back()} />
+        ),
+        headerRight: () => (
+          <NativeHeaderActionGroup>
+            <HeaderSaveButton
+              loading={createDailyLogMutation.isPending}
+              onPress={() => {
+                void handleSave();
+              }}
+            />
+          </NativeHeaderActionGroup>
+        ),
+      }} />
+      <ScreenContainer
       accessory={
         <MaterialSurface intensity={78} style={styles.hero} variant="panel">
           <Text style={styles.heroTitle}>Quick Entry</Text>
@@ -187,21 +205,11 @@ export default function NewDailyLogScreen() {
             placeholder="Capture the activity while it is still fresh."
             value={synopsis}
           />
-          <View style={styles.actions}>
-            <Button
-              label="Cancel"
-              onPress={() => router.back()}
-              variant="secondary"
-            />
-            <Button
-              label="Queue Entry"
-              loading={createDailyLogMutation.isPending}
-              onPress={handleSubmit}
-            />
-          </View>
+          <View style={styles.actions} />
         </View>
       </SectionCard>
     </ScreenContainer>
+    </>
   );
 }
 

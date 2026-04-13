@@ -20,7 +20,7 @@ export default function NotFoundScreen() {
     },
     link: {
       backgroundColor: colors.interactiveSolid,
-      borderRadius: 18,
+      borderRadius: 12,
       marginTop: 20,
       paddingHorizontal: 20,
       paddingVertical: 14,

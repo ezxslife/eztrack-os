@@ -188,7 +188,7 @@ export default function ReportGeneratorScreen() {
               >
                 <Text
                   style={[
-                    typography.subheading,
+                    typography.subheadline,
                     {
                       color: colors.primary,
                       fontWeight: "600",
@@ -211,7 +211,7 @@ export default function ReportGeneratorScreen() {
         >
           {/* Progress Indicator */}
           {!generated && (
-            <View style={{ paddingHorizontal: spacing[4] }}>
+            <View style={{ paddingHorizontal: layout.horizontalPadding }}>
               <View style={styles.progressBar}>
                 {[1, 2, 3].map((i) => (
                   <View
@@ -243,7 +243,7 @@ export default function ReportGeneratorScreen() {
 
           {/* Step 1: Select Report Type */}
           {step === 1 && !generated && (
-            <View style={{ paddingHorizontal: spacing[4], gap: spacing[3] }}>
+            <View style={{ paddingHorizontal: layout.horizontalPadding, gap: spacing[3] }}>
               <Text
                 style={[
                   typography.title2,
@@ -309,7 +309,7 @@ export default function ReportGeneratorScreen() {
 
           {/* Step 2: Configure Parameters */}
           {step === 2 && !generated && (
-            <View style={{ paddingHorizontal: spacing[4], gap: spacing[3] }}>
+            <View style={{ paddingHorizontal: layout.horizontalPadding, gap: spacing[3] }}>
               <Text
                 style={[
                   typography.title2,
@@ -483,7 +483,7 @@ export default function ReportGeneratorScreen() {
 
           {/* Step 3: Preview & Generate */}
           {step === 3 && !generated && (
-            <View style={{ paddingHorizontal: spacing[4], gap: spacing[3] }}>
+            <View style={{ paddingHorizontal: layout.horizontalPadding, gap: spacing[3] }}>
               <Text
                 style={[
                   typography.title2,
@@ -590,7 +590,7 @@ export default function ReportGeneratorScreen() {
 
           {/* Generated Report State */}
           {generated && (
-            <View style={{ paddingHorizontal: spacing[4], gap: spacing[3] }}>
+            <View style={{ paddingHorizontal: layout.horizontalPadding, gap: spacing[3] }}>
               <View
                 style={{
                   alignItems: "center",
@@ -647,7 +647,7 @@ export default function ReportGeneratorScreen() {
           {!generated && (
             <View
               style={{
-                paddingHorizontal: spacing[4],
+                paddingHorizontal: layout.horizontalPadding,
                 paddingBottom: spacing[4],
                 gap: spacing[2],
                 flexDirection: "row",

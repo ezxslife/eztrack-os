@@ -8,7 +8,9 @@ import {
 
 import { ScreenContainer } from "@/components/layout/ScreenContainer";
 import { Button } from "@/components/ui/Button";
-import { SectionCard } from "@/components/ui/SectionCard";
+import { GroupedCard } from "@/components/ui/GroupedCard";
+import { GroupedCardDivider } from "@/components/ui/GroupedCardDivider";
+import { SectionHeader } from "@/components/ui/SectionHeader";
 import { TextField } from "@/components/ui/TextField";
 import { GlassSwitch } from "@/components/ui/glass/GlassSwitch";
 import {
@@ -17,11 +19,14 @@ import {
   useNotificationRules,
   useUpdateNotificationRuleMutation,
 } from "@/lib/queries/settings";
-import { useThemeColors } from "@/theme";
+import { useThemeColors, useThemeTypography } from "@/theme";
+import { useAdaptiveLayout } from "@/theme/layout";
 
 export default function NotificationRulesScreen() {
   const colors = useThemeColors();
-  const styles = createStyles(colors);
+  const layout = useAdaptiveLayout();
+  const typography = useThemeTypography();
+  const styles = createStyles(colors, layout, typography);
   const rulesQuery = useNotificationRules();
   const createMutation = useCreateNotificationRuleMutation();
   const updateMutation = useUpdateNotificationRuleMutation();
@@ -34,6 +39,7 @@ export default function NotificationRulesScreen() {
 
   return (
     <ScreenContainer
+      gutter="none"
       onRefresh={() => {
         void rulesQuery.refetch();
       }}
@@ -41,103 +47,107 @@ export default function NotificationRulesScreen() {
       subtitle="Real notification rule CRUD using the existing org-level table."
       title="Notification Rules"
     >
-      <SectionCard title="New rule">
-        <View style={styles.stack}>
-          <TextField label="Event" onChangeText={setEvent} value={event} />
-          <TextField
-            label="Description"
-            multiline
-            numberOfLines={3}
-            onChangeText={setDescription}
-            value={description}
-          />
-          <SwitchRow label="Push" value={push} onToggle={setPush} />
-          <SwitchRow label="Email" value={email} onToggle={setEmail} />
-          <SwitchRow label="SMS" value={sms} onToggle={setSms} />
-          <Button
-            label="Create Rule"
-            loading={createMutation.isPending}
-            onPress={() => {
-              void createMutation
-                .mutateAsync({
-                  description,
-                  email,
-                  event,
-                  push,
-                  sms,
-                })
-                .then(() => {
-                  setDescription("");
-                  setEmail(false);
-                  setEvent("");
-                  setPush(true);
-                  setSms(false);
-                });
-            }}
-          />
-        </View>
-      </SectionCard>
+      <View style={[styles.section, { paddingHorizontal: layout.horizontalPadding }]}>
+        <SectionHeader title="New rule" />
+        <GroupedCard>
+          <View style={styles.stack}>
+            <TextField label="Event" onChangeText={setEvent} value={event} />
+            <TextField
+              label="Description"
+              multiline
+              numberOfLines={3}
+              onChangeText={setDescription}
+              value={description}
+            />
+            <SwitchRow label="Push" value={push} onToggle={setPush} />
+            <SwitchRow label="Email" value={email} onToggle={setEmail} />
+            <SwitchRow label="SMS" value={sms} onToggle={setSms} />
+            <Button
+              label="Create Rule"
+              loading={createMutation.isPending}
+              onPress={() => {
+                void createMutation
+                  .mutateAsync({
+                    description,
+                    email,
+                    event,
+                    push,
+                    sms,
+                  })
+                  .then(() => {
+                    setDescription("");
+                    setEmail(false);
+                    setEvent("");
+                    setPush(true);
+                    setSms(false);
+                  });
+              }}
+            />
+          </View>
+        </GroupedCard>
+      </View>
 
-      <SectionCard
-        subtitle={rulesQuery.isLoading ? "Loading rules" : `${(rulesQuery.data ?? []).length} rules`}
-        title="Current rules"
-      >
-        <View style={styles.stack}>
-          {(rulesQuery.data ?? []).map((rule) => (
-            <View key={rule.id} style={styles.row}>
-              <Text style={styles.title}>{rule.event}</Text>
-              <Text style={styles.meta}>{rule.description ?? "No description"}</Text>
-              <SwitchRow
-                label="Push"
-                onToggle={(value) => {
-                  void updateMutation.mutateAsync({
-                    id: rule.id,
-                    push: value,
-                  });
-                }}
-                value={rule.push}
-              />
-              <SwitchRow
-                label="Email"
-                onToggle={(value) => {
-                  void updateMutation.mutateAsync({
-                    email: value,
-                    id: rule.id,
-                  });
-                }}
-                value={rule.email}
-              />
-              <SwitchRow
-                label="SMS"
-                onToggle={(value) => {
-                  void updateMutation.mutateAsync({
-                    id: rule.id,
-                    sms: value,
-                  });
-                }}
-                value={rule.sms}
-              />
-              <Button
-                label="Delete"
-                loading={deleteMutation.isPending && deleteMutation.variables === rule.id}
-                onPress={() => {
-                  Alert.alert("Delete rule", "Remove this notification rule?", [
-                    { style: "cancel", text: "Cancel" },
-                    {
-                      style: "destructive",
-                      text: "Delete",
-                      onPress: () => {
-                        void deleteMutation.mutateAsync(rule.id);
+      <View style={[styles.section, { paddingHorizontal: layout.horizontalPadding }]}>
+        <SectionHeader title="Current rules" />
+        <GroupedCard>
+          {(rulesQuery.data ?? []).map((rule, index) => (
+            <View key={rule.id}>
+              <View style={styles.ruleContainer}>
+                <Text style={styles.ruleTitle}>{rule.event}</Text>
+                <Text style={styles.ruleMeta}>{rule.description ?? "No description"}</Text>
+                <SwitchRow
+                  label="Push"
+                  onToggle={(value) => {
+                    void updateMutation.mutateAsync({
+                      id: rule.id,
+                      push: value,
+                    });
+                  }}
+                  value={rule.push}
+                />
+                <SwitchRow
+                  label="Email"
+                  onToggle={(value) => {
+                    void updateMutation.mutateAsync({
+                      email: value,
+                      id: rule.id,
+                    });
+                  }}
+                  value={rule.email}
+                />
+                <SwitchRow
+                  label="SMS"
+                  onToggle={(value) => {
+                    void updateMutation.mutateAsync({
+                      id: rule.id,
+                      sms: value,
+                    });
+                  }}
+                  value={rule.sms}
+                />
+                <Button
+                  label="Delete"
+                  loading={deleteMutation.isPending && deleteMutation.variables === rule.id}
+                  onPress={() => {
+                    Alert.alert("Delete rule", "Remove this notification rule?", [
+                      { style: "cancel", text: "Cancel" },
+                      {
+                        style: "destructive",
+                        text: "Delete",
+                        onPress: () => {
+                          void deleteMutation.mutateAsync(rule.id);
+                        },
                       },
-                    },
-                  ]);
-                }}
-                variant="plain"
-              />
+                    ]);
+                  }}
+                  variant="plain"
+                />
+              </View>
+              {index < (rulesQuery.data ?? []).length - 1 && <GroupedCardDivider />}
             </View>
           ))}
-        </View>
-      </SectionCard>
+        </GroupedCard>
+      </View>
     </ScreenContainer>
   );
 }
@@ -152,11 +162,11 @@ function SwitchRow({
   value: boolean;
 }) {
   const colors = useThemeColors();
+  const typography = useThemeTypography();
   const styles = StyleSheet.create({
     label: {
+      ...typography.subheadline,
       color: colors.textPrimary,
-      fontSize: 15,
-      fontWeight: "600",
     },
     row: {
       alignItems: "center",
@@ -173,25 +183,30 @@ function SwitchRow({
   );
 }
 
-function createStyles(colors: ReturnType<typeof useThemeColors>) {
+function createStyles(
+  colors: ReturnType<typeof useThemeColors>,
+  layout: ReturnType<typeof useAdaptiveLayout>,
+  typography: ReturnType<typeof useThemeTypography>,
+) {
   return StyleSheet.create({
-    meta: {
-      color: colors.textTertiary,
-      fontSize: 13,
-    },
-    row: {
-      backgroundColor: colors.surfaceSecondary,
-      borderRadius: 18,
+    ruleContainer: {
       gap: 10,
       padding: 14,
     },
+    ruleMeta: {
+      ...typography.footnote,
+      color: colors.textTertiary,
+    },
+    ruleTitle: {
+      ...typography.subheadline,
+      color: colors.textPrimary,
+      fontWeight: "700",
+    },
+    section: {
+      gap: 10,
+    },
     stack: {
       gap: 14,
-    },
-    title: {
-      color: colors.textPrimary,
-      fontSize: 15,
-      fontWeight: "700",
     },
   });
 }

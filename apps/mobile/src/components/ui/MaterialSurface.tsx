@@ -1,6 +1,7 @@
 import { ReactNode } from "react";
 import {
   Platform,
+  Pressable,
   StyleProp,
   StyleSheet,
   View,
@@ -22,10 +23,12 @@ import {
   getGlassTint,
   type GlassRecipeName,
 } from "@/theme/glass";
+import { uiTokens } from "@/theme/uiTokens";
 
 interface MaterialSurfaceProps {
   children: ReactNode;
   intensity?: number;
+  onPress?: () => void;
   padding?: number;
   style?: StyleProp<ViewStyle>;
   variant?: "chrome" | "panel" | "cta" | "grouped" | "sheet" | "subtle";
@@ -34,6 +37,7 @@ interface MaterialSurfaceProps {
 export function MaterialSurface({
   children,
   intensity,
+  onPress,
   padding = 14,
   style,
   variant = "chrome",
@@ -72,10 +76,21 @@ export function MaterialSurface({
   const effectiveTier =
     variant === "grouped" || parentDepth > 0 ? "opaque" : platformTier;
 
+  // Radius per variant — aligned with EZXS-OS GroupedCard (12), SectionCard (14–16), Sheet (28)
+  const radiusMap: Record<typeof variant, number> = {
+    sheet: uiTokens.surfaceRadius,   // 28 — bottom sheets, large overlays
+    panel: uiTokens.sectionRadius,   // 16 — SectionCard, hero accessory panels
+    chrome: uiTokens.controlRadius,  // 14 — chrome surfaces, controls
+    cta: uiTokens.controlRadius,     // 14 — call-to-action surfaces
+    grouped: uiTokens.innerRadius,   // 12 — grouped list cards (matches EZXS-OS GroupedCard)
+    subtle: uiTokens.innerRadius,    // 12 — subtle/nested surfaces
+  };
+  const radius = radiusMap[variant];
+
   const styles = StyleSheet.create({
     base: {
-      borderRadius: variant === "sheet" ? 28 : variant === "grouped" ? 20 : 24,
-      borderWidth: 1,
+      borderRadius: radius,
+      borderWidth: uiTokens.surfaceBorderWidth,
       overflow: "hidden",
       padding,
     },
@@ -102,13 +117,13 @@ export function MaterialSurface({
     overlay: {
       ...StyleSheet.absoluteFillObject,
       borderColor: isDark ? `rgba(255,255,255,${borderAlpha})` : `rgba(255,255,255,${borderAlpha + 0.06})`,
-      borderRadius: variant === "sheet" ? 28 : variant === "grouped" ? 20 : 24,
-      borderWidth: 1,
+      borderRadius: radius,
+      borderWidth: uiTokens.surfaceBorderWidth,
     },
     specular: {
       ...StyleSheet.absoluteFillObject,
       backgroundColor: colors.glassSpecular,
-      borderRadius: variant === "sheet" ? 28 : variant === "grouped" ? 20 : 24,
+      borderRadius: radius,
       opacity: isDark ? 0.12 : 0.08,
     },
   });
@@ -123,7 +138,7 @@ export function MaterialSurface({
     style,
   ];
 
-  const content = (
+  const contentInner = (
     <>
       {children}
       <View pointerEvents="none" style={styles.overlay} />
@@ -133,6 +148,13 @@ export function MaterialSurface({
         <View pointerEvents="none" style={styles.specular} />
       ) : null}
     </>
+  );
+  const content = onPress ? (
+    <Pressable accessibilityRole="button" onPress={onPress}>
+      {contentInner}
+    </Pressable>
+  ) : (
+    contentInner
   );
 
   if (effectiveTier === "glass" && GlassView) {

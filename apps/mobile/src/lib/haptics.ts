@@ -41,3 +41,61 @@ export function triggerNotificationHaptic(
 
   void runHaptic(() => Haptics.notificationAsync(mappedType));
 }
+
+export function triggerHaptic(
+  type: "error" | "light" | "medium" | "selection" | "success" | "warning"
+) {
+  switch (type) {
+    case "selection":
+      triggerSelectionHaptic();
+      return;
+    case "light":
+      triggerImpactHaptic(Haptics.ImpactFeedbackStyle.Light);
+      return;
+    case "medium":
+      triggerImpactHaptic(Haptics.ImpactFeedbackStyle.Medium);
+      return;
+    case "success":
+    case "warning":
+    case "error":
+      triggerNotificationHaptic(type);
+      return;
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Semantic haptics API — named methods for common UX actions.
+// Mirrors EZXS-OS safeHaptics for consistency across apps.
+// ---------------------------------------------------------------------------
+export const haptics = {
+  /** Soft selection feedback (tab change, toggle, picker scroll). */
+  selection: () => triggerSelectionHaptic(),
+  /** Light impact (button tap, chip press). */
+  light: () => triggerImpactHaptic(Haptics.ImpactFeedbackStyle.Light),
+  /** Medium impact (confirmation, drag threshold). */
+  medium: () => triggerImpactHaptic(Haptics.ImpactFeedbackStyle.Medium),
+  /** Heavy impact (destructive swipe commit). */
+  heavy: () => triggerImpactHaptic(Haptics.ImpactFeedbackStyle.Heavy),
+  /** Button press feel — same as selection. */
+  press: () => triggerSelectionHaptic(),
+  /** Toggle switch or checkbox. */
+  toggle: () => triggerSelectionHaptic(),
+  /** Action confirmed (save, submit). */
+  confirm: () => triggerImpactHaptic(Haptics.ImpactFeedbackStyle.Medium),
+  /** Pull-to-refresh trigger. */
+  refresh: () => triggerSelectionHaptic(),
+  /** Context menu opened (long-press). */
+  contextMenu: () => triggerSelectionHaptic(),
+  /** Sheet opened — no-op by default (visual is enough). */
+  sheetOpen: () => {},
+  /** Sheet closed — no-op by default. */
+  sheetClose: () => {},
+  /** Dismiss / cancel action. */
+  dismiss: () => triggerSelectionHaptic(),
+  /** Success notification. */
+  success: () => triggerNotificationHaptic("success"),
+  /** Warning notification. */
+  warning: () => triggerNotificationHaptic("warning"),
+  /** Error notification. */
+  error: () => triggerNotificationHaptic("error"),
+} as const;

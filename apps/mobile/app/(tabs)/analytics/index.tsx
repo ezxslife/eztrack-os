@@ -2,7 +2,6 @@ import { StyleSheet, Text, View } from "react-native";
 import { Stack } from "expo-router";
 
 import { ScreenContainer } from "@/components/layout/ScreenContainer";
-import { ScreenTitleStrip } from "@/components/ui/glass/ScreenTitleStrip";
 import { HeaderFilterButton } from "@/navigation/header-buttons";
 import { NativeHeaderActionGroup } from "@/navigation/NativeHeaderActionGroup";
 import { GroupedCard } from "@/components/ui/GroupedCard";
@@ -85,7 +84,6 @@ export default function AnalyticsScreen() {
         }
         title="Analytics"
       >
-        <ScreenTitleStrip title="Analytics" />
       <View style={styles.section}>
         <SectionHeader title="Current KPIs" />
         <View style={styles.grid}>
@@ -166,24 +164,23 @@ function createStyles(
     emptyState: {
       backgroundColor: colors.surfaceTintSubtle,
       borderColor: colors.borderLight,
-      borderRadius: 18,
+      borderRadius: 12,
       borderWidth: 1,
-      marginHorizontal: layout.horizontalPadding,
       padding: 16,
     },
     grid: {
       flexDirection: "row",
       flexWrap: "wrap",
       gap: layout.gridGap,
-      paddingHorizontal: layout.horizontalPadding,
     },
     section: {
       gap: 8,
+      paddingHorizontal: layout.horizontalPadding,
     },
     statCard: {
       backgroundColor: colors.surfaceFrosted,
       borderColor: colors.borderLight,
-      borderRadius: 20,
+      borderRadius: 16,
       borderWidth: 1,
       flexBasis: layout.isRegularWidth ? layout.minGridColumnWidth : "47%",
       flexGrow: 1,

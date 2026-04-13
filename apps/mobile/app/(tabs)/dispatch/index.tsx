@@ -6,17 +6,14 @@ import { Stack } from "expo-router";
 import { DispatchStatus } from "@eztrack/shared";
 
 import { ScreenContainer } from "@/components/layout/ScreenContainer";
-import { ScreenTitleStrip } from "@/components/ui/glass/ScreenTitleStrip";
-import { HeaderAddButton, HeaderFilterButton } from "@/navigation/header-buttons";
+import { HeaderAddButton, HeaderFilterButton, HeaderSearchButton } from "@/navigation/header-buttons";
 import { NativeHeaderActionGroup } from "@/navigation/NativeHeaderActionGroup";
-import { useIOSNativeSearchHeader } from "@/navigation/useIOSNativeSearchHeader";
 import { Button } from "@/components/ui/Button";
 import { FilterChips } from "@/components/ui/FilterChips";
 import { GroupedCard } from "@/components/ui/GroupedCard";
 import { GroupedCardDivider } from "@/components/ui/GroupedCardDivider";
 import { MaterialSurface } from "@/components/ui/MaterialSurface";
 import { PriorityBadge } from "@/components/ui/PriorityBadge";
-import { SearchField } from "@/components/ui/SearchField";
 import { SectionHeader } from "@/components/ui/SectionHeader";
 import { SettingsListRow } from "@/components/ui/SettingsListRow";
 import { StatusBadge } from "@/components/ui/StatusBadge";
@@ -69,7 +66,6 @@ export default function DispatchScreen() {
   const typography = useThemeTypography();
   const layout = useAdaptiveLayout();
   const router = useRouter();
-  const [query, setQuery] = useState("");
   const [selectedFilter, setSelectedFilter] = useState("All");
   const [assignmentTargetId, setAssignmentTargetId] = useState<null | string>(null);
   const dispatchesQuery = useDispatches();
@@ -113,31 +109,18 @@ export default function DispatchScreen() {
       ]),
     [pendingDispatchAssignmentIds, pendingDispatchStatusIds]
   );
-  const { nativeIOSHeader } = useIOSNativeSearchHeader({
-    placeholder: "Search calls, units, and locations",
-    query,
-    setQuery,
-    title: "Dispatch",
-  });
   const styles = createStyles(colors, layout, typography);
 
   const dispatches = (dispatchesQuery.data ?? []).filter((dispatch) => {
-    const matchesQuery =
-      !query ||
-      dispatch.recordNumber.toLowerCase().includes(query.toLowerCase()) ||
-      dispatch.location.toLowerCase().includes(query.toLowerCase()) ||
-      dispatch.description.toLowerCase().includes(query.toLowerCase());
-
     if (selectedFilter === "All") {
-      return matchesQuery;
+      return true;
     }
 
     if (selectedFilter === "Critical") {
-      return matchesQuery && dispatch.priority === "critical";
+      return dispatch.priority === "critical";
     }
 
     return (
-      matchesQuery &&
       dispatch.status.replace("_", " ").toLowerCase() ===
         selectedFilter.toLowerCase()
     );
@@ -203,6 +186,7 @@ export default function DispatchScreen() {
             <NativeHeaderActionGroup>
               <HeaderAddButton onPress={() => router.push("/dispatch/new")} />
               <HeaderFilterButton onPress={() => {}} />
+              <HeaderSearchButton onPress={() => router.push("/search")} />
             </NativeHeaderActionGroup>
           ),
         }}
@@ -210,14 +194,6 @@ export default function DispatchScreen() {
       <ScreenContainer
         accessory={
           <View style={styles.accessory}>
-            {!nativeIOSHeader ? (
-              <SearchField
-                onChangeText={setQuery}
-                placeholder="Search calls, units, and locations"
-                style={styles.searchField}
-                value={query}
-              />
-            ) : null}
             <FilterChips
               onSelect={setSelectedFilter}
               options={filters}
@@ -231,14 +207,12 @@ export default function DispatchScreen() {
           </View>
         }
         gutter="none"
-        iosNativeHeader={nativeIOSHeader}
         onRefresh={() => {
           void Promise.all([dispatchesQuery.refetch(), officersQuery.refetch()]);
         }}
         refreshing={dispatchesQuery.isRefetching || officersQuery.isRefetching}
         title="Dispatch"
       >
-        <ScreenTitleStrip title="Dispatch" />
       <View style={styles.section}>
         <SectionHeader title="Live board" />
         <View style={styles.list}>
@@ -441,13 +415,12 @@ function createStyles(
     emptyState: {
       backgroundColor: colors.surfaceTintSubtle,
       borderColor: colors.borderLight,
-      borderRadius: 18,
+      borderRadius: 12,
       borderWidth: 1,
       padding: 16,
     },
     list: {
       gap: layout.gridGap,
-      paddingHorizontal: layout.horizontalPadding,
     },
     location: {
       ...typography.subheadline,
@@ -469,11 +442,9 @@ function createStyles(
       gap: 12,
       justifyContent: "space-between",
     },
-    searchField: {
-      width: "100%",
-    },
     section: {
       gap: 8,
+      paddingHorizontal: layout.horizontalPadding,
     },
     title: {
       ...typography.subheadline,

@@ -1,4 +1,4 @@
-import { useLocalSearchParams, useRouter } from "expo-router";
+import { useLocalSearchParams, useRouter, Stack } from "expo-router";
 import {
   Alert,
   StyleSheet,
@@ -9,6 +9,8 @@ import {
 import { DailyLogStatus } from "@eztrack/shared";
 
 import { ScreenContainer } from "@/components/layout/ScreenContainer";
+import { NativeHeaderActionGroup } from "@/navigation/NativeHeaderActionGroup";
+import { HeaderEditButton, HeaderMoreButton } from "@/navigation/header-buttons";
 import { Button } from "@/components/ui/Button";
 import { MaterialSurface } from "@/components/ui/MaterialSurface";
 import { SectionCard } from "@/components/ui/SectionCard";
@@ -72,17 +74,33 @@ export default function DailyLogDetailScreen() {
   }
 
   return (
-    <ScreenContainer
-      accessory={
-        <MaterialSurface intensity={76} style={styles.hero} variant="panel">
-          <Text style={styles.heroTitle}>{dailyLog.topic}</Text>
-          <Text style={styles.heroCopy}>{dailyLog.synopsis}</Text>
-          <View style={styles.heroBadges}>
-            <StatusBadge status={dailyLog.status} />
-            <Text style={styles.heroMeta}>{dailyLog.priority.toUpperCase()}</Text>
-          </View>
-        </MaterialSurface>
-      }
+    <>
+      <Stack.Screen options={{
+        headerRight: () => (
+          <NativeHeaderActionGroup>
+            <HeaderEditButton onPress={() => {
+              router.push({
+                pathname: "/(create)/daily-log/edit/[id]",
+                params: { id: dailyLog.id },
+              });
+            }} />
+            <HeaderMoreButton onPress={() => {
+              // TODO: wire to action menu
+            }} />
+          </NativeHeaderActionGroup>
+        ),
+      }} />
+      <ScreenContainer
+        accessory={
+          <MaterialSurface intensity={76} style={styles.hero} variant="panel">
+            <Text style={styles.heroTitle}>{dailyLog.topic}</Text>
+            <Text style={styles.heroCopy}>{dailyLog.synopsis}</Text>
+            <View style={styles.heroBadges}>
+              <StatusBadge status={dailyLog.status} />
+              <Text style={styles.heroMeta}>{dailyLog.priority.toUpperCase()}</Text>
+            </View>
+          </MaterialSurface>
+        }
       onRefresh={() => {
         void detailQuery.refetch();
       }}
@@ -168,6 +186,7 @@ export default function DailyLogDetailScreen() {
         </View>
       </SectionCard>
     </ScreenContainer>
+    </>
   );
 }
 
@@ -194,18 +213,22 @@ function createStyles(colors: ReturnType<typeof useThemeColors>) {
     },
     heroCopy: {
       color: colors.textSecondary,
-      fontSize: 16,
+      fontSize: 15,
       lineHeight: 22,
     },
     heroMeta: {
       color: colors.accentSoft,
       fontSize: 12,
-      fontWeight: "700",
+      fontWeight: "600",
+      textTransform: "uppercase",
+      letterSpacing: 0.6,
     },
     heroTitle: {
       color: colors.textPrimary,
-      fontSize: 22,
+      fontSize: 28,
       fontWeight: "700",
+      lineHeight: 34,
+      letterSpacing: -0.6,
     },
     meta: {
       color: colors.textTertiary,

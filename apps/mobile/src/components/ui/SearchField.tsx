@@ -4,6 +4,7 @@ import {
   type StyleProp,
   StyleSheet,
   TextInput,
+  type TextInputProps,
   type TextInputSubmitEditingEventData,
   type ViewStyle,
   View,
@@ -14,7 +15,7 @@ import { MaterialSurface } from "@/components/ui/MaterialSurface";
 import { useAdaptiveLayout } from "@/theme/layout";
 import { useThemeColors, useThemeControls, useThemeTypography } from "@/theme";
 
-interface SearchFieldProps {
+interface SearchFieldProps extends Pick<TextInputProps, "autoFocus"> {
   onChangeText?: (value: string) => void;
   onSubmitEditing?: (
     event: NativeSyntheticEvent<TextInputSubmitEditingEventData>
@@ -30,6 +31,7 @@ export function SearchField({
   placeholder,
   style,
   value,
+  autoFocus,
 }: SearchFieldProps) {
   const colors = useThemeColors();
   const controls = useThemeControls();
@@ -72,6 +74,7 @@ export function SearchField({
         />
         <TextInput
           autoCapitalize="none"
+          autoFocus={autoFocus}
           autoCorrect={false}
           clearButtonMode="while-editing"
           onChangeText={onChangeText}

@@ -1,4 +1,4 @@
-import { useLocalSearchParams, useRouter } from "expo-router";
+import { useLocalSearchParams, useRouter, Stack } from "expo-router";
 import {
   Alert,
   Linking,
@@ -8,17 +8,22 @@ import {
 } from "react-native";
 
 import { ScreenContainer } from "@/components/layout/ScreenContainer";
+import { NativeHeaderActionGroup } from "@/navigation/NativeHeaderActionGroup";
+import { HeaderEditButton } from "@/navigation/header-buttons";
 import { Button } from "@/components/ui/Button";
 import { SectionCard } from "@/components/ui/SectionCard";
 import {
   useContactDetail,
   useDeleteContactMutation,
 } from "@/lib/queries/contacts";
-import { useThemeColors } from "@/theme";
+import { useThemeColors, useThemeTypography } from "@/theme";
+import { useAdaptiveLayout } from "@/theme/layout";
 
 export default function ContactDetailScreen() {
   const colors = useThemeColors();
-  const styles = createStyles(colors);
+  const typography = useThemeTypography();
+  const layout = useAdaptiveLayout();
+  const styles = createStyles(colors, typography, layout);
   const router = useRouter();
   const params = useLocalSearchParams<{ id: string }>();
   const contactId = params.id ?? "";
@@ -42,7 +47,20 @@ export default function ContactDetailScreen() {
       : [contact.firstName, contact.lastName].filter(Boolean).join(" ") || "Unnamed contact";
 
   return (
-    <ScreenContainer
+    <>
+      <Stack.Screen options={{
+        headerRight: () => (
+          <NativeHeaderActionGroup>
+            <HeaderEditButton onPress={() => {
+              router.push({
+                pathname: "/(create)/contacts/edit/[id]",
+                params: { id: contact.id },
+              });
+            }} />
+          </NativeHeaderActionGroup>
+        ),
+      }} />
+      <ScreenContainer
       onRefresh={() => {
         void detailQuery.refetch();
       }}
@@ -135,10 +153,15 @@ export default function ContactDetailScreen() {
         </View>
       </SectionCard>
     </ScreenContainer>
+    </>
   );
 }
 
-function createStyles(colors: ReturnType<typeof useThemeColors>) {
+function createStyles(
+  colors: ReturnType<typeof useThemeColors>,
+  typography: ReturnType<typeof useThemeTypography>,
+  layout: ReturnType<typeof useAdaptiveLayout>
+) {
   return StyleSheet.create({
     actions: {
       flexDirection: "row",
@@ -147,13 +170,11 @@ function createStyles(colors: ReturnType<typeof useThemeColors>) {
     },
     copy: {
       color: colors.textPrimary,
-      fontSize: 15,
-      lineHeight: 22,
+      ...typography.subheadline,
     },
     meta: {
       color: colors.textTertiary,
-      fontSize: 13,
-      lineHeight: 18,
+      ...typography.footnote,
     },
     stack: { gap: 12 },
   });

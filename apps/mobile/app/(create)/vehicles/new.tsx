@@ -1,4 +1,4 @@
-import { useRouter } from "expo-router";
+import { useRouter, Stack } from "expo-router";
 import { useState } from "react";
 import {
   Alert,
@@ -8,6 +8,8 @@ import {
 } from "react-native";
 
 import { ScreenContainer } from "@/components/layout/ScreenContainer";
+import { NativeHeaderActionGroup } from "@/navigation/NativeHeaderActionGroup";
+import { HeaderCancelButton, HeaderSaveButton } from "@/navigation/header-buttons";
 import { Button } from "@/components/ui/Button";
 import { FilterChips } from "@/components/ui/FilterChips";
 import { MaterialSurface } from "@/components/ui/MaterialSurface";
@@ -35,7 +37,7 @@ export default function NewVehicleScreen() {
   const [vin, setVin] = useState("");
   const [ownerId, setOwnerId] = useState("");
 
-  const handleSubmit = async () => {
+  const handleSave = async () => {
     if (!make.trim() || !model.trim()) {
       Alert.alert("Vehicle required", "Make and model are required.");
       return;
@@ -64,7 +66,23 @@ export default function NewVehicleScreen() {
   };
 
   return (
-    <ScreenContainer
+    <>
+      <Stack.Screen options={{
+        headerLeft: () => (
+          <HeaderCancelButton onPress={() => router.back()} />
+        ),
+        headerRight: () => (
+          <NativeHeaderActionGroup>
+            <HeaderSaveButton
+              loading={createMutation.isPending}
+              onPress={() => {
+                void handleSave();
+              }}
+            />
+          </NativeHeaderActionGroup>
+        ),
+      }} />
+      <ScreenContainer
       accessory={
         <MaterialSurface intensity={76} style={styles.hero} variant="panel">
           <Text style={styles.heroTitle}>Create Vehicle</Text>
@@ -93,19 +111,11 @@ export default function NewVehicleScreen() {
           <TextField label="Color" onChangeText={setColor} value={color} />
           <TextField label="VIN" onChangeText={setVin} value={vin} />
           <TextField label="Owner ID" onChangeText={setOwnerId} value={ownerId} />
-          <View style={styles.actions}>
-            <Button label="Cancel" onPress={() => router.back()} variant="secondary" />
-            <Button
-              label="Create Vehicle"
-              loading={createMutation.isPending}
-              onPress={() => {
-                void handleSubmit();
-              }}
-            />
-          </View>
+          <View style={styles.actions} />
         </View>
       </SectionCard>
     </ScreenContainer>
+    </>
   );
 }
 

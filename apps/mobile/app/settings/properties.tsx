@@ -6,9 +6,11 @@ import {
   View,
 } from "react-native";
 
+import { GroupedCard } from "@/components/ui/GroupedCard";
+import { GroupedCardDivider } from "@/components/ui/GroupedCardDivider";
 import { ScreenContainer } from "@/components/layout/ScreenContainer";
 import { Button } from "@/components/ui/Button";
-import { SectionCard } from "@/components/ui/SectionCard";
+import { SectionHeader } from "@/components/ui/SectionHeader";
 import { TextField } from "@/components/ui/TextField";
 import {
   useCreatePropertyMutation,
@@ -16,11 +18,14 @@ import {
   useProperties,
   useUpdatePropertyMutation,
 } from "@/lib/queries/settings";
-import { useThemeColors } from "@/theme";
+import { useThemeColors, useThemeTypography } from "@/theme";
+import { useAdaptiveLayout } from "@/theme/layout";
 
 export default function PropertiesSettingsScreen() {
   const colors = useThemeColors();
-  const styles = createStyles(colors);
+  const typography = useThemeTypography();
+  const layout = useAdaptiveLayout();
+  const styles = createStyles(colors, typography);
   const propertiesQuery = useProperties();
   const createMutation = useCreatePropertyMutation();
   const updateMutation = useUpdatePropertyMutation();
@@ -39,6 +44,7 @@ export default function PropertiesSettingsScreen() {
 
   return (
     <ScreenContainer
+      gutter="none"
       onRefresh={() => {
         void propertiesQuery.refetch();
       }}
@@ -46,99 +52,106 @@ export default function PropertiesSettingsScreen() {
       subtitle="Create, update, and retire properties from mobile."
       title="Properties"
     >
-      <SectionCard title={selectedId ? "Edit property" : "New property"}>
-        <View style={styles.stack}>
-          <TextField label="Name" onChangeText={setName} value={name} />
-          <TextField label="Address" onChangeText={setAddress} value={address} />
-          <TextField
-            label="Property type"
-            onChangeText={setPropertyType}
-            value={propertyType}
-          />
-          <View style={styles.actions}>
-            {selectedId ? (
-              <Button
-                label="Clear"
-                onPress={reset}
-                variant="secondary"
-              />
-            ) : null}
-            <Button
-              label={selectedId ? "Save Changes" : "Create Property"}
-              loading={createMutation.isPending || updateMutation.isPending}
-              onPress={() => {
-                const promise = selectedId
-                  ? updateMutation.mutateAsync({
-                      address,
-                      id: selectedId,
-                      name,
-                      propertyType,
-                    })
-                  : createMutation.mutateAsync({
-                      address,
-                      name,
-                      propertyType,
-                    });
-
-                void promise.then(() => {
-                  reset();
-                });
-              }}
+      <View style={[styles.section, { paddingHorizontal: layout.horizontalPadding }]}>
+        <SectionHeader title={selectedId ? "Edit property" : "New property"} />
+        <GroupedCard>
+          <View style={styles.stack}>
+            <TextField label="Name" onChangeText={setName} value={name} />
+            <TextField label="Address" onChangeText={setAddress} value={address} />
+            <TextField
+              label="Property type"
+              onChangeText={setPropertyType}
+              value={propertyType}
             />
-          </View>
-        </View>
-      </SectionCard>
-
-      <SectionCard
-        subtitle={propertiesQuery.isLoading ? "Loading properties" : `${(propertiesQuery.data ?? []).length} properties`}
-        title="Current properties"
-      >
-        <View style={styles.stack}>
-          {(propertiesQuery.data ?? []).map((property) => (
-            <View key={property.id} style={styles.row}>
-              <Text style={styles.title}>{property.name}</Text>
-              <Text style={styles.meta}>
-                {property.propertyType ?? "Unspecified"} · {property.status}
-              </Text>
-              <Text style={styles.meta}>{property.address ?? "No address"}</Text>
-              <View style={styles.actions}>
+            <View style={styles.actions}>
+              {selectedId ? (
                 <Button
-                  label="Edit"
-                  onPress={() => {
-                    setAddress(property.address ?? "");
-                    setName(property.name);
-                    setPropertyType(property.propertyType ?? "");
-                    setSelectedId(property.id);
-                  }}
+                  label="Clear"
+                  onPress={reset}
                   variant="secondary"
                 />
-                <Button
-                  label="Delete"
-                  loading={deleteMutation.isPending && deleteMutation.variables === property.id}
-                  onPress={() => {
-                    Alert.alert("Delete property", "Remove this property from active use?", [
-                      { style: "cancel", text: "Cancel" },
-                      {
-                        style: "destructive",
-                        text: "Delete",
-                        onPress: () => {
-                          void deleteMutation.mutateAsync(property.id);
+              ) : null}
+              <Button
+                label={selectedId ? "Save Changes" : "Create Property"}
+                loading={createMutation.isPending || updateMutation.isPending}
+                onPress={() => {
+                  const promise = selectedId
+                    ? updateMutation.mutateAsync({
+                        address,
+                        id: selectedId,
+                        name,
+                        propertyType,
+                      })
+                    : createMutation.mutateAsync({
+                        address,
+                        name,
+                        propertyType,
+                      });
+
+                  void promise.then(() => {
+                    reset();
+                  });
+                }}
+              />
+            </View>
+          </View>
+        </GroupedCard>
+      </View>
+
+      <View style={[styles.section, { paddingHorizontal: layout.horizontalPadding }]}>
+        <SectionHeader title="Current properties" />
+        <GroupedCard>
+          {(propertiesQuery.data ?? []).map((property, index) => (
+            <View key={property.id}>
+              <View style={styles.row}>
+                <Text style={[styles.title, typography.subheadline]}>{property.name}</Text>
+                <Text style={[styles.meta, typography.footnote]}>
+                  {property.propertyType ?? "Unspecified"} · {property.status}
+                </Text>
+                <Text style={[styles.meta, typography.footnote]}>{property.address ?? "No address"}</Text>
+                <View style={styles.actions}>
+                  <Button
+                    label="Edit"
+                    onPress={() => {
+                      setAddress(property.address ?? "");
+                      setName(property.name);
+                      setPropertyType(property.propertyType ?? "");
+                      setSelectedId(property.id);
+                    }}
+                    variant="secondary"
+                  />
+                  <Button
+                    label="Delete"
+                    loading={deleteMutation.isPending && deleteMutation.variables === property.id}
+                    onPress={() => {
+                      Alert.alert("Delete property", "Remove this property from active use?", [
+                        { style: "cancel", text: "Cancel" },
+                        {
+                          style: "destructive",
+                          text: "Delete",
+                          onPress: () => {
+                            void deleteMutation.mutateAsync(property.id);
+                          },
                         },
-                      },
-                    ]);
-                  }}
-                  variant="plain"
-                />
+                      ]);
+                    }}
+                    variant="plain"
+                  />
+                </View>
               </View>
+              {index < (propertiesQuery.data ?? []).length - 1 && <GroupedCardDivider />}
             </View>
           ))}
-        </View>
-      </SectionCard>
+        </GroupedCard>
+      </View>
     </ScreenContainer>
   );
 }
 
-function createStyles(colors: ReturnType<typeof useThemeColors>) {
+function createStyles(
+  colors: ReturnType<typeof useThemeColors>,
+  typography: ReturnType<typeof useThemeTypography>
+) {
   return StyleSheet.create({
     actions: {
       flexDirection: "row",
@@ -147,20 +160,21 @@ function createStyles(colors: ReturnType<typeof useThemeColors>) {
     },
     meta: {
       color: colors.textTertiary,
-      fontSize: 13,
     },
     row: {
       backgroundColor: colors.surfaceSecondary,
-      borderRadius: 18,
+      borderRadius: 12,
       gap: 6,
       padding: 14,
+    },
+    section: {
+      gap: 16,
     },
     stack: {
       gap: 14,
     },
     title: {
       color: colors.textPrimary,
-      fontSize: 15,
       fontWeight: "700",
     },
   });

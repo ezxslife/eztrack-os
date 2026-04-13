@@ -6,12 +6,14 @@ import { useQueryClient } from "@tanstack/react-query";
 
 import type { ThemePreference } from "@/theme/colors";
 import { ScreenContainer } from "@/components/layout/ScreenContainer";
+import { AppSymbol } from "@/components/ui/AppSymbol";
 import { Button } from "@/components/ui/Button";
 import { FilterChips } from "@/components/ui/FilterChips";
 import { GroupedCard } from "@/components/ui/GroupedCard";
 import { GroupedCardDivider } from "@/components/ui/GroupedCardDivider";
 import { MaterialSurface } from "@/components/ui/MaterialSurface";
 import { SectionHeader } from "@/components/ui/SectionHeader";
+import { SettingsIconTile } from "@/components/ui/SettingsIconTile";
 import { SettingsListRow } from "@/components/ui/SettingsListRow";
 import { GlassSwitch } from "@/components/ui/glass/GlassSwitch";
 import { formatRelativeTimestamp } from "@/lib/format";
@@ -30,7 +32,7 @@ import { useOfflineStore } from "@/stores/offline-store";
 import { useRecentSearchStore } from "@/stores/recent-search-store";
 import { useStorageHealthStore } from "@/stores/storage-health-store";
 import { useUIStore } from "@/stores/ui-store";
-import { useThemeColors, useThemeTypography } from "@/theme";
+import { useIsDark, useThemeColors, useThemeTypography } from "@/theme";
 
 const themeOptions: ThemePreference[] = ["system", "light", "dark"];
 
@@ -42,20 +44,30 @@ const timeoutOptions = [
 ];
 
 const adminDestinations = [
-  { href: "/settings/organization", label: "Organization" },
-  { href: "/settings/properties", label: "Properties" },
-  { href: "/settings/locations", label: "Locations" },
-  { href: "/settings/users", label: "Users" },
-  { href: "/settings/dropdowns", label: "Dropdowns" },
-  { href: "/settings/notification-rules", label: "Notification Rules" },
-  { href: "/settings/roles", label: "Roles & Permissions" },
-  { href: "/settings/form-templates", label: "Form Templates" },
-  { href: "/settings/integrations", label: "Integrations" },
+  { href: "/settings/organization", label: "Organization", icon: "building.2", palette: "neutral" },
+  { href: "/settings/properties", label: "Properties", icon: "map", palette: "info" },
+  { href: "/settings/locations", label: "Locations", icon: "mappin.and.ellipse", palette: "accent" },
+  { href: "/settings/users", label: "Users", icon: "person.2", palette: "indigo" },
+  { href: "/settings/dropdowns", label: "Dropdowns", icon: "list.bullet", palette: "neutral" },
+  { href: "/settings/notification-rules", label: "Notification Rules", icon: "bell.badge", palette: "warning" },
+  { href: "/settings/roles", label: "Roles & Permissions", icon: "lock.shield", palette: "success" },
+  { href: "/settings/form-templates", label: "Form Templates", icon: "doc.text", palette: "info" },
+  { href: "/settings/integrations", label: "Integrations", icon: "puzzlepiece", palette: "accent" },
 ] as const;
+
+const ADMIN_PALETTES = {
+  neutral: { light: { bg: "#F1F5F9", fg: "#475569" }, dark: { bg: "#1E293B", fg: "#94A3B8" } },
+  info: { light: { bg: "#DBEAFE", fg: "#2563EB" }, dark: { bg: "#172554", fg: "#60A5FA" } },
+  accent: { light: { bg: "#E0F2FE", fg: "#0284C7" }, dark: { bg: "#164E63", fg: "#38BDF8" } },
+  indigo: { light: { bg: "#E0E7FF", fg: "#4F46E5" }, dark: { bg: "#312E81", fg: "#A78BFA" } },
+  warning: { light: { bg: "#FEF3C7", fg: "#D97706" }, dark: { bg: "#78350F", fg: "#FBBF24" } },
+  success: { light: { bg: "#DCFCE7", fg: "#16A34A" }, dark: { bg: "#14532D", fg: "#4ADE80" } },
+} as const;
 
 export default function SettingsScreen() {
   const colors = useThemeColors();
   const typography = useThemeTypography();
+  const isDark = useIsDark();
   const styles = createStyles(colors, typography);
   const router = useRouter();
   const queryClient = useQueryClient();
@@ -179,16 +191,25 @@ export default function SettingsScreen() {
       <View style={styles.section}>
         <SectionHeader title="Admin hub" />
         <GroupedCard>
-          {adminDestinations.map((destination, index) => (
-            <View key={destination.href}>
-              {index > 0 ? <GroupedCardDivider /> : null}
-              <SettingsListRow
-                label={destination.label}
-                onPress={() => router.push(destination.href as never)}
-                subtitle="Open setup and access controls."
-              />
-            </View>
-          ))}
+          {adminDestinations.map((destination, index) => {
+            const pal = ADMIN_PALETTES[destination.palette][isDark ? "dark" : "light"];
+            return (
+              <View key={destination.href}>
+                {index > 0 ? <GroupedCardDivider /> : null}
+                <SettingsListRow
+                  leading={
+                    <SettingsIconTile
+                      backgroundColor={pal.bg}
+                      icon={<AppSymbol name={destination.icon} size={17} color={pal.fg} weight="semibold" />}
+                    />
+                  }
+                  label={destination.label}
+                  onPress={() => router.push(destination.href as never)}
+                  subtitle="Open setup and access controls."
+                />
+              </View>
+            );
+          })}
         </GroupedCard>
       </View>
 

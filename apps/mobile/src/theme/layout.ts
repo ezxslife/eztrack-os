@@ -14,6 +14,7 @@ export interface AdaptiveLayoutMetrics {
   listItemPadding: number;
   minGridColumnWidth: number;
   statsColumns: number;
+  verticalPadding: number;
 }
 
 export function getAdaptiveLayoutMetrics(width: number, fontScale: number): AdaptiveLayoutMetrics {
@@ -36,6 +37,7 @@ export function getAdaptiveLayoutMetrics(width: number, fontScale: number): Adap
     listItemPadding: isRegularWidth ? 16 : 14,
     minGridColumnWidth: isWideWidth ? 260 : isRegularWidth ? 220 : 160,
     statsColumns: isWideWidth ? 3 : isRegularWidth ? 2 : 1,
+    verticalPadding: isRegularWidth ? 24 : 20,
   };
 }
 

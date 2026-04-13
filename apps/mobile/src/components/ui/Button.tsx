@@ -1,3 +1,4 @@
+import type { ReactNode } from "react";
 import {
   ActivityIndicator,
   Platform,
@@ -5,6 +6,7 @@ import {
   StyleProp,
   StyleSheet,
   Text,
+  View,
   ViewStyle,
 } from "react-native";
 
@@ -13,20 +15,29 @@ import {
   useThemeControls,
   useThemeTypography,
 } from "@/theme";
+import { useSupportsLiquidGlass } from "@/hooks/useSupportsLiquidGlass";
 import { triggerImpactHaptic, triggerSelectionHaptic } from "@/lib/haptics";
 import { useAdaptiveLayout } from "@/theme/layout";
+import { uiTokens } from "@/theme/uiTokens";
+import { AppSymbol } from "@/components/ui/AppSymbol";
 
 interface ButtonProps {
+  children?: ReactNode;
   disabled?: boolean;
-  label: string;
+  icon?: string;
+  iconOnly?: boolean;
+  label?: string;
   loading?: boolean;
   onPress: () => void;
-  variant?: "primary" | "secondary" | "plain";
+  variant?: "primary" | "secondary" | "plain" | "destructive" | "tertiary";
   style?: StyleProp<ViewStyle>;
 }
 
 export function Button({
+  children,
   disabled = false,
+  icon,
+  iconOnly = false,
   label,
   loading = false,
   onPress,
@@ -37,21 +48,40 @@ export function Button({
   const controls = useThemeControls();
   const typography = useThemeTypography();
   const layout = useAdaptiveLayout();
+  const { supportsGlass } = useSupportsLiquidGlass();
+  const resolvedVariant = variant === "tertiary" ? "plain" : variant;
+  const resolvedLabel =
+    label ?? (typeof children === "string" || typeof children === "number" ? String(children) : "");
 
   const styles = StyleSheet.create({
     base: {
       alignItems: "center",
-      borderRadius: 22,
+      borderRadius: iconOnly ? uiTokens.controlRadius : uiTokens.controlRadius,
       justifyContent: "center",
       minHeight:
-        variant === "plain"
+        resolvedVariant === "plain"
           ? layout.compactControlMinHeight
-          : Math.max(layout.controlMinHeight + 8, 52),
-      paddingHorizontal: variant === "plain" ? 0 : layout.isRegularWidth ? 20 : 18,
-      paddingVertical: variant === "plain" ? 0 : Platform.OS === "ios" ? 14 : 12,
+          : iconOnly
+            ? uiTokens.controlHeightSm
+            : Math.max(layout.controlMinHeight + 8, 52),
+      paddingHorizontal:
+        iconOnly ? 0 : resolvedVariant === "plain" ? 0 : layout.isRegularWidth ? 20 : 18,
+      paddingVertical:
+        iconOnly ? 0 : resolvedVariant === "plain" ? 0 : Platform.OS === "ios" ? 14 : 12,
+      width: iconOnly ? uiTokens.controlHeightSm : "auto",
     },
     disabled: {
       opacity: 0.52,
+    },
+    destructive: {
+      backgroundColor: colors.error,
+    },
+    destructiveLabel: {
+      color: "#FFFFFF",
+    },
+    iconContainer: {
+      alignItems: "center",
+      justifyContent: "center",
     },
     label: {
       ...typography.headline,
@@ -71,13 +101,17 @@ export function Button({
       backgroundColor: colors.interactiveSolid,
       ...Platform.select({
         ios: {
-          shadowColor: colors.interactiveSolid,
-          shadowOffset: {
-            width: 0,
-            height: 10,
-          },
-          shadowOpacity: 0.22,
-          shadowRadius: 20,
+          ...(supportsGlass
+            ? {}
+            : {
+                shadowColor: colors.interactiveSolid,
+                shadowOffset: {
+                  width: 0,
+                  height: 10,
+                },
+                shadowOpacity: 0.22,
+                shadowRadius: 20,
+              }),
         },
         android: {
           elevation: 2,
@@ -115,6 +149,11 @@ export function Button({
       spinner:
         Platform.OS === "ios" ? controls.secondaryButtonLabel : colors.textPrimary,
     },
+    destructive: {
+      background: colors.error,
+      foreground: "#FFFFFF",
+      spinner: "#FFFFFF",
+    },
   } as const;
 
   const handlePress = () => {
@@ -122,7 +161,7 @@ export function Button({
       return;
     }
 
-    if (variant === "primary") {
+    if (resolvedVariant === "primary" || resolvedVariant === "destructive") {
       triggerImpactHaptic();
     } else {
       triggerSelectionHaptic();
@@ -138,11 +177,13 @@ export function Button({
       onPress={handlePress}
       style={({ pressed }) => [
         styles.base,
-        variant === "primary"
+        resolvedVariant === "primary"
           ? styles.primary
-          : variant === "secondary"
+          : resolvedVariant === "secondary"
             ? styles.secondary
-            : styles.plain,
+            : resolvedVariant === "destructive"
+              ? styles.destructive
+              : styles.plain,
         (disabled || loading) && styles.disabled,
         pressed && styles.pressed,
         style,
@@ -150,22 +191,28 @@ export function Button({
     >
       {loading ? (
         <ActivityIndicator
-          color={palettes[variant].spinner}
+          color={palettes[resolvedVariant].spinner}
           size="small"
         />
+      ) : iconOnly && icon ? (
+        <View style={styles.iconContainer}>
+          <AppSymbol color={palettes[resolvedVariant].foreground} name={icon} size={24} />
+        </View>
       ) : (
         <Text
           style={[
             styles.label,
-            variant === "primary"
+            resolvedVariant === "primary"
               ? styles.primaryLabel
-              : variant === "secondary"
+              : resolvedVariant === "secondary"
                 ? styles.secondaryLabel
-                : styles.plainLabel,
-            { color: palettes[variant].foreground },
+                : resolvedVariant === "destructive"
+                  ? styles.destructiveLabel
+                  : styles.plainLabel,
+            { color: palettes[resolvedVariant].foreground },
           ]}
         >
-          {label}
+          {resolvedLabel}
         </Text>
       )}
     </Pressable>

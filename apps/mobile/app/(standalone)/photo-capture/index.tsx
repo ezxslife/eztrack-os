@@ -114,7 +114,7 @@ export default function PhotoCaptureScreen() {
                 styles.controlBar,
                 {
                   gap: spacing[4],
-                  paddingHorizontal: spacing[4],
+                  paddingHorizontal: layout.horizontalPadding,
                   paddingBottom: spacing[4],
                 },
               ]}
@@ -193,7 +193,7 @@ export default function PhotoCaptureScreen() {
             )}
 
             {/* Caption Input */}
-            <View style={{ paddingHorizontal: spacing[4] }}>
+            <View style={{ paddingHorizontal: layout.horizontalPadding }}>
               <TextField
                 label="Caption (Optional)"
                 placeholder="Add notes about this photo..."
@@ -207,7 +207,7 @@ export default function PhotoCaptureScreen() {
             {/* Action Buttons */}
             <View
               style={{
-                paddingHorizontal: spacing[4],
+                paddingHorizontal: layout.horizontalPadding,
                 gap: spacing[2],
                 paddingBottom: spacing[4],
               }}

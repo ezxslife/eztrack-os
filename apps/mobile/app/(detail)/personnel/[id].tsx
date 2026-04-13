@@ -1,4 +1,4 @@
-import { useLocalSearchParams } from "expo-router";
+import { useLocalSearchParams, useRouter, Stack } from "expo-router";
 import {
   StyleSheet,
   Text,
@@ -7,6 +7,8 @@ import {
 
 import { RequireLiveSession } from "@/components/auth/RequireLiveSession";
 import { ScreenContainer } from "@/components/layout/ScreenContainer";
+import { NativeHeaderActionGroup } from "@/navigation/NativeHeaderActionGroup";
+import { HeaderMoreButton } from "@/navigation/header-buttons";
 import { SectionCard } from "@/components/ui/SectionCard";
 import { StatusBadge } from "@/components/ui/StatusBadge";
 import {
@@ -17,11 +19,15 @@ import {
   usePersonnelActivity,
   usePersonnelDetail,
 } from "@/lib/queries/personnel";
-import { useThemeColors } from "@/theme";
+import { useThemeColors, useThemeTypography } from "@/theme";
+import { useAdaptiveLayout } from "@/theme/layout";
 
 function PersonnelDetailContent() {
   const colors = useThemeColors();
-  const styles = createStyles(colors);
+  const typography = useThemeTypography();
+  const layout = useAdaptiveLayout();
+  const styles = createStyles(colors, typography, layout);
+  const router = useRouter();
   const params = useLocalSearchParams<{ id: string }>();
   const profileId = params.id ?? "";
   const detailQuery = usePersonnelDetail(profileId);
@@ -39,15 +45,25 @@ function PersonnelDetailContent() {
   }
 
   return (
-    <ScreenContainer
-      onRefresh={() => {
-        void detailQuery.refetch();
-        void activityQuery.refetch();
-      }}
-      refreshing={detailQuery.isRefetching || activityQuery.isRefetching}
-      subtitle="Read-only personnel profile plus recent activity history."
-      title={person.fullName}
-    >
+    <>
+      <Stack.Screen options={{
+        headerRight: () => (
+          <NativeHeaderActionGroup>
+            <HeaderMoreButton onPress={() => {
+              // TODO: wire to action menu
+            }} />
+          </NativeHeaderActionGroup>
+        ),
+      }} />
+      <ScreenContainer
+        onRefresh={() => {
+          void detailQuery.refetch();
+          void activityQuery.refetch();
+        }}
+        refreshing={detailQuery.isRefetching || activityQuery.isRefetching}
+        subtitle="Read-only personnel profile plus recent activity history."
+        title={person.fullName}
+      >
       <SectionCard title="Profile">
         <View style={styles.stack}>
           <StatusBadge status={person.status} />
@@ -83,6 +99,7 @@ function PersonnelDetailContent() {
         </View>
       </SectionCard>
     </ScreenContainer>
+    </>
   );
 }
 
@@ -97,22 +114,25 @@ export default function PersonnelDetailScreen() {
   );
 }
 
-function createStyles(colors: ReturnType<typeof useThemeColors>) {
+function createStyles(
+  colors: ReturnType<typeof useThemeColors>,
+  typography: ReturnType<typeof useThemeTypography>,
+  layout: ReturnType<typeof useAdaptiveLayout>
+) {
   return StyleSheet.create({
     activityRow: {
       backgroundColor: colors.surfaceSecondary,
-      borderRadius: 18,
+      borderRadius: 12,
       gap: 6,
-      padding: 14,
+      padding: layout.listItemPadding,
     },
     copy: {
       color: colors.textSecondary,
-      fontSize: 15,
-      lineHeight: 22,
+      ...typography.subheadline,
     },
     meta: {
       color: colors.textTertiary,
-      fontSize: 13,
+      ...typography.footnote,
     },
     stack: {
       gap: 12,

@@ -14,13 +14,10 @@ import {
 import { Stack } from "expo-router";
 
 import { ScreenContainer } from "@/components/layout/ScreenContainer";
-import { ScreenTitleStrip } from "@/components/ui/glass/ScreenTitleStrip";
-import { HeaderAddButton, HeaderFilterButton } from "@/navigation/header-buttons";
+import { HeaderAddButton, HeaderFilterButton, HeaderSearchButton } from "@/navigation/header-buttons";
 import { NativeHeaderActionGroup } from "@/navigation/NativeHeaderActionGroup";
-import { useIOSNativeSearchHeader } from "@/navigation/useIOSNativeSearchHeader";
 import { Button } from "@/components/ui/Button";
 import { MaterialSurface } from "@/components/ui/MaterialSurface";
-import { SearchField } from "@/components/ui/SearchField";
 import { SectionCard } from "@/components/ui/SectionCard";
 import { formatRelativeTimestamp } from "@/lib/format";
 import { triggerNotificationHaptic } from "@/lib/haptics";
@@ -34,15 +31,10 @@ import {
   getDraftKey,
   useDraftStore,
 } from "@/stores/draft-store";
-import {
-  defaultFilterState,
-  useFilterStore,
-} from "@/stores/filter-store";
 import { useOfflineStore } from "@/stores/offline-store";
 import { useThemeColors, useThemeTypography } from "@/theme";
 import { useAdaptiveLayout } from "@/theme/layout";
 
-const filterModuleKey = "daily-log";
 const quickEntryModuleKey = "daily-log-quick-entry";
 
 export default function DailyLogScreen() {
@@ -50,16 +42,12 @@ export default function DailyLogScreen() {
   const typography = useThemeTypography();
   const layout = useAdaptiveLayout();
   const router = useRouter();
-  const filtersState = useFilterStore(
-    (state) => state.filters[filterModuleKey] ?? defaultFilterState
-  );
   const quickEntryDraft = useDraftStore(
     (state) =>
       state.drafts[getDraftKey(quickEntryModuleKey)]?.data as
         | { value?: string }
         | undefined
   );
-  const setFilter = useFilterStore((state) => state.setFilter);
   const clearModuleDrafts = useDraftStore((state) => state.clearModuleDrafts);
   const saveDraft = useDraftStore((state) => state.saveDraft);
   const [draft, setDraft] = useState(quickEntryDraft?.value ?? "");
@@ -80,21 +68,9 @@ export default function DailyLogScreen() {
       ),
     [pendingActions]
   );
-  const query = filtersState.search;
-  const { nativeIOSHeader } = useIOSNativeSearchHeader({
-    placeholder: "Search previous log entries or people",
-    query,
-    setQuery: (value) => setFilter(filterModuleKey, { search: value }),
-    title: "Daily Log",
-  });
   const styles = createStyles(colors, layout, typography);
 
-  const logs = (logsQuery.data ?? []).filter((log) =>
-    [log.recordNumber, log.topic, log.synopsis, log.location]
-      .join(" ")
-      .toLowerCase()
-      .includes(query.toLowerCase())
-  );
+  const logs = logsQuery.data ?? [];
 
   useEffect(() => {
     if (!draft.trim()) {
@@ -157,29 +133,18 @@ export default function DailyLogScreen() {
             <NativeHeaderActionGroup>
               <HeaderAddButton onPress={() => router.push("/daily-log/new")} />
               <HeaderFilterButton onPress={() => {}} />
+              <HeaderSearchButton onPress={() => router.push("/search")} />
             </NativeHeaderActionGroup>
           ),
         }}
       />
       <ScreenContainer
-        accessory={
-          !nativeIOSHeader ? (
-            <SearchField
-              onChangeText={(value) => setFilter(filterModuleKey, { search: value })}
-              placeholder="Search previous log entries or people"
-              style={styles.searchField}
-              value={query}
-            />
-          ) : undefined
-        }
-        iosNativeHeader={nativeIOSHeader}
         onRefresh={() => {
           void Promise.all([logsQuery.refetch(), locationsQuery.refetch()]);
         }}
         refreshing={logsQuery.isRefetching || locationsQuery.isRefetching}
         title="Daily Log"
       >
-        <ScreenTitleStrip title="Daily Log" />
       <MaterialSurface intensity={78} style={styles.hero} variant="panel">
         <Text style={styles.heroTitle}>Quick Entry</Text>
         <Text style={styles.heroCopy}>
@@ -320,7 +285,7 @@ function createStyles(
     },
     heroInput: {
       backgroundColor: colors.input,
-      borderRadius: 18,
+      borderRadius: 12,
       color: colors.textPrimary,
       ...typography.subheadline,
       minHeight: 110,
@@ -363,7 +328,7 @@ function createStyles(
     },
     row: {
       backgroundColor: colors.surfaceSecondary,
-      borderRadius: 18,
+      borderRadius: 12,
       padding: layout.listItemPadding,
     },
     rowHeader: {
@@ -372,9 +337,6 @@ function createStyles(
       gap: 12,
       justifyContent: "space-between",
       marginBottom: 8,
-    },
-    searchField: {
-      width: "100%",
     },
     topic: {
       ...typography.subheadline,

@@ -1,4 +1,4 @@
-import { useRouter } from "expo-router";
+import { useRouter, Stack } from "expo-router";
 import { useState } from "react";
 import {
   Alert,
@@ -8,6 +8,8 @@ import {
 } from "react-native";
 
 import { ScreenContainer } from "@/components/layout/ScreenContainer";
+import { NativeHeaderActionGroup } from "@/navigation/NativeHeaderActionGroup";
+import { HeaderCancelButton, HeaderSaveButton } from "@/navigation/header-buttons";
 import { Button } from "@/components/ui/Button";
 import { FilterChips } from "@/components/ui/FilterChips";
 import { MaterialSurface } from "@/components/ui/MaterialSurface";
@@ -34,7 +36,7 @@ export default function NewContactScreen() {
   const [email, setEmail] = useState("");
   const [address, setAddress] = useState("");
 
-  const handleSubmit = async () => {
+  const handleSave = async () => {
     if (contactType === "organization" && !organizationName.trim()) {
       Alert.alert("Organization required", "Add an organization name before saving.");
       return;
@@ -67,7 +69,23 @@ export default function NewContactScreen() {
   };
 
   return (
-    <ScreenContainer
+    <>
+      <Stack.Screen options={{
+        headerLeft: () => (
+          <HeaderCancelButton onPress={() => router.back()} />
+        ),
+        headerRight: () => (
+          <NativeHeaderActionGroup>
+            <HeaderSaveButton
+              loading={createMutation.isPending}
+              onPress={() => {
+                void handleSave();
+              }}
+            />
+          </NativeHeaderActionGroup>
+        ),
+      }} />
+      <ScreenContainer
       accessory={
         <MaterialSurface intensity={76} style={styles.hero} variant="panel">
           <Text style={styles.heroTitle}>Create Contact</Text>
@@ -100,19 +118,11 @@ export default function NewContactScreen() {
           <TextField label="Phone" keyboardType="phone-pad" onChangeText={setPhone} value={phone} />
           <TextField label="Email" keyboardType="email-address" onChangeText={setEmail} value={email} />
           <TextField label="Address" onChangeText={setAddress} value={address} />
-          <View style={styles.actions}>
-            <Button label="Cancel" onPress={() => router.back()} variant="secondary" />
-            <Button
-              label="Create Contact"
-              loading={createMutation.isPending}
-              onPress={() => {
-                void handleSubmit();
-              }}
-            />
-          </View>
+          <View style={styles.actions} />
         </View>
       </SectionCard>
     </ScreenContainer>
+    </>
   );
 }
 

@@ -91,7 +91,11 @@ export default function ScannerScreen() {
             <View
               style={[
                 styles.cameraView,
-                { backgroundColor: colors.surface, marginTop: spacing[4] },
+                {
+                  backgroundColor: colors.surface,
+                  marginHorizontal: layout.horizontalPadding,
+                  marginTop: spacing[4],
+                },
               ]}
             >
               <AppSymbol name="camera.fill" size={48} color={colors.textTertiary} />
@@ -151,7 +155,7 @@ export default function ScannerScreen() {
                 {
                   color: colors.textPrimary,
                   textAlign: "center",
-                  marginHorizontal: spacing[4],
+                  marginHorizontal: layout.horizontalPadding,
                 },
               ]}
             >
@@ -159,7 +163,7 @@ export default function ScannerScreen() {
             </Text>
 
             {/* Flashlight Button */}
-            <View style={{ paddingHorizontal: spacing[4] }}>
+            <View style={{ paddingHorizontal: layout.horizontalPadding }}>
               <Button
                 variant="secondary"
                 onPress={handleToggleFlashlight}
@@ -170,7 +174,7 @@ export default function ScannerScreen() {
             </View>
 
             {/* Manual Entry Button */}
-            <View style={{ paddingHorizontal: spacing[4] }}>
+            <View style={{ paddingHorizontal: layout.horizontalPadding }}>
               <Button
                 variant="tertiary"
                 onPress={() => {
@@ -189,14 +193,14 @@ export default function ScannerScreen() {
                 typography.title2,
                 {
                   color: colors.text,
-                  marginHorizontal: spacing[4],
+                  marginHorizontal: layout.horizontalPadding,
                 },
               ]}
             >
               Enter Code
             </Text>
 
-            <View style={{ paddingHorizontal: spacing[4] }}>
+            <View style={{ paddingHorizontal: layout.horizontalPadding }}>
               <TextField
                 label="Code"
                 placeholder="Scan or paste code"
@@ -208,7 +212,7 @@ export default function ScannerScreen() {
               />
             </View>
 
-            <View style={{ paddingHorizontal: spacing[4], gap: spacing[2] }}>
+            <View style={{ paddingHorizontal: layout.horizontalPadding, gap: spacing[2] }}>
               <Button
                 onPress={handleManualEntry}
                 disabled={!manualCode.trim()}
@@ -241,7 +245,6 @@ const styles = StyleSheet.create({
   cameraView: {
     height: 200,
     borderRadius: 12,
-    marginHorizontal: 16,
     justifyContent: "center",
     alignItems: "center",
   },

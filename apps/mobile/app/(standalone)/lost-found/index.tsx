@@ -1,4 +1,4 @@
-import { useRouter } from "expo-router";
+import { useRouter, Stack } from "expo-router";
 import { useMemo } from "react";
 import {
   Pressable,
@@ -8,11 +8,9 @@ import {
 } from "react-native";
 
 import { ScreenContainer } from "@/components/layout/ScreenContainer";
-import { useIOSNativeSearchHeader } from "@/navigation/useIOSNativeSearchHeader";
 import { Button } from "@/components/ui/Button";
 import { FilterChips } from "@/components/ui/FilterChips";
-import { SearchField } from "@/components/ui/SearchField";
-import { SectionCard } from "@/components/ui/SectionCard";
+import { SectionHeader } from "@/components/ui/SectionHeader";
 import { StatusBadge } from "@/components/ui/StatusBadge";
 import { formatRelativeTimestamp } from "@/lib/format";
 import {
@@ -25,6 +23,8 @@ import {
 } from "@/stores/filter-store";
 import { useThemeColors, useThemeTypography } from "@/theme";
 import { useAdaptiveLayout } from "@/theme/layout";
+import { HeaderSearchButton } from "@/navigation/header-buttons";
+import { NativeHeaderActionGroup } from "@/navigation/NativeHeaderActionGroup";
 
 const moduleKey = "lost-found";
 const statusFilters = [
@@ -52,12 +52,6 @@ export default function LostFoundScreen() {
   const selectedStatusLabel =
     statusFilters.find((filter) => filter.value === selectedStatus)?.label ??
     "All";
-  const { nativeIOSHeader } = useIOSNativeSearchHeader({
-    placeholder: "Search items, categories, locations, or report numbers",
-    query,
-    setQuery: (value) => setFilter(moduleKey, { search: value }),
-    title: "Lost & Found",
-  });
   const styles = createStyles(colors, layout, typography);
 
   const filteredFoundItems = useMemo(
@@ -101,18 +95,20 @@ export default function LostFoundScreen() {
   );
 
   return (
-    <ScreenContainer
-      accessory={
-        <View style={styles.accessory}>
-          {!nativeIOSHeader ? (
-            <SearchField
-              onChangeText={(value) => setFilter(moduleKey, { search: value })}
-              placeholder="Search items, categories, locations, or report numbers"
-              style={styles.searchField}
-              value={query}
-            />
-          ) : null}
-          <FilterChips
+    <>
+      <Stack.Screen
+        options={{
+          headerRight: () => (
+            <NativeHeaderActionGroup>
+              <HeaderSearchButton onPress={() => router.push("/search")} />
+            </NativeHeaderActionGroup>
+          ),
+        }}
+      />
+      <ScreenContainer
+        accessory={
+          <View style={styles.accessory}>
+            <FilterChips
             onSelect={(value) => {
               const match = statusFilters.find((filter) => filter.label === value);
               setFilter(moduleKey, { status: match?.value ?? "" });
@@ -126,23 +122,18 @@ export default function LostFoundScreen() {
             variant="secondary"
           />
         </View>
-      }
-      iosNativeHeader={nativeIOSHeader}
-      onRefresh={() => {
-        void Promise.all([foundItemsQuery.refetch(), lostReportsQuery.refetch()]);
-      }}
-      refreshing={foundItemsQuery.isRefetching || lostReportsQuery.isRefetching}
-      subtitle="Found inventory and active lost reports in a single recovery surface."
-      title="Lost & Found"
-    >
-      <SectionCard
-        subtitle={
-          foundItemsQuery.isLoading
-            ? "Loading found inventory"
-            : `${filteredFoundItems.length} found items visible`
         }
-        title="Found inventory"
+        gutter="none"
+        nativeHeader
+        onRefresh={() => {
+          void Promise.all([foundItemsQuery.refetch(), lostReportsQuery.refetch()]);
+        }}
+        refreshing={foundItemsQuery.isRefetching || lostReportsQuery.isRefetching}
+        subtitle="Found inventory and active lost reports in a single recovery surface."
+        title="Lost & Found"
       >
+      <View style={styles.section}>
+        <SectionHeader title="Found inventory" />
         <View style={styles.list}>
           {filteredFoundItems.length ? (
             filteredFoundItems.map((item) => (
@@ -177,16 +168,10 @@ export default function LostFoundScreen() {
             </Text>
           )}
         </View>
-      </SectionCard>
+      </View>
 
-      <SectionCard
-        subtitle={
-          lostReportsQuery.isLoading
-            ? "Loading lost reports"
-            : `${filteredLostReports.length} reports visible`
-        }
-        title="Lost reports"
-      >
+      <View style={styles.section}>
+        <SectionHeader title="Lost reports" />
         <View style={styles.list}>
           {filteredLostReports.length ? (
             filteredLostReports.map((item) => (
@@ -212,8 +197,9 @@ export default function LostFoundScreen() {
             </Text>
           )}
         </View>
-      </SectionCard>
-    </ScreenContainer>
+      </View>
+      </ScreenContainer>
+    </>
   );
 }
 
@@ -230,7 +216,7 @@ function createStyles(
     },
     card: {
       backgroundColor: colors.surfaceSecondary,
-      borderRadius: 18,
+      borderRadius: 12,
       gap: 8,
       padding: layout.listItemPadding,
     },
@@ -245,6 +231,10 @@ function createStyles(
     list: {
       gap: layout.gridGap,
     },
+    section: {
+      gap: 8,
+      paddingHorizontal: layout.horizontalPadding,
+    },
     meta: {
       ...typography.footnote,
       color: colors.textTertiary,
@@ -254,9 +244,6 @@ function createStyles(
       flexDirection: "row",
       gap: 12,
       justifyContent: "space-between",
-    },
-    searchField: {
-      width: "100%",
     },
     title: {
       ...typography.headline,

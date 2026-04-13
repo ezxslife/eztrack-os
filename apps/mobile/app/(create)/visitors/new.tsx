@@ -1,4 +1,4 @@
-import { useRouter } from "expo-router";
+import { useRouter, Stack } from "expo-router";
 import { useState } from "react";
 import {
   Alert,
@@ -8,6 +8,8 @@ import {
 } from "react-native";
 
 import { ScreenContainer } from "@/components/layout/ScreenContainer";
+import { NativeHeaderActionGroup } from "@/navigation/NativeHeaderActionGroup";
+import { HeaderCancelButton, HeaderSaveButton } from "@/navigation/header-buttons";
 import { Button } from "@/components/ui/Button";
 import { MaterialSurface } from "@/components/ui/MaterialSurface";
 import { SectionCard } from "@/components/ui/SectionCard";
@@ -31,7 +33,7 @@ export default function NewVisitorScreen() {
   const [expectedDate, setExpectedDate] = useState("");
   const [expectedTime, setExpectedTime] = useState("");
 
-  const handleSubmit = async () => {
+  const handleSave = async () => {
     if (!firstName.trim() || !lastName.trim() || !purpose.trim()) {
       Alert.alert("Required fields", "First name, last name, and purpose are required.");
       return;
@@ -60,7 +62,23 @@ export default function NewVisitorScreen() {
   };
 
   return (
-    <ScreenContainer
+    <>
+      <Stack.Screen options={{
+        headerLeft: () => (
+          <HeaderCancelButton onPress={() => router.back()} />
+        ),
+        headerRight: () => (
+          <NativeHeaderActionGroup>
+            <HeaderSaveButton
+              loading={createMutation.isPending}
+              onPress={() => {
+                void handleSave();
+              }}
+            />
+          </NativeHeaderActionGroup>
+        ),
+      }} />
+      <ScreenContainer
       accessory={
         <MaterialSurface intensity={76} style={styles.hero} variant="panel">
           <Text style={styles.heroTitle}>Create Visit</Text>
@@ -98,19 +116,11 @@ export default function NewVisitorScreen() {
           <TextField label="Company" onChangeText={setCompany} value={company} />
           <TextField label="Email" keyboardType="email-address" onChangeText={setEmail} value={email} />
           <TextField label="Phone" keyboardType="phone-pad" onChangeText={setPhone} value={phone} />
-          <View style={styles.actions}>
-            <Button label="Cancel" onPress={() => router.back()} variant="secondary" />
-            <Button
-              label="Create Visitor"
-              loading={createMutation.isPending}
-              onPress={() => {
-                void handleSubmit();
-              }}
-            />
-          </View>
+          <View style={styles.actions} />
         </View>
       </SectionCard>
     </ScreenContainer>
+    </>
   );
 }
 

@@ -1,4 +1,4 @@
-import { useLocalSearchParams, useRouter } from "expo-router";
+import { useLocalSearchParams, useRouter, Stack } from "expo-router";
 import {
   Alert,
   StyleSheet,
@@ -7,6 +7,8 @@ import {
 } from "react-native";
 
 import { ScreenContainer } from "@/components/layout/ScreenContainer";
+import { NativeHeaderActionGroup } from "@/navigation/NativeHeaderActionGroup";
+import { HeaderEditButton } from "@/navigation/header-buttons";
 import { Button } from "@/components/ui/Button";
 import { SectionCard } from "@/components/ui/SectionCard";
 import {
@@ -14,10 +16,12 @@ import {
   useVehicleDetail,
 } from "@/lib/queries/vehicles";
 import { useThemeColors } from "@/theme";
+import { useAdaptiveLayout } from "@/theme/layout";
 
 export default function VehicleDetailScreen() {
   const colors = useThemeColors();
-  const styles = createStyles(colors);
+  const layout = useAdaptiveLayout();
+  const styles = createStyles(colors, layout);
   const router = useRouter();
   const params = useLocalSearchParams<{ id: string }>();
   const vehicleId = params.id ?? "";
@@ -36,14 +40,27 @@ export default function VehicleDetailScreen() {
   }
 
   return (
-    <ScreenContainer
-      onRefresh={() => {
-        void detailQuery.refetch();
-      }}
-      refreshing={detailQuery.isRefetching}
-      subtitle="Vehicle registry detail and real edit/delete control."
-      title={vehicle.licensePlate ?? "No Plate"}
-    >
+    <>
+      <Stack.Screen options={{
+        headerRight: () => (
+          <NativeHeaderActionGroup>
+            <HeaderEditButton onPress={() => {
+              router.push({
+                pathname: "/(create)/vehicles/edit/[id]",
+                params: { id: vehicle.id },
+              });
+            }} />
+          </NativeHeaderActionGroup>
+        ),
+      }} />
+      <ScreenContainer
+        onRefresh={() => {
+          void detailQuery.refetch();
+        }}
+        refreshing={detailQuery.isRefetching}
+        subtitle="Vehicle registry detail and real edit/delete control."
+        title={vehicle.licensePlate ?? "No Plate"}
+      >
       <SectionCard subtitle={vehicle.vehicleType} title="Overview">
         <View style={styles.stack}>
           <Text style={styles.copy}>
@@ -91,10 +108,14 @@ export default function VehicleDetailScreen() {
         </View>
       </SectionCard>
     </ScreenContainer>
+    </>
   );
 }
 
-function createStyles(colors: ReturnType<typeof useThemeColors>) {
+function createStyles(
+  colors: ReturnType<typeof useThemeColors>,
+  layout: ReturnType<typeof useAdaptiveLayout>
+) {
   return StyleSheet.create({
     actions: { flexDirection: "row", flexWrap: "wrap", gap: 12 },
     copy: { color: colors.textPrimary, fontSize: 15, lineHeight: 22 },

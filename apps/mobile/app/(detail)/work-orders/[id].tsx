@@ -1,4 +1,4 @@
-import { useLocalSearchParams, useRouter } from "expo-router";
+import { useLocalSearchParams, useRouter, Stack } from "expo-router";
 import {
   Alert,
   StyleSheet,
@@ -7,6 +7,8 @@ import {
 } from "react-native";
 
 import { ScreenContainer } from "@/components/layout/ScreenContainer";
+import { NativeHeaderActionGroup } from "@/navigation/NativeHeaderActionGroup";
+import { HeaderEditButton, HeaderMoreButton } from "@/navigation/header-buttons";
 import { Button } from "@/components/ui/Button";
 import { PriorityBadge } from "@/components/ui/PriorityBadge";
 import { SectionCard } from "@/components/ui/SectionCard";
@@ -47,14 +49,30 @@ export default function WorkOrderDetailScreen() {
   }
 
   return (
-    <ScreenContainer
-      onRefresh={() => {
-        void detailQuery.refetch();
-      }}
-      refreshing={detailQuery.isRefetching}
-      subtitle="Facilities, safety, and maintenance actions from the live work order table."
-      title={workOrder.recordNumber}
-    >
+    <>
+      <Stack.Screen options={{
+        headerRight: () => (
+          <NativeHeaderActionGroup>
+            <HeaderEditButton onPress={() => {
+              router.push({
+                pathname: "/(create)/work-orders/edit/[id]",
+                params: { id: workOrder.id },
+              });
+            }} />
+            <HeaderMoreButton onPress={() => {
+              // TODO: wire to action menu
+            }} />
+          </NativeHeaderActionGroup>
+        ),
+      }} />
+      <ScreenContainer
+        onRefresh={() => {
+          void detailQuery.refetch();
+        }}
+        refreshing={detailQuery.isRefetching}
+        subtitle="Facilities, safety, and maintenance actions from the live work order table."
+        title={workOrder.recordNumber}
+      >
       <SectionCard subtitle={workOrder.category} title="Overview">
         <View style={styles.stack}>
           <View style={styles.rowBetween}>
@@ -162,6 +180,7 @@ export default function WorkOrderDetailScreen() {
         </View>
       </SectionCard>
     </ScreenContainer>
+    </>
   );
 }
 

@@ -1,4 +1,4 @@
-import { useLocalSearchParams, useRouter } from "expo-router";
+import { useLocalSearchParams, useRouter, Stack } from "expo-router";
 import {
   Alert,
   StyleSheet,
@@ -7,6 +7,8 @@ import {
 } from "react-native";
 
 import { ScreenContainer } from "@/components/layout/ScreenContainer";
+import { NativeHeaderActionGroup } from "@/navigation/NativeHeaderActionGroup";
+import { HeaderEditButton, HeaderMoreButton } from "@/navigation/header-buttons";
 import { Button } from "@/components/ui/Button";
 import { SectionCard } from "@/components/ui/SectionCard";
 import { StatusBadge } from "@/components/ui/StatusBadge";
@@ -40,14 +42,30 @@ export default function LostFoundDetailScreen() {
   }
 
   return (
-    <ScreenContainer
-      onRefresh={() => {
-        void detailQuery.refetch();
-      }}
-      refreshing={detailQuery.isRefetching}
-      subtitle="Found inventory detail with live claim, return, disposal, and delete actions."
-      title={item.recordNumber}
-    >
+    <>
+      <Stack.Screen options={{
+        headerRight: () => (
+          <NativeHeaderActionGroup>
+            <HeaderEditButton onPress={() => {
+              router.push({
+                pathname: "/(create)/lost-found/edit/[id]",
+                params: { id: item.id },
+              });
+            }} />
+            <HeaderMoreButton onPress={() => {
+              // TODO: wire to action menu
+            }} />
+          </NativeHeaderActionGroup>
+        ),
+      }} />
+      <ScreenContainer
+        onRefresh={() => {
+          void detailQuery.refetch();
+        }}
+        refreshing={detailQuery.isRefetching}
+        subtitle="Found inventory detail with live claim, return, disposal, and delete actions."
+        title={item.recordNumber}
+      >
       <SectionCard subtitle={item.category} title="Overview">
         <View style={styles.stack}>
           <View style={styles.rowBetween}>
@@ -146,6 +164,7 @@ export default function LostFoundDetailScreen() {
         </View>
       </SectionCard>
     </ScreenContainer>
+    </>
   );
 }
 

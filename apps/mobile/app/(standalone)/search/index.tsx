@@ -1,18 +1,15 @@
 import { Stack, useRouter } from "expo-router";
-import { useMemo, useRef, useState } from "react";
+import { useMemo, useState } from "react";
 import {
   StyleSheet,
   Text,
   View,
   Pressable,
   SectionList,
-  Animated,
 } from "react-native";
 
 import { ScreenContainer } from "@/components/layout/ScreenContainer";
 import { SearchField } from "@/components/ui/SearchField";
-import { Button } from "@/components/ui/Button";
-import { SectionCard } from "@/components/ui/SectionCard";
 import { StatusBadge } from "@/components/ui/StatusBadge";
 import { AppSymbol } from "@/components/ui/AppSymbol";
 import { HeaderCancelButton } from "@/navigation/header-buttons";
@@ -90,6 +87,15 @@ interface RecentSearch {
   timestamp: number;
 }
 
+type SearchItem =
+  | { id: string; status: string; timestamp: string; title: string; type: "record" }
+  | { avatar: string; id: string; name: string; title: string; type: "person" };
+
+interface SearchSection {
+  data: SearchItem[];
+  title: string;
+}
+
 export default function SearchScreen() {
   const colors = useThemeColors();
   const typography = useThemeTypography();
@@ -104,7 +110,7 @@ export default function SearchScreen() {
   ]);
 
   // Filter results based on search query
-  const filteredResults = useMemo(() => {
+  const filteredResults = useMemo<SearchSection[]>(() => {
     if (!searchQuery.trim()) {
       return [];
     }
@@ -136,10 +142,18 @@ export default function SearchScreen() {
     );
 
     return [
-      ...(incidents.length > 0 ? [{ title: "Incidents", data: incidents }] : []),
-      ...(dispatches.length > 0 ? [{ title: "Dispatches", data: dispatches }] : []),
-      ...(personnel.length > 0 ? [{ title: "Personnel", data: personnel }] : []),
-      ...(cases.length > 0 ? [{ title: "Cases", data: cases }] : []),
+      ...(incidents.length > 0
+        ? [{ title: "Incidents", data: incidents.map((item) => ({ ...item, type: "record" as const })) }]
+        : []),
+      ...(dispatches.length > 0
+        ? [{ title: "Dispatches", data: dispatches.map((item) => ({ ...item, type: "record" as const })) }]
+        : []),
+      ...(personnel.length > 0
+        ? [{ title: "Personnel", data: personnel.map((item) => ({ ...item, type: "person" as const })) }]
+        : []),
+      ...(cases.length > 0
+        ? [{ title: "Cases", data: cases.map((item) => ({ ...item, type: "record" as const })) }]
+        : []),
     ];
   }, [searchQuery]);
 
@@ -163,81 +177,45 @@ export default function SearchScreen() {
   const handleResultPress = (resultId: string, type: string) => {
     triggerSelectionHaptic();
     // TODO: Navigate to appropriate detail screen
-    // Example: router.push(`/incidents/${resultId}`);
     console.log("Tapped result:", { resultId, type });
   };
-
-  const sections =
-    searchQuery.trim().length > 0
-      ? filteredResults
-      : [{ title: "Recent Searches", data: recentSearches }];
 
   return (
     <>
       <Stack.Screen
         options={{
-          headerShown: false,
+          headerLeft: () => <HeaderCancelButton onPress={() => router.back()} />,
+          title: "Search",
         }}
       />
 
       <ScreenContainer>
         <View style={[styles.container, { gap: spacing[3] }]}>
-          {/* Header with SearchField */}
+          {/* Full-width search field — cancel lives in the native header */}
           <View
-            style={[
-              styles.headerSection,
-              {
-                backgroundColor: colors.background,
-                paddingHorizontal: spacing[4],
-                paddingTop: spacing[4],
-                paddingBottom: spacing[3],
-                gap: spacing[2],
-              },
-            ]}
+            style={{
+              paddingHorizontal: layout.horizontalPadding,
+              paddingTop: spacing[3],
+              paddingBottom: spacing[2],
+            }}
           >
-            <View style={{ flexDirection: "row", gap: spacing[2] }}>
-              <View style={{ flex: 1 }}>
-                <SearchField
-                  placeholder="Search incidents, personnel, cases..."
-                  value={searchQuery}
-                  onChangeText={setSearchQuery}
-                  onSubmitEditing={(e) => handleSearchSubmit(e.nativeEvent.text)}
-                  autoFocus
-                />
-              </View>
-              <Pressable
-                onPress={() => {
-                  triggerSelectionHaptic();
-                  router.back();
-                }}
-                style={({ pressed }) => [
-                  styles.cancelButton,
-                  {
-                    opacity: pressed ? 0.6 : 1,
-                    backgroundColor: colors.surface,
-                  },
-                ]}
-              >
-                <Text
-                  style={[
-                    typography.body,
-                    { color: colors.primary, fontWeight: "600" },
-                  ]}
-                >
-                  Cancel
-                </Text>
-              </Pressable>
-            </View>
+            <SearchField
+              placeholder="Search incidents, personnel, cases..."
+              value={searchQuery}
+              onChangeText={setSearchQuery}
+              onSubmitEditing={(e) => handleSearchSubmit(e.nativeEvent.text)}
+              autoFocus
+            />
           </View>
 
-          {/* Results or Recent Searches */}
+          {/* Recent searches header */}
           {searchQuery.trim().length === 0 && recentSearches.length > 0 && (
             <View
               style={{
                 flexDirection: "row",
                 justifyContent: "space-between",
                 alignItems: "center",
-                paddingHorizontal: spacing[4],
+                paddingHorizontal: layout.horizontalPadding,
               }}
             >
               <Text
@@ -262,7 +240,7 @@ export default function SearchScreen() {
           )}
 
           {filteredResults.length > 0 && searchQuery.trim().length > 0 ? (
-            <SectionList
+            <SectionList<SearchItem, SearchSection>
               sections={filteredResults}
               scrollEnabled={false}
               keyExtractor={(item) => item.id}
@@ -277,7 +255,7 @@ export default function SearchScreen() {
                   ]}
                 >
                   <View style={styles.resultContent}>
-                    {"avatar" in item ? (
+                    {item.type === "person" ? (
                       <View
                         style={[
                           styles.avatar,
@@ -314,9 +292,9 @@ export default function SearchScreen() {
                         ]}
                         numberOfLines={1}
                       >
-                        {item.title || item.name}
+                        {item.type === "person" ? item.name : item.title}
                       </Text>
-                      {item.title && (
+                      {item.type === "record" ? (
                         <Text
                           style={[
                             typography.caption1,
@@ -325,12 +303,12 @@ export default function SearchScreen() {
                         >
                           {item.timestamp}
                         </Text>
-                      )}
-                      {item.title && "status" in item && (
+                      ) : null}
+                      {item.type === "record" ? (
                         <View style={{ marginTop: 4 }}>
                           <StatusBadge status={item.status} />
                         </View>
-                      )}
+                      ) : null}
                     </View>
                   </View>
                 </Pressable>
@@ -357,7 +335,7 @@ export default function SearchScreen() {
                 styles.emptyState,
                 {
                   gap: spacing[3],
-                  paddingHorizontal: spacing[4],
+                  paddingHorizontal: layout.horizontalPadding,
                 },
               ]}
             >
@@ -394,7 +372,7 @@ export default function SearchScreen() {
             <View
               style={{
                 flex: 1,
-                paddingHorizontal: spacing[4],
+                paddingHorizontal: layout.horizontalPadding,
               }}
             >
               {recentSearches.length === 0 && (
@@ -433,15 +411,6 @@ export default function SearchScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-  },
-  headerSection: {
-    borderBottomWidth: 1,
-  },
-  cancelButton: {
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderRadius: 8,
-    justifyContent: "center",
   },
   resultItem: {
     paddingVertical: 12,

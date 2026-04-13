@@ -1,27 +1,28 @@
-import { Stack } from "expo-router";
+import { Stack, useRouter } from "expo-router";
 
 import { RequireAuth } from "@/components/auth/RouteGate";
-import { NativeHeaderProvider } from "@/navigation/NativeHeaderContext";
-import { SETTINGS_ROUTE_METADATA } from "@/navigation/route-metadata";
-import { buildStackScreenOptions } from "@/navigation/stack-screen-options";
+import { HeaderBackButton } from "@/navigation/header-buttons";
 import { useThemeColors } from "@/theme";
+import { getSeamlessHeaderOptions } from "@/theme/headers";
 
 export default function SettingsLayout() {
   const colors = useThemeColors();
+  const router = useRouter();
 
   return (
     <RequireAuth>
-      <NativeHeaderProvider enabled>
-        <Stack>
-          {Object.entries(SETTINGS_ROUTE_METADATA).map(([name, metadata]) => (
-            <Stack.Screen
-              key={name}
-              name={name}
-              options={buildStackScreenOptions(colors, metadata)}
-            />
-          ))}
-        </Stack>
-      </NativeHeaderProvider>
+      <Stack
+        screenOptions={{
+          ...getSeamlessHeaderOptions(colors.background),
+          headerLeft: () => (
+            <HeaderBackButton onPress={() => router.back()} />
+          ),
+          headerTintColor: colors.primaryInk,
+        }}
+      >
+        {/* Index (main settings list) — header provided by parent stack/tab */}
+        <Stack.Screen name="index" options={{ headerShown: false }} />
+      </Stack>
     </RequireAuth>
   );
 }

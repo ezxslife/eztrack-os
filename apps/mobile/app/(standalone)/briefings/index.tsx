@@ -1,4 +1,4 @@
-import { useRouter } from "expo-router";
+import { useRouter, Stack } from "expo-router";
 import { useMemo } from "react";
 import {
   Pressable,
@@ -8,12 +8,10 @@ import {
 } from "react-native";
 
 import { ScreenContainer } from "@/components/layout/ScreenContainer";
-import { useIOSNativeSearchHeader } from "@/navigation/useIOSNativeSearchHeader";
 import { Button } from "@/components/ui/Button";
 import { FilterChips } from "@/components/ui/FilterChips";
 import { PriorityBadge } from "@/components/ui/PriorityBadge";
-import { SearchField } from "@/components/ui/SearchField";
-import { SectionCard } from "@/components/ui/SectionCard";
+import { SectionHeader } from "@/components/ui/SectionHeader";
 import { formatRelativeTimestamp } from "@/lib/format";
 import { useBriefings } from "@/lib/queries/secondary-modules";
 import {
@@ -22,6 +20,8 @@ import {
 } from "@/stores/filter-store";
 import { useThemeColors, useThemeTypography } from "@/theme";
 import { useAdaptiveLayout } from "@/theme/layout";
+import { HeaderSearchButton } from "@/navigation/header-buttons";
+import { NativeHeaderActionGroup } from "@/navigation/NativeHeaderActionGroup";
 
 const moduleKey = "briefings";
 const priorityFilters = [
@@ -47,12 +47,6 @@ export default function BriefingsScreen() {
   const selectedPriorityLabel =
     priorityFilters.find((filter) => filter.value === selectedPriority)?.label ??
     "All";
-  const { nativeIOSHeader } = useIOSNativeSearchHeader({
-    placeholder: "Search title, author, or briefing content",
-    query,
-    setQuery: (value) => setFilter(moduleKey, { search: value }),
-    title: "Briefings",
-  });
   const styles = createStyles(colors, layout, typography);
 
   const filtered = useMemo(
@@ -73,18 +67,20 @@ export default function BriefingsScreen() {
   );
 
   return (
-    <ScreenContainer
-      accessory={
-        <View style={styles.accessory}>
-          {!nativeIOSHeader ? (
-            <SearchField
-              onChangeText={(value) => setFilter(moduleKey, { search: value })}
-              placeholder="Search title, author, or briefing content"
-              style={styles.searchField}
-              value={query}
-            />
-          ) : null}
-          <FilterChips
+    <>
+      <Stack.Screen
+        options={{
+          headerRight: () => (
+            <NativeHeaderActionGroup>
+              <HeaderSearchButton onPress={() => router.push("/search")} />
+            </NativeHeaderActionGroup>
+          ),
+        }}
+      />
+      <ScreenContainer
+        accessory={
+          <View style={styles.accessory}>
+            <FilterChips
             onSelect={(value) => {
               const match = priorityFilters.find((filter) => filter.label === value);
               setFilter(moduleKey, { priority: match?.value ?? "" });
@@ -98,23 +94,18 @@ export default function BriefingsScreen() {
             variant="secondary"
           />
         </View>
-      }
-      iosNativeHeader={nativeIOSHeader}
-      onRefresh={() => {
-        void briefingsQuery.refetch();
-      }}
-      refreshing={briefingsQuery.isRefetching}
-      subtitle="Shift briefings and operational notes in a mobile-first reading surface."
-      title="Briefings"
-    >
-      <SectionCard
-        subtitle={
-          briefingsQuery.isLoading
-            ? "Loading briefings"
-            : `${filtered.length} briefings visible`
         }
-        title="Briefing feed"
+        gutter="none"
+        nativeHeader
+        onRefresh={() => {
+          void briefingsQuery.refetch();
+        }}
+        refreshing={briefingsQuery.isRefetching}
+        subtitle="Shift briefings and operational notes in a mobile-first reading surface."
+        title="Briefings"
       >
+      <View style={styles.section}>
+        <SectionHeader title="Briefing feed" />
         <View style={styles.list}>
           {filtered.length ? (
             filtered.map((item) => (
@@ -144,8 +135,9 @@ export default function BriefingsScreen() {
             </Text>
           )}
         </View>
-      </SectionCard>
-    </ScreenContainer>
+      </View>
+      </ScreenContainer>
+    </>
   );
 }
 
@@ -162,7 +154,7 @@ function createStyles(
     },
     card: {
       backgroundColor: colors.surfaceSecondary,
-      borderRadius: 18,
+      borderRadius: 12,
       gap: 8,
       padding: layout.listItemPadding,
     },
@@ -177,6 +169,10 @@ function createStyles(
     list: {
       gap: layout.gridGap,
     },
+    section: {
+      gap: 8,
+      paddingHorizontal: layout.horizontalPadding,
+    },
     meta: {
       ...typography.footnote,
       color: colors.textTertiary,
@@ -186,9 +182,6 @@ function createStyles(
       flexDirection: "row",
       gap: 12,
       justifyContent: "space-between",
-    },
-    searchField: {
-      width: "100%",
     },
     title: {
       ...typography.headline,

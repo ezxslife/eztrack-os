@@ -65,17 +65,33 @@ export function getBlurTabHeaderOptions(backgroundColor: string) {
 export function getSeamlessHeaderOptions(backgroundColor: string) {
   const { supportsBlur, supportsGlass } = getSupportFlags();
 
-  if (Platform.OS === "ios" && supportsBlur && !supportsGlass) {
-    return {
-      headerTransparent: true,
-      headerStyle: { backgroundColor: "transparent" },
-      headerBlurEffect: "systemChromeMaterial" as const,
-      headerShadowVisible: false,
-      headerBackButtonDisplayMode: "minimal" as const,
-      contentStyle: { backgroundColor },
-    };
+  if (Platform.OS === "ios") {
+    // iOS 26+ liquid glass — transparent header with native scroll-edge effects
+    if (supportsGlass) {
+      return {
+        headerTransparent: true,
+        headerStyle: { backgroundColor: "transparent" },
+        scrollEdgeEffects: { top: "automatic" as const },
+        headerShadowVisible: false,
+        headerBackButtonDisplayMode: "minimal" as const,
+        contentStyle: { backgroundColor },
+      };
+    }
+
+    // Older iOS — blur fallback
+    if (supportsBlur) {
+      return {
+        headerTransparent: true,
+        headerStyle: { backgroundColor: "transparent" },
+        headerBlurEffect: "systemChromeMaterial" as const,
+        headerShadowVisible: false,
+        headerBackButtonDisplayMode: "minimal" as const,
+        contentStyle: { backgroundColor },
+      };
+    }
   }
 
+  // Android / fallback
   return {
     contentStyle: { backgroundColor },
     headerStyle: { backgroundColor },
@@ -118,6 +134,35 @@ export function getTransparentBlurHeaderOptions(backgroundColor: string) {
 }
 
 export function getGlassHeaderOptions(backgroundColor: string) {
+  const { supportsGlass, supportsBlur } = getSupportFlags();
+
+  if (Platform.OS === "ios") {
+    // iOS 26+ liquid glass
+    if (supportsGlass) {
+      return {
+        headerTransparent: true,
+        headerStyle: { backgroundColor: "transparent" },
+        scrollEdgeEffects: { top: "automatic" as const },
+        headerShadowVisible: false,
+        headerBackButtonDisplayMode: "minimal" as const,
+        contentStyle: { backgroundColor },
+      };
+    }
+
+    // Older iOS — blur
+    if (supportsBlur) {
+      return {
+        headerTransparent: true,
+        headerStyle: { backgroundColor: "transparent" },
+        headerBlurEffect: "systemChromeMaterial" as const,
+        headerShadowVisible: false,
+        headerBackButtonDisplayMode: "minimal" as const,
+        contentStyle: { backgroundColor },
+      };
+    }
+  }
+
+  // Android / fallback
   return {
     contentStyle: { backgroundColor },
     headerStyle: { backgroundColor },

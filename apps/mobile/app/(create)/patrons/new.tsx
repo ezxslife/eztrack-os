@@ -1,4 +1,4 @@
-import { useRouter } from "expo-router";
+import { useRouter, Stack } from "expo-router";
 import { useState } from "react";
 import {
   Alert,
@@ -8,6 +8,8 @@ import {
 } from "react-native";
 
 import { ScreenContainer } from "@/components/layout/ScreenContainer";
+import { NativeHeaderActionGroup } from "@/navigation/NativeHeaderActionGroup";
+import { HeaderCancelButton, HeaderSaveButton } from "@/navigation/header-buttons";
 import { Button } from "@/components/ui/Button";
 import { FilterChips } from "@/components/ui/FilterChips";
 import { MaterialSurface } from "@/components/ui/MaterialSurface";
@@ -34,7 +36,7 @@ export default function NewPatronScreen() {
   const [idNumber, setIdNumber] = useState("");
   const [notes, setNotes] = useState("");
 
-  const handleSubmit = async () => {
+  const handleSave = async () => {
     if (!firstName.trim() || !lastName.trim()) {
       Alert.alert("Name required", "First and last name are required.");
       return;
@@ -63,7 +65,23 @@ export default function NewPatronScreen() {
   };
 
   return (
-    <ScreenContainer
+    <>
+      <Stack.Screen options={{
+        headerLeft: () => (
+          <HeaderCancelButton onPress={() => router.back()} />
+        ),
+        headerRight: () => (
+          <NativeHeaderActionGroup>
+            <HeaderSaveButton
+              loading={createMutation.isPending}
+              onPress={() => {
+                void handleSave();
+              }}
+            />
+          </NativeHeaderActionGroup>
+        ),
+      }} />
+      <ScreenContainer
       accessory={
         <MaterialSurface intensity={76} style={styles.hero} variant="panel">
           <Text style={styles.heroTitle}>Create Patron</Text>
@@ -95,19 +113,11 @@ export default function NewPatronScreen() {
           <TextField label="Email" onChangeText={setEmail} value={email} />
           <TextField label="Phone" onChangeText={setPhone} value={phone} />
           <TextField label="Notes" multiline onChangeText={setNotes} value={notes} />
-          <View style={styles.actions}>
-            <Button label="Cancel" onPress={() => router.back()} variant="secondary" />
-            <Button
-              label="Create Patron"
-              loading={createMutation.isPending}
-              onPress={() => {
-                void handleSubmit();
-              }}
-            />
-          </View>
+          <View style={styles.actions} />
         </View>
       </SectionCard>
     </ScreenContainer>
+    </>
   );
 }
 

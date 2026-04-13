@@ -7,18 +7,21 @@ import {
 
 import { ScreenContainer } from "@/components/layout/ScreenContainer";
 import { Button } from "@/components/ui/Button";
-import { SectionCard } from "@/components/ui/SectionCard";
+import { SectionHeader } from "@/components/ui/SectionHeader";
 import { formatRelativeTimestamp } from "@/lib/format";
 import {
   useAcknowledgeAlertMutation,
   useAlerts,
   useResolveAlertMutation,
 } from "@/lib/queries/alerts";
-import { useThemeColors } from "@/theme";
+import { useThemeColors, useThemeTypography } from "@/theme";
+import { useAdaptiveLayout } from "@/theme/layout";
 
 export default function AlertsScreen() {
   const colors = useThemeColors();
-  const styles = createStyles(colors);
+  const typography = useThemeTypography();
+  const layout = useAdaptiveLayout();
+  const styles = createStyles(colors, typography, layout);
   const alertsQuery = useAlerts();
   const acknowledgeMutation = useAcknowledgeAlertMutation();
   const resolveMutation = useResolveAlertMutation();
@@ -26,6 +29,8 @@ export default function AlertsScreen() {
 
   return (
     <ScreenContainer
+      gutter="none"
+      nativeHeader
       onRefresh={() => {
         void alertsQuery.refetch();
       }}
@@ -33,72 +38,76 @@ export default function AlertsScreen() {
       subtitle="Real alert acknowledgements and resolution from the alerts table."
       title="Alerts"
     >
-      <SectionCard
-        subtitle={
-          alertsQuery.isLoading ? "Loading alerts" : `${items.length} active alerts`
-        }
-        title="Alert queue"
-      >
+      <View style={styles.section}>
+        <SectionHeader title="Alert queue" />
         <View style={styles.list}>
-          {items.map((item) => (
-            <View key={item.id} style={styles.row}>
-              <Text style={styles.rowTitle}>{item.title}</Text>
-              <Text style={styles.copy}>{item.message ?? "No message"}</Text>
-              <Text style={styles.rowMeta}>
-                {item.severity ?? "general"} · {formatRelativeTimestamp(item.createdAt)}
-              </Text>
-              <Text style={styles.rowMeta}>
-                {item.acknowledgedAt
-                  ? `Acknowledged ${formatRelativeTimestamp(item.acknowledgedAt)}`
-                  : "Unacknowledged"}
-              </Text>
-              <View style={styles.actions}>
-                {!item.acknowledgedAt ? (
+          {items.length ? (
+            items.map((item) => (
+              <View key={item.id} style={styles.card}>
+                <Text style={styles.cardTitle}>{item.title}</Text>
+                <Text style={styles.copy}>{item.message ?? "No message"}</Text>
+                <Text style={styles.meta}>
+                  {item.severity ?? "general"} · {formatRelativeTimestamp(item.createdAt)}
+                </Text>
+                <Text style={styles.meta}>
+                  {item.acknowledgedAt
+                    ? `Acknowledged ${formatRelativeTimestamp(item.acknowledgedAt)}`
+                    : "Unacknowledged"}
+                </Text>
+                <View style={styles.actions}>
+                  {!item.acknowledgedAt ? (
+                    <Button
+                      label="Acknowledge"
+                      loading={
+                        acknowledgeMutation.isPending &&
+                        acknowledgeMutation.variables === item.id
+                      }
+                      onPress={() => {
+                        void acknowledgeMutation.mutateAsync(item.id);
+                      }}
+                      variant="secondary"
+                    />
+                  ) : null}
                   <Button
-                    label="Acknowledge"
+                    label="Resolve"
                     loading={
-                      acknowledgeMutation.isPending &&
-                      acknowledgeMutation.variables === item.id
+                      resolveMutation.isPending && resolveMutation.variables === item.id
                     }
                     onPress={() => {
-                      void acknowledgeMutation.mutateAsync(item.id);
+                      Alert.alert(
+                        "Resolve alert",
+                        "Remove this alert from the active queue?",
+                        [
+                          { style: "cancel", text: "Cancel" },
+                          {
+                            style: "destructive",
+                            text: "Resolve",
+                            onPress: () => {
+                              void resolveMutation.mutateAsync(item.id);
+                            },
+                          },
+                        ]
+                      );
                     }}
                     variant="secondary"
                   />
-                ) : null}
-                <Button
-                  label="Resolve"
-                  loading={
-                    resolveMutation.isPending && resolveMutation.variables === item.id
-                  }
-                  onPress={() => {
-                    Alert.alert(
-                      "Resolve alert",
-                      "Remove this alert from the active queue?",
-                      [
-                        { style: "cancel", text: "Cancel" },
-                        {
-                          style: "destructive",
-                          text: "Resolve",
-                          onPress: () => {
-                            void resolveMutation.mutateAsync(item.id);
-                          },
-                        },
-                      ]
-                    );
-                  }}
-                  variant="secondary"
-                />
+                </View>
               </View>
-            </View>
-          ))}
+            ))
+          ) : (
+            <Text style={styles.emptyCopy}>No active alerts.</Text>
+          )}
         </View>
-      </SectionCard>
+      </View>
     </ScreenContainer>
   );
 }
 
-function createStyles(colors: ReturnType<typeof useThemeColors>) {
+function createStyles(
+  colors: ReturnType<typeof useThemeColors>,
+  typography: ReturnType<typeof useThemeTypography>,
+  layout: ReturnType<typeof useAdaptiveLayout>
+) {
   return StyleSheet.create({
     actions: {
       flexDirection: "row",
@@ -106,28 +115,35 @@ function createStyles(colors: ReturnType<typeof useThemeColors>) {
       gap: 10,
       marginTop: 8,
     },
+    card: {
+      backgroundColor: colors.surfaceSecondary,
+      borderRadius: 12,
+      gap: 4,
+      padding: layout.listItemPadding,
+    },
+    cardTitle: {
+      ...typography.headline,
+      color: colors.textPrimary,
+      fontWeight: "700",
+    },
     copy: {
+      ...typography.subheadline,
       color: colors.textSecondary,
-      fontSize: 15,
-      lineHeight: 22,
+    },
+    emptyCopy: {
+      ...typography.subheadline,
+      color: colors.textTertiary,
     },
     list: {
-      gap: 12,
+      gap: layout.gridGap,
     },
-    row: {
-      backgroundColor: colors.surfaceSecondary,
-      borderRadius: 18,
-      gap: 4,
-      padding: 14,
-    },
-    rowMeta: {
+    meta: {
+      ...typography.footnote,
       color: colors.textTertiary,
-      fontSize: 13,
     },
-    rowTitle: {
-      color: colors.textPrimary,
-      fontSize: 15,
-      fontWeight: "700",
+    section: {
+      gap: 8,
+      paddingHorizontal: layout.horizontalPadding,
     },
   });
 }

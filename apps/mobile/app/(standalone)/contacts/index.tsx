@@ -1,13 +1,11 @@
-import { useRouter } from "expo-router";
+import { useRouter, Stack } from "expo-router";
 import { useMemo } from "react";
 import { StyleSheet, Text, View } from "react-native";
 
 import { ScreenContainer } from "@/components/layout/ScreenContainer";
-import { useIOSNativeSearchHeader } from "@/navigation/useIOSNativeSearchHeader";
 import { Button } from "@/components/ui/Button";
 import { GroupedCard } from "@/components/ui/GroupedCard";
 import { GroupedCardDivider } from "@/components/ui/GroupedCardDivider";
-import { SearchField } from "@/components/ui/SearchField";
 import { SectionHeader } from "@/components/ui/SectionHeader";
 import { SettingsListRow } from "@/components/ui/SettingsListRow";
 import { useContacts } from "@/lib/queries/secondary-modules";
@@ -17,6 +15,8 @@ import {
 } from "@/stores/filter-store";
 import { useThemeColors, useThemeTypography } from "@/theme";
 import { useAdaptiveLayout } from "@/theme/layout";
+import { HeaderSearchButton } from "@/navigation/header-buttons";
+import { NativeHeaderActionGroup } from "@/navigation/NativeHeaderActionGroup";
 
 const moduleKey = "contacts";
 
@@ -32,12 +32,6 @@ export default function ContactsScreen() {
   );
   const setFilter = useFilterStore((state) => state.setFilter);
   const query = filtersState.search;
-  const { nativeIOSHeader } = useIOSNativeSearchHeader({
-    placeholder: "Search names, organizations, categories, or contact info",
-    query,
-    setQuery: (value) => setFilter(moduleKey, { search: value }),
-    title: "Contacts",
-  });
   const styles = createStyles(colors, typography, layout);
 
   const filtered = useMemo(
@@ -61,33 +55,35 @@ export default function ContactsScreen() {
   );
 
   return (
-    <ScreenContainer
-      accessory={
-        <View style={styles.accessory}>
-          {!nativeIOSHeader ? (
-            <SearchField
-              onChangeText={(value) => setFilter(moduleKey, { search: value })}
-              placeholder="Search names, organizations, categories, or contact info"
-              style={styles.searchField}
-              value={query}
+    <>
+      <Stack.Screen
+        options={{
+          headerRight: () => (
+            <NativeHeaderActionGroup>
+              <HeaderSearchButton onPress={() => router.push("/search")} />
+            </NativeHeaderActionGroup>
+          ),
+        }}
+      />
+      <ScreenContainer
+        accessory={
+          <View style={styles.accessory}>
+            <Button
+              label="New Contact"
+              onPress={() => router.push("/contacts/new")}
+              variant="secondary"
             />
-          ) : null}
-          <Button
-            label="New Contact"
-            onPress={() => router.push("/contacts/new")}
-            variant="secondary"
-          />
-        </View>
-      }
-      gutter="none"
-      iosNativeHeader={nativeIOSHeader}
-      onRefresh={() => {
-        void contactsQuery.refetch();
-      }}
-      refreshing={contactsQuery.isRefetching}
-      subtitle="External, vendor, and operational contacts."
-      title="Contacts"
-    >
+          </View>
+        }
+        gutter="none"
+        nativeHeader
+        onRefresh={() => {
+          void contactsQuery.refetch();
+        }}
+        refreshing={contactsQuery.isRefetching}
+        subtitle="External, vendor, and operational contacts."
+        title="Contacts"
+      >
       <View style={styles.section}>
         <SectionHeader title="Contact directory" />
         {filtered.length ? (
@@ -126,6 +122,7 @@ export default function ContactsScreen() {
         )}
       </View>
     </ScreenContainer>
+    </>
   );
 }
 
@@ -148,13 +145,10 @@ function createStyles(
     emptyState: {
       backgroundColor: colors.surfaceTintSubtle,
       borderColor: colors.borderLight,
-      borderRadius: 18,
+      borderRadius: 12,
       borderWidth: 1,
       marginHorizontal: layout.horizontalPadding,
       padding: 16,
-    },
-    searchField: {
-      width: "100%",
     },
     section: {
       gap: 8,

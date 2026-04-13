@@ -78,3 +78,10 @@ export async function getCurrentSession(): Promise<Session | null> {
 
   return session;
 }
+
+export const supabase = new Proxy({} as SupabaseClient, {
+  get(_target, prop, receiver) {
+    const client = getSupabase();
+    return Reflect.get(client as object, prop, receiver);
+  },
+});

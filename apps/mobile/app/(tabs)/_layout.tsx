@@ -11,12 +11,14 @@ import {
 import { useAuthStore } from "@/stores/auth-store";
 import { getBlurTabHeaderOptions } from "@/theme/headers";
 import { useThemeColors } from "@/theme";
+import { useTabBadges } from "@/hooks/useTabBadges";
 
 export default function TabLayout() {
   const colors = useThemeColors();
   const role = useAuthStore((state) => state.profile?.role);
   const visibleTabs = getTabsForRole(role);
   const visibleRoutes = new Set(visibleTabs.map((tab) => tab.routeName));
+  const badges = useTabBadges();
 
   return (
     <RequireAuth>
@@ -40,27 +42,31 @@ export default function TabLayout() {
             },
           }}
         >
-          {ALL_TAB_SPECS.map((spec) => (
-            <Tabs.Screen
-              key={spec.routeName}
-              name={spec.routeName}
-              options={{
-                headerTitle:
-                  TAB_ROOT_ROUTE_METADATA[
-                    spec.routeName as keyof typeof TAB_ROOT_ROUTE_METADATA
-                  ]?.title ?? spec.title,
-                href: visibleRoutes.has(spec.routeName) ? undefined : null,
-                title: spec.title,
-                tabBarIcon: ({ color, size }) => (
-                  <Ionicons
-                    color={color}
-                    name={spec.androidIcon}
-                    size={size}
-                  />
-                ),
-              }}
-            />
-          ))}
+          {ALL_TAB_SPECS.map((spec) => {
+            const badgeCount = badges[spec.routeName as keyof typeof badges];
+            return (
+              <Tabs.Screen
+                key={spec.routeName}
+                name={spec.routeName}
+                options={{
+                  headerTitle:
+                    TAB_ROOT_ROUTE_METADATA[
+                      spec.routeName as keyof typeof TAB_ROOT_ROUTE_METADATA
+                    ]?.title ?? spec.title,
+                  href: visibleRoutes.has(spec.routeName) ? undefined : null,
+                  title: spec.title,
+                  tabBarBadge: badgeCount && badgeCount > 0 ? badgeCount : undefined,
+                  tabBarIcon: ({ color, size }) => (
+                    <Ionicons
+                      color={color}
+                      name={spec.androidIcon}
+                      size={size}
+                    />
+                  ),
+                }}
+              />
+            );
+          })}
         </Tabs>
       </NativeHeaderProvider>
     </RequireAuth>

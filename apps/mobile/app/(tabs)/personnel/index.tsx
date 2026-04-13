@@ -9,7 +9,6 @@ import { useRouter } from "expo-router";
 import { Stack } from "expo-router";
 
 import { ScreenContainer } from "@/components/layout/ScreenContainer";
-import { ScreenTitleStrip } from "@/components/ui/glass/ScreenTitleStrip";
 import { HeaderSearchButton, HeaderFilterButton } from "@/navigation/header-buttons";
 import { NativeHeaderActionGroup } from "@/navigation/NativeHeaderActionGroup";
 import { MaterialSurface } from "@/components/ui/MaterialSurface";
@@ -37,7 +36,7 @@ export default function PersonnelScreen() {
         options={{
           headerRight: () => (
             <NativeHeaderActionGroup>
-              <HeaderSearchButton onPress={() => {}} />
+              <HeaderSearchButton onPress={() => router.push("/search")} />
               <HeaderFilterButton onPress={() => {}} />
             </NativeHeaderActionGroup>
           ),
@@ -50,7 +49,6 @@ export default function PersonnelScreen() {
         refreshing={officersQuery.isRefetching}
         title="Personnel"
       >
-        <ScreenTitleStrip title="Personnel" />
       <MaterialSurface intensity={78} style={styles.hero} variant="panel">
         <Text style={styles.eyebrow}>Staffing Board</Text>
         <Text style={styles.value}>{officers.length} active personnel records</Text>
@@ -141,7 +139,7 @@ function createStyles(colors: ReturnType<typeof useThemeColors>) {
     row: {
       alignItems: "center",
       backgroundColor: colors.surfaceSecondary,
-      borderRadius: 18,
+      borderRadius: 12,
       flexDirection: "row",
       justifyContent: "space-between",
       padding: 14,
@@ -151,7 +149,7 @@ function createStyles(colors: ReturnType<typeof useThemeColors>) {
     },
     summaryCard: {
       backgroundColor: colors.surfaceSecondary,
-      borderRadius: 18,
+      borderRadius: 12,
       flex: 1,
       padding: 16,
     },

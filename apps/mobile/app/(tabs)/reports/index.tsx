@@ -13,13 +13,13 @@ import { AppSymbol } from "@/components/ui/AppSymbol";
 import { GroupedCard } from "@/components/ui/GroupedCard";
 import { GroupedCardDivider } from "@/components/ui/GroupedCardDivider";
 import { ScreenContainer } from "@/components/layout/ScreenContainer";
-import { ScreenTitleStrip } from "@/components/ui/glass/ScreenTitleStrip";
 import { HeaderAddButton, HeaderFilterButton } from "@/navigation/header-buttons";
 import { NativeHeaderActionGroup } from "@/navigation/NativeHeaderActionGroup";
 import { SectionHeader } from "@/components/ui/SectionHeader";
+import { SettingsIconTile } from "@/components/ui/SettingsIconTile";
 import { SettingsListRow } from "@/components/ui/SettingsListRow";
 import { useReportCatalog } from "@/lib/queries/reports";
-import { useThemeColors, useThemeTypography } from "@/theme";
+import { useIsDark, useThemeColors, useThemeTypography } from "@/theme";
 import { useAdaptiveLayout } from "@/theme/layout";
 
 const REPORT_SYMBOLS: Record<string, string> = {
@@ -32,6 +32,19 @@ const REPORT_SYMBOLS: Record<string, string> = {
   "savings-losses": "dollarsign.circle.fill",
   "visitor-log": "person.2.fill",
 };
+
+// Dark / light palette pairs [dark, light] for report icon tiles
+const REPORT_TILE_PALETTE: Record<string, { bg: [string, string]; fg: [string, string] }> = {
+  "case-status":           { bg: ["#312E81", "#EDE9FE"], fg: ["#A78BFA", "#7C3AED"] },
+  "daily-activity":        { bg: ["#1E3A5F", "#E0F2FE"], fg: ["#38BDF8", "#0284C7"] },
+  "dispatch-performance":  { bg: ["#172554", "#DBEAFE"], fg: ["#60A5FA", "#2563EB"] },
+  "incident-summary":      { bg: ["#7F1D1D", "#FEE2E2"], fg: ["#F87171", "#DC2626"] },
+  "lost-found-inventory":  { bg: ["#78350F", "#FEF3C7"], fg: ["#FBBF24", "#D97706"] },
+  "patron-flags":          { bg: ["#14532D", "#DCFCE7"], fg: ["#4ADE80", "#16A34A"] },
+  "savings-losses":        { bg: ["#164E63", "#CCFBF1"], fg: ["#2DD4BF", "#0D9488"] },
+  "visitor-log":           { bg: ["#1E293B", "#E0E7FF"], fg: ["#93C5FD", "#4F46E5"] },
+};
+const DEFAULT_REPORT_PALETTE = { bg: ["#1C1917", "#F5F5F4"] as [string, string], fg: ["#A8A29E", "#57534E"] as [string, string] };
 
 function formatActivityDate(value: string | null) {
   if (!value) {
@@ -54,10 +67,31 @@ function ReportsContent() {
   const colors = useThemeColors();
   const typography = useThemeTypography();
   const layout = useAdaptiveLayout();
+  const isDark = useIsDark();
   const styles = createStyles(colors, typography, layout);
   const router = useRouter();
   const catalogQuery = useReportCatalog();
   const catalog = catalogQuery.data ?? [];
+
+  const reportTileFor = useMemo(() => {
+    return (slug: string) => {
+      const pal = REPORT_TILE_PALETTE[slug] ?? DEFAULT_REPORT_PALETTE;
+      const iconName = REPORT_SYMBOLS[slug] ?? "doc.text.fill";
+      return (
+        <SettingsIconTile
+          backgroundColor={isDark ? pal.bg[0] : pal.bg[1]}
+          icon={
+            <AppSymbol
+              name={iconName}
+              size={17}
+              color={isDark ? pal.fg[0] : pal.fg[1]}
+              weight="semibold"
+            />
+          }
+        />
+      );
+    };
+  }, [isDark]);
 
   const groupedCatalog = useMemo(() => {
     return catalog.reduce<Record<string, typeof catalog>>((groups, report) => {
@@ -88,7 +122,6 @@ function ReportsContent() {
         refreshing={catalogQuery.isRefetching}
         title="Reports"
       >
-        <ScreenTitleStrip title="Reports" />
       {quickReports.length ? (
         <View style={styles.section}>
           <SectionHeader title="Favorites" />
@@ -121,6 +154,7 @@ function ReportsContent() {
               <View key={report.slug}>
                 {index > 0 ? <GroupedCardDivider /> : null}
                 <SettingsListRow
+                  leading={reportTileFor(report.slug)}
                   label={report.name}
                   onPress={() =>
                     router.push({
@@ -129,17 +163,6 @@ function ReportsContent() {
                     })
                   }
                   subtitle={`${report.recordCount.toLocaleString()} records · latest activity ${formatActivityDate(report.latestActivity)} · ${report.formats.join(" · ")}`}
-                  trailing={
-                    <View style={styles.iconWrap}>
-                      <AppSymbol
-                        color={colors.textSecondary}
-                        fallbackName="document-text-outline"
-                        iosName={(REPORT_SYMBOLS[report.slug] ?? "doc.text.fill") as any}
-                        size={16}
-                        weight="medium"
-                      />
-                    </View>
-                  }
                 />
               </View>
             ))}
@@ -168,16 +191,6 @@ function createStyles(
   layout: ReturnType<typeof useAdaptiveLayout>
 ) {
   return StyleSheet.create({
-    iconWrap: {
-      alignItems: "center",
-      backgroundColor: colors.surfaceTintMedium,
-      borderColor: colors.borderLight,
-      borderRadius: 14,
-      borderWidth: 1,
-      height: 32,
-      justifyContent: "center",
-      width: 32,
-    },
     quickChip: {
       backgroundColor: colors.surfaceTintMedium,
       borderColor: colors.borderLight,
@@ -195,10 +208,10 @@ function createStyles(
       flexDirection: "row",
       flexWrap: "wrap",
       gap: 12,
-      paddingHorizontal: layout.horizontalPadding,
     },
     section: {
       gap: 8,
+      paddingHorizontal: layout.horizontalPadding,
     },
   });
 }

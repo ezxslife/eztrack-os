@@ -1,4 +1,4 @@
-import { useLocalSearchParams, useRouter } from "expo-router";
+import { useLocalSearchParams, useRouter, Stack } from "expo-router";
 import {
   Alert,
   StyleSheet,
@@ -7,6 +7,8 @@ import {
 } from "react-native";
 
 import { ScreenContainer } from "@/components/layout/ScreenContainer";
+import { NativeHeaderActionGroup } from "@/navigation/NativeHeaderActionGroup";
+import { HeaderEditButton, HeaderShareButton, HeaderMoreButton } from "@/navigation/header-buttons";
 import { Button } from "@/components/ui/Button";
 import { MaterialSurface } from "@/components/ui/MaterialSurface";
 import { PriorityBadge } from "@/components/ui/PriorityBadge";
@@ -34,7 +36,8 @@ import {
   useSetIncidentLockStateMutation,
 } from "@/lib/queries/incidents";
 import { useNetworkStore } from "@/stores/network-store";
-import { useThemeColors } from "@/theme";
+import { useThemeColors, useThemeTypography } from "@/theme";
+import { useAdaptiveLayout } from "@/theme/layout";
 
 function formatBytes(value?: number | null) {
   if (!value) {
@@ -66,7 +69,9 @@ function describeFormPayload(payload: unknown) {
 
 export default function IncidentDetailScreen() {
   const colors = useThemeColors();
-  const styles = createStyles(colors);
+  const typography = useThemeTypography();
+  const layout = useAdaptiveLayout();
+  const styles = createStyles(colors, typography, layout);
   const router = useRouter();
   const params = useLocalSearchParams<{ id: string }>();
   const incidentId = params.id ?? "";
@@ -99,17 +104,41 @@ export default function IncidentDetailScreen() {
   }
 
   return (
-    <ScreenContainer
-      accessory={
-        <MaterialSurface intensity={76} style={styles.hero} variant="panel">
-          <Text style={styles.heroType}>{incident.type}</Text>
-          <Text style={styles.heroSynopsis}>{incident.synopsis}</Text>
-          <View style={styles.badges}>
-            <PriorityBadge priority={incident.severity} />
-            <StatusBadge status={incident.status} />
-          </View>
-        </MaterialSurface>
-      }
+    <>
+      <Stack.Screen options={{
+        headerRight: () => (
+          <NativeHeaderActionGroup>
+            <HeaderEditButton onPress={() => {
+              if (incident.status !== "queued") {
+                router.push({
+                  pathname: "/(create)/incidents/edit/[id]",
+                  params: { id: incident.id },
+                });
+              }
+            }} />
+            <HeaderShareButton onPress={() => {
+              router.push({
+                pathname: "/(create)/incidents/share/[id]",
+                params: { id: incident.id },
+              });
+            }} />
+            <HeaderMoreButton onPress={() => {
+              // TODO: wire to action menu
+            }} />
+          </NativeHeaderActionGroup>
+        ),
+      }} />
+      <ScreenContainer
+        accessory={
+          <MaterialSurface intensity={76} style={styles.hero} variant="panel">
+            <Text style={styles.heroType}>{incident.type}</Text>
+            <Text style={styles.heroSynopsis}>{incident.synopsis}</Text>
+            <View style={styles.badges}>
+              <PriorityBadge priority={incident.severity} />
+              <StatusBadge status={incident.status} />
+            </View>
+          </MaterialSurface>
+        }
       onRefresh={() => {
         void Promise.all([
           detailQuery.refetch(),
@@ -528,11 +557,6 @@ export default function IncidentDetailScreen() {
             }
             variant="secondary"
           />
-          <Button
-            label="Back to incidents"
-            onPress={() => router.back()}
-            variant="secondary"
-          />
         </View>
       </SectionCard>
 
@@ -624,14 +648,19 @@ export default function IncidentDetailScreen() {
         </View>
       </SectionCard>
     </ScreenContainer>
+    </>
   );
 }
 
-function createStyles(colors: ReturnType<typeof useThemeColors>) {
+function createStyles(
+  colors: ReturnType<typeof useThemeColors>,
+  typography: ReturnType<typeof useThemeTypography>,
+  layout: ReturnType<typeof useAdaptiveLayout>
+) {
   return StyleSheet.create({
     amount: {
       color: colors.accentSoft,
-      fontSize: 14,
+      ...typography.footnote,
       fontWeight: "700",
     },
     badges: {
@@ -641,39 +670,40 @@ function createStyles(colors: ReturnType<typeof useThemeColors>) {
     },
     copy: {
       color: colors.textSecondary,
-      fontSize: 15,
-      lineHeight: 22,
+      ...typography.subheadline,
     },
     expiredMeta: {
       color: colors.warning,
-      fontSize: 13,
+      ...typography.footnote,
     },
     hero: {
       gap: 10,
     },
     heroSynopsis: {
       color: colors.textPrimary,
-      fontSize: 18,
-      fontWeight: "600",
-      lineHeight: 24,
+      fontSize: 28,
+      fontWeight: "700",
+      lineHeight: 34,
+      letterSpacing: -0.6,
     },
     heroType: {
       color: colors.accentSoft,
-      fontSize: 13,
-      fontWeight: "700",
+      ...typography.caption1,
+      fontWeight: "600",
       textTransform: "uppercase",
+      letterSpacing: 0.6,
     },
     meta: {
       color: colors.textTertiary,
-      fontSize: 13,
+      ...typography.footnote,
     },
     row: {
       backgroundColor: colors.surfaceTintMedium,
       borderColor: colors.borderLight,
-      borderRadius: 18,
+      borderRadius: 12,
       borderWidth: 1,
       gap: 8,
-      padding: 14,
+      padding: layout.listItemPadding,
     },
     rowBetween: {
       alignItems: "center",
@@ -683,12 +713,12 @@ function createStyles(colors: ReturnType<typeof useThemeColors>) {
     },
     rowTitle: {
       color: colors.textPrimary,
-      fontSize: 15,
+      ...typography.subheadline,
       fontWeight: "700",
     },
     queuedMeta: {
       color: colors.accentSoft,
-      fontSize: 12,
+      ...typography.caption1,
       fontWeight: "600",
     },
     actions: {

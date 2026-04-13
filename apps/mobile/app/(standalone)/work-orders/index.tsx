@@ -1,4 +1,4 @@
-import { useRouter } from "expo-router";
+import { useRouter, Stack } from "expo-router";
 import { useMemo } from "react";
 import {
   Pressable,
@@ -8,12 +8,10 @@ import {
 } from "react-native";
 
 import { ScreenContainer } from "@/components/layout/ScreenContainer";
-import { useIOSNativeSearchHeader } from "@/navigation/useIOSNativeSearchHeader";
 import { Button } from "@/components/ui/Button";
 import { FilterChips } from "@/components/ui/FilterChips";
 import { PriorityBadge } from "@/components/ui/PriorityBadge";
-import { SearchField } from "@/components/ui/SearchField";
-import { SectionCard } from "@/components/ui/SectionCard";
+import { SectionHeader } from "@/components/ui/SectionHeader";
 import { StatusBadge } from "@/components/ui/StatusBadge";
 import { formatShortDateTime } from "@/lib/format";
 import { useWorkOrders } from "@/lib/queries/secondary-modules";
@@ -23,6 +21,8 @@ import {
 } from "@/stores/filter-store";
 import { useThemeColors, useThemeTypography } from "@/theme";
 import { useAdaptiveLayout } from "@/theme/layout";
+import { HeaderSearchButton } from "@/navigation/header-buttons";
+import { NativeHeaderActionGroup } from "@/navigation/NativeHeaderActionGroup";
 
 const moduleKey = "work-orders";
 const statusFilters = [
@@ -49,12 +49,6 @@ export default function WorkOrdersScreen() {
   const selectedStatusLabel =
     statusFilters.find((filter) => filter.value === selectedStatus)?.label ??
     "All";
-  const { nativeIOSHeader } = useIOSNativeSearchHeader({
-    placeholder: "Search work order number, title, category, or assignee",
-    query,
-    setQuery: (value) => setFilter(moduleKey, { search: value }),
-    title: "Work Orders",
-  });
   const styles = createStyles(colors, layout, typography);
 
   const filtered = useMemo(
@@ -79,18 +73,20 @@ export default function WorkOrdersScreen() {
   );
 
   return (
-    <ScreenContainer
-      accessory={
-        <View style={styles.accessory}>
-          {!nativeIOSHeader ? (
-            <SearchField
-              onChangeText={(value) => setFilter(moduleKey, { search: value })}
-              placeholder="Search work order number, title, category, or assignee"
-              style={styles.searchField}
-              value={query}
-            />
-          ) : null}
-          <FilterChips
+    <>
+      <Stack.Screen
+        options={{
+          headerRight: () => (
+            <NativeHeaderActionGroup>
+              <HeaderSearchButton onPress={() => router.push("/search")} />
+            </NativeHeaderActionGroup>
+          ),
+        }}
+      />
+      <ScreenContainer
+        accessory={
+          <View style={styles.accessory}>
+            <FilterChips
             onSelect={(value) => {
               const match = statusFilters.find((filter) => filter.label === value);
               setFilter(moduleKey, { status: match?.value ?? "" });
@@ -104,23 +100,18 @@ export default function WorkOrdersScreen() {
             variant="secondary"
           />
         </View>
-      }
-      iosNativeHeader={nativeIOSHeader}
-      onRefresh={() => {
-        void workOrdersQuery.refetch();
-      }}
-      refreshing={workOrdersQuery.isRefetching}
-      subtitle="Facilities and safety work tracked in the same operational shell as incidents and dispatch."
-      title="Work Orders"
-    >
-      <SectionCard
-        subtitle={
-          workOrdersQuery.isLoading
-            ? "Loading work orders"
-            : `${filtered.length} work orders visible`
         }
-        title="Maintenance queue"
+        gutter="none"
+        nativeHeader
+        onRefresh={() => {
+          void workOrdersQuery.refetch();
+        }}
+        refreshing={workOrdersQuery.isRefetching}
+        subtitle="Facilities and safety work tracked in the same operational shell as incidents and dispatch."
+        title="Work Orders"
       >
+      <View style={styles.section}>
+        <SectionHeader title="Maintenance queue" />
         <View style={styles.list}>
           {filtered.length ? (
             filtered.map((item) => (
@@ -155,8 +146,9 @@ export default function WorkOrdersScreen() {
             </Text>
           )}
         </View>
-      </SectionCard>
-    </ScreenContainer>
+      </View>
+      </ScreenContainer>
+    </>
   );
 }
 
@@ -173,7 +165,7 @@ function createStyles(
     },
     card: {
       backgroundColor: colors.surfaceSecondary,
-      borderRadius: 18,
+      borderRadius: 12,
       gap: 8,
       padding: layout.listItemPadding,
     },
@@ -184,6 +176,10 @@ function createStyles(
     list: {
       gap: layout.gridGap,
     },
+    section: {
+      gap: 8,
+      paddingHorizontal: layout.horizontalPadding,
+    },
     meta: {
       ...typography.footnote,
       color: colors.textTertiary,
@@ -193,9 +189,6 @@ function createStyles(
       flexDirection: "row",
       gap: 12,
       justifyContent: "space-between",
-    },
-    searchField: {
-      width: "100%",
     },
     title: {
       ...typography.headline,

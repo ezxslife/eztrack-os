@@ -9,14 +9,11 @@ import {
 import { Stack } from "expo-router";
 
 import { ScreenContainer } from "@/components/layout/ScreenContainer";
-import { ScreenTitleStrip } from "@/components/ui/glass/ScreenTitleStrip";
 import { HeaderAddButton, HeaderFilterButton, HeaderSearchButton } from "@/navigation/header-buttons";
 import { NativeHeaderActionGroup } from "@/navigation/NativeHeaderActionGroup";
-import { useIOSNativeSearchHeader } from "@/navigation/useIOSNativeSearchHeader";
 import { Button } from "@/components/ui/Button";
 import { FilterChips } from "@/components/ui/FilterChips";
 import { PriorityBadge } from "@/components/ui/PriorityBadge";
-import { SearchField } from "@/components/ui/SearchField";
 import { SectionCard } from "@/components/ui/SectionCard";
 import { StatusBadge } from "@/components/ui/StatusBadge";
 import { formatRelativeTimestamp } from "@/lib/format";
@@ -52,12 +49,6 @@ export default function IncidentsScreen() {
   const selectedFilterLabel =
     filters.find((filter) => filter.value === selectedFilterValue)?.label ??
     "All";
-  const { nativeIOSHeader } = useIOSNativeSearchHeader({
-    placeholder: "Search by record, type, or location",
-    query,
-    setQuery: (value) => setFilter(moduleKey, { search: value }),
-    title: "Incidents",
-  });
   const styles = createStyles(colors, layout, typography);
 
   const filtered = useMemo(() => {
@@ -85,7 +76,7 @@ export default function IncidentsScreen() {
             <NativeHeaderActionGroup>
               <HeaderAddButton onPress={() => router.push("/incidents/new")} />
               <HeaderFilterButton onPress={() => {}} />
-              <HeaderSearchButton onPress={() => {}} />
+              <HeaderSearchButton onPress={() => router.push("/search")} />
             </NativeHeaderActionGroup>
           ),
         }}
@@ -93,14 +84,6 @@ export default function IncidentsScreen() {
       <ScreenContainer
         accessory={
           <View style={styles.accessory}>
-            {!nativeIOSHeader ? (
-              <SearchField
-                onChangeText={(value) => setFilter(moduleKey, { search: value })}
-                placeholder="Search by record, type, or location"
-                style={styles.searchField}
-                value={query}
-              />
-            ) : null}
             <FilterChips
               onSelect={(value) => {
                 const match = filters.find((filter) => filter.label === value);
@@ -111,14 +94,14 @@ export default function IncidentsScreen() {
             />
           </View>
         }
-        iosNativeHeader={nativeIOSHeader}
+        gutter="none"
         onRefresh={() => {
           void incidentsQuery.refetch();
         }}
         refreshing={incidentsQuery.isRefetching}
         title="Incidents"
       >
-        <ScreenTitleStrip title="Incidents" />
+      <View style={styles.section}>
       <SectionCard
         footer={
           <Button
@@ -169,6 +152,7 @@ export default function IncidentsScreen() {
           )}
         </View>
       </SectionCard>
+      </View>
       </ScreenContainer>
     </>
   );
@@ -184,10 +168,11 @@ function createStyles(
       flexDirection: "row",
       flexWrap: "wrap",
       gap: layout.gridGap,
+      paddingHorizontal: layout.horizontalPadding,
     },
     card: {
       backgroundColor: colors.surfaceSecondary,
-      borderRadius: 18,
+      borderRadius: 12,
       gap: 6,
       padding: layout.listItemPadding,
     },
@@ -213,8 +198,8 @@ function createStyles(
       gap: 12,
       justifyContent: "space-between",
     },
-    searchField: {
-      width: "100%",
+    section: {
+      paddingHorizontal: layout.horizontalPadding,
     },
     synopsis: {
       ...typography.subheadline,

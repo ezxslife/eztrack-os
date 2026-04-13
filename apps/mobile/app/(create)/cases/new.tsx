@@ -1,4 +1,4 @@
-import { useRouter } from "expo-router";
+import { useRouter, Stack } from "expo-router";
 import { useState } from "react";
 import {
   Alert,
@@ -7,6 +7,8 @@ import {
 } from "react-native";
 
 import { ScreenContainer } from "@/components/layout/ScreenContainer";
+import { NativeHeaderActionGroup } from "@/navigation/NativeHeaderActionGroup";
+import { HeaderCancelButton, HeaderSaveButton } from "@/navigation/header-buttons";
 import { Button } from "@/components/ui/Button";
 import { FilterChips } from "@/components/ui/FilterChips";
 import { SectionCard } from "@/components/ui/SectionCard";
@@ -26,8 +28,40 @@ export default function NewCaseScreen() {
   const [escalationLevel, setEscalationLevel] = useState("medium");
   const [synopsis, setSynopsis] = useState("");
 
+  const handleSave = () => {
+    void createMutation
+      .mutateAsync({
+        caseType,
+        escalationLevel,
+        synopsis,
+      })
+      .then(() => {
+        router.back();
+      })
+      .catch((error) => {
+        Alert.alert(
+          "Create failed",
+          error instanceof Error ? error.message : "The case could not be created."
+        );
+      });
+  };
+
   return (
-    <ScreenContainer subtitle="Real case create mutation." title="New Case">
+    <>
+      <Stack.Screen options={{
+        headerLeft: () => (
+          <HeaderCancelButton onPress={() => router.back()} />
+        ),
+        headerRight: () => (
+          <NativeHeaderActionGroup>
+            <HeaderSaveButton
+              loading={createMutation.isPending}
+              onPress={handleSave}
+            />
+          </NativeHeaderActionGroup>
+        ),
+      }} />
+      <ScreenContainer subtitle="Real case create mutation." title="New Case">
       <SectionCard title="Case type">
         <FilterChips
           onSelect={setCaseType}
@@ -53,37 +87,11 @@ export default function NewCaseScreen() {
             onChangeText={setSynopsis}
             value={synopsis}
           />
-          <View style={styles.actions}>
-            <Button
-              label="Cancel"
-              onPress={() => router.back()}
-              variant="secondary"
-            />
-            <Button
-              label="Create Case"
-              loading={createMutation.isPending}
-              onPress={() => {
-                void createMutation
-                  .mutateAsync({
-                    caseType,
-                    escalationLevel,
-                    synopsis,
-                  })
-                  .then(() => {
-                    router.back();
-                  })
-                  .catch((error) => {
-                    Alert.alert(
-                      "Create failed",
-                      error instanceof Error ? error.message : "The case could not be created."
-                    );
-                  });
-              }}
-            />
-          </View>
+          <View style={styles.actions} />
         </View>
       </SectionCard>
     </ScreenContainer>
+    </>
   );
 }
 

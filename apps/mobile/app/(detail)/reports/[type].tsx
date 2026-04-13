@@ -363,7 +363,7 @@ function createStyles(colors: ReturnType<typeof useThemeColors>) {
     },
     rowCard: {
       backgroundColor: colors.surfaceSecondary,
-      borderRadius: 18,
+      borderRadius: 12,
       gap: 4,
       padding: 14,
     },
@@ -384,7 +384,7 @@ function createStyles(colors: ReturnType<typeof useThemeColors>) {
     },
     statCard: {
       backgroundColor: colors.surfaceSecondary,
-      borderRadius: 18,
+      borderRadius: 12,
       gap: 4,
       minWidth: "47%",
       padding: 14,

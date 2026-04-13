@@ -1,4 +1,4 @@
-import { useLocalSearchParams, useRouter } from "expo-router";
+import { useLocalSearchParams, useRouter, Stack } from "expo-router";
 import {
   Alert,
   StyleSheet,
@@ -7,6 +7,8 @@ import {
 } from "react-native";
 
 import { ScreenContainer } from "@/components/layout/ScreenContainer";
+import { NativeHeaderActionGroup } from "@/navigation/NativeHeaderActionGroup";
+import { HeaderEditButton } from "@/navigation/header-buttons";
 import { Button } from "@/components/ui/Button";
 import { SectionCard } from "@/components/ui/SectionCard";
 import { StatusBadge } from "@/components/ui/StatusBadge";
@@ -54,14 +56,27 @@ export default function VisitorDetailScreen() {
   };
 
   return (
-    <ScreenContainer
-      onRefresh={() => {
-        void detailQuery.refetch();
-      }}
-      refreshing={detailQuery.isRefetching}
-      subtitle="Visit status, host context, and identity details from the live visitor log."
-      title={`${visitor.firstName} ${visitor.lastName}`}
-    >
+    <>
+      <Stack.Screen options={{
+        headerRight: () => (
+          <NativeHeaderActionGroup>
+            <HeaderEditButton onPress={() => {
+              router.push({
+                pathname: "/(create)/visitors/edit/[id]",
+                params: { id: visitor.id },
+              });
+            }} />
+          </NativeHeaderActionGroup>
+        ),
+      }} />
+      <ScreenContainer
+        onRefresh={() => {
+          void detailQuery.refetch();
+        }}
+        refreshing={detailQuery.isRefetching}
+        subtitle="Visit status, host context, and identity details from the live visitor log."
+        title={`${visitor.firstName} ${visitor.lastName}`}
+      >
       <SectionCard subtitle={visitor.purpose} title="Overview">
         <View style={styles.stack}>
           <View style={styles.rowBetween}>
@@ -175,6 +190,7 @@ export default function VisitorDetailScreen() {
         </View>
       </SectionCard>
     </ScreenContainer>
+    </>
   );
 }
 

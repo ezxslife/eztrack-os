@@ -1,10 +1,12 @@
-import { useLocalSearchParams, useRouter } from "expo-router";
+import { useLocalSearchParams, useRouter, Stack } from "expo-router";
 import { useEffect, useMemo, useState } from "react";
 import { Alert, StyleSheet, Text, View } from "react-native";
 
 import { INCIDENT_TYPES, IncidentSeverity } from "@eztrack/shared";
 
 import { ScreenContainer } from "@/components/layout/ScreenContainer";
+import { NativeHeaderActionGroup } from "@/navigation/NativeHeaderActionGroup";
+import { HeaderCancelButton, HeaderSaveButton } from "@/navigation/header-buttons";
 import { Button } from "@/components/ui/Button";
 import { FilterChips } from "@/components/ui/FilterChips";
 import { MaterialSurface } from "@/components/ui/MaterialSurface";
@@ -114,7 +116,7 @@ export default function NewIncidentScreen() {
     synopsis,
   ]);
 
-  const submit = async () => {
+  const handleSave = async () => {
     if (!selectedLocation) {
       Alert.alert(
         "Location required",
@@ -149,7 +151,23 @@ export default function NewIncidentScreen() {
   };
 
   return (
-    <ScreenContainer
+    <>
+      <Stack.Screen options={{
+        headerLeft: () => (
+          <HeaderCancelButton onPress={() => router.back()} />
+        ),
+        headerRight: () => (
+          <NativeHeaderActionGroup>
+            <HeaderSaveButton
+              loading={createIncidentMutation.isPending}
+              onPress={() => {
+                void handleSave();
+              }}
+            />
+          </NativeHeaderActionGroup>
+        ),
+      }} />
+      <ScreenContainer
       gutter="none"
       subtitle="Capture the report and save it for the team."
       title="Incident Draft"
@@ -210,21 +228,11 @@ export default function NewIncidentScreen() {
             placeholder="Describe what happened"
             value={synopsis}
           />
-          <View style={styles.actions}>
-            <Button
-              label="Cancel"
-              onPress={() => router.back()}
-              variant="secondary"
-            />
-            <Button
-              label="Save Draft"
-              loading={createIncidentMutation.isPending}
-              onPress={submit}
-            />
-          </View>
+          <View style={styles.actions} />
         </MaterialSurface>
       </View>
     </ScreenContainer>
+    </>
   );
 }
 

@@ -1,14 +1,12 @@
-import { useRouter } from "expo-router";
+import { useRouter, Stack } from "expo-router";
 import { useMemo } from "react";
 import { StyleSheet, Text, View } from "react-native";
 
 import { ScreenContainer } from "@/components/layout/ScreenContainer";
-import { useIOSNativeSearchHeader } from "@/navigation/useIOSNativeSearchHeader";
 import { Button } from "@/components/ui/Button";
 import { FilterChips } from "@/components/ui/FilterChips";
 import { GroupedCard } from "@/components/ui/GroupedCard";
 import { GroupedCardDivider } from "@/components/ui/GroupedCardDivider";
-import { SearchField } from "@/components/ui/SearchField";
 import { SectionHeader } from "@/components/ui/SectionHeader";
 import { SettingsListRow } from "@/components/ui/SettingsListRow";
 import { StatusBadge } from "@/components/ui/StatusBadge";
@@ -20,6 +18,8 @@ import {
 } from "@/stores/filter-store";
 import { useThemeColors, useThemeTypography } from "@/theme";
 import { useAdaptiveLayout } from "@/theme/layout";
+import { HeaderSearchButton } from "@/navigation/header-buttons";
+import { NativeHeaderActionGroup } from "@/navigation/NativeHeaderActionGroup";
 
 const moduleKey = "patrons";
 const flagFilters = [
@@ -45,12 +45,6 @@ export default function PatronsScreen() {
   const selectedFlag = filtersState.status;
   const selectedFlagLabel =
     flagFilters.find((filter) => filter.value === selectedFlag)?.label ?? "All";
-  const { nativeIOSHeader } = useIOSNativeSearchHeader({
-    placeholder: "Search patrons, contact info, or notes",
-    query,
-    setQuery: (value) => setFilter(moduleKey, { search: value }),
-    title: "Patrons",
-  });
   const styles = createStyles(colors, typography, layout);
 
   const filtered = useMemo(
@@ -76,41 +70,43 @@ export default function PatronsScreen() {
   );
 
   return (
-    <ScreenContainer
-      accessory={
-        <View style={styles.accessory}>
-          {!nativeIOSHeader ? (
-            <SearchField
-              onChangeText={(value) => setFilter(moduleKey, { search: value })}
-              placeholder="Search patrons, contact info, or notes"
-              style={styles.searchField}
-              value={query}
+    <>
+      <Stack.Screen
+        options={{
+          headerRight: () => (
+            <NativeHeaderActionGroup>
+              <HeaderSearchButton onPress={() => router.push("/search")} />
+            </NativeHeaderActionGroup>
+          ),
+        }}
+      />
+      <ScreenContainer
+        accessory={
+          <View style={styles.accessory}>
+            <FilterChips
+              onSelect={(value) => {
+                const match = flagFilters.find((filter) => filter.label === value);
+                setFilter(moduleKey, { status: match?.value ?? "" });
+              }}
+              options={flagFilters.map((filter) => filter.label)}
+              selected={selectedFlagLabel}
             />
-          ) : null}
-          <FilterChips
-            onSelect={(value) => {
-              const match = flagFilters.find((filter) => filter.label === value);
-              setFilter(moduleKey, { status: match?.value ?? "" });
-            }}
-            options={flagFilters.map((filter) => filter.label)}
-            selected={selectedFlagLabel}
-          />
-          <Button
-            label="New Patron"
-            onPress={() => router.push("/patrons/new")}
-            variant="secondary"
-          />
-        </View>
-      }
-      gutter="none"
-      iosNativeHeader={nativeIOSHeader}
-      onRefresh={() => {
-        void patronsQuery.refetch();
-      }}
-      refreshing={patronsQuery.isRefetching}
-      subtitle="Patron watch states and contact context."
-      title="Patrons"
-    >
+            <Button
+              label="New Patron"
+              onPress={() => router.push("/patrons/new")}
+              variant="secondary"
+            />
+          </View>
+        }
+        gutter="none"
+        nativeHeader
+        onRefresh={() => {
+          void patronsQuery.refetch();
+        }}
+        refreshing={patronsQuery.isRefetching}
+        subtitle="Patron watch states and contact context."
+        title="Patrons"
+      >
       <View style={styles.section}>
         <SectionHeader title="Patron register" />
         {filtered.length ? (
@@ -150,6 +146,7 @@ export default function PatronsScreen() {
         )}
       </View>
     </ScreenContainer>
+    </>
   );
 }
 
@@ -172,13 +169,10 @@ function createStyles(
     emptyState: {
       backgroundColor: colors.surfaceTintSubtle,
       borderColor: colors.borderLight,
-      borderRadius: 18,
+      borderRadius: 12,
       borderWidth: 1,
       marginHorizontal: layout.horizontalPadding,
       padding: 16,
-    },
-    searchField: {
-      width: "100%",
     },
     section: {
       gap: 8,

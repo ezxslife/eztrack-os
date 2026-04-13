@@ -1,4 +1,4 @@
-import { useLocalSearchParams, useRouter } from "expo-router";
+import { useLocalSearchParams, useRouter, Stack } from "expo-router";
 import { useMemo, useState } from "react";
 import {
   Alert,
@@ -8,6 +8,8 @@ import {
 } from "react-native";
 
 import { ScreenContainer } from "@/components/layout/ScreenContainer";
+import { NativeHeaderActionGroup } from "@/navigation/NativeHeaderActionGroup";
+import { HeaderCancelButton, HeaderSaveButton } from "@/navigation/header-buttons";
 import { Button } from "@/components/ui/Button";
 import { FilterChips } from "@/components/ui/FilterChips";
 import { MaterialSurface } from "@/components/ui/MaterialSurface";
@@ -57,7 +59,7 @@ export default function NewWorkOrderScreen() {
     [selectedAssignee, usersQuery.data]
   );
 
-  const handleSubmit = async () => {
+  const handleSave = async () => {
     if (!title.trim()) {
       Alert.alert("Title required", "Add a title before creating the work order.");
       return;
@@ -85,7 +87,23 @@ export default function NewWorkOrderScreen() {
   };
 
   return (
-    <ScreenContainer
+    <>
+      <Stack.Screen options={{
+        headerLeft: () => (
+          <HeaderCancelButton onPress={() => router.back()} />
+        ),
+        headerRight: () => (
+          <NativeHeaderActionGroup>
+            <HeaderSaveButton
+              loading={createMutation.isPending}
+              onPress={() => {
+                void handleSave();
+              }}
+            />
+          </NativeHeaderActionGroup>
+        ),
+      }} />
+      <ScreenContainer
       accessory={
         <MaterialSurface intensity={76} style={styles.hero} variant="panel">
           <Text style={styles.heroTitle}>Create Work Order</Text>
@@ -136,19 +154,11 @@ export default function NewWorkOrderScreen() {
           <TextField label="Due date" onChangeText={setDueDate} placeholder="2026-04-08T18:00:00Z" value={dueDate} />
           <TextField label="Scheduled date" onChangeText={setScheduledDate} placeholder="2026-04-08T15:00:00Z" value={scheduledDate} />
           <TextField label="Estimated cost" keyboardType="numeric" onChangeText={setEstimatedCost} placeholder="125.00" value={estimatedCost} />
-          <View style={styles.actions}>
-            <Button label="Cancel" onPress={() => router.back()} variant="secondary" />
-            <Button
-              label="Create Work Order"
-              loading={createMutation.isPending}
-              onPress={() => {
-                void handleSubmit();
-              }}
-            />
-          </View>
+          <View style={styles.actions} />
         </View>
       </SectionCard>
     </ScreenContainer>
+    </>
   );
 }
 

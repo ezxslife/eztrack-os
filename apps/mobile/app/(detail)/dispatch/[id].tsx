@@ -1,4 +1,4 @@
-import { useLocalSearchParams, useRouter } from "expo-router";
+import { useLocalSearchParams, useRouter, Stack } from "expo-router";
 import {
   Alert,
   StyleSheet,
@@ -9,6 +9,8 @@ import {
 import { DispatchStatus } from "@eztrack/shared";
 
 import { ScreenContainer } from "@/components/layout/ScreenContainer";
+import { NativeHeaderActionGroup } from "@/navigation/NativeHeaderActionGroup";
+import { HeaderEditButton, HeaderMoreButton } from "@/navigation/header-buttons";
 import { Button } from "@/components/ui/Button";
 import { FilterChips } from "@/components/ui/FilterChips";
 import { MaterialSurface } from "@/components/ui/MaterialSurface";
@@ -27,7 +29,8 @@ import {
   useOnDutyOfficers,
   useUpdateDispatchStatusMutation,
 } from "@/lib/queries/dispatches";
-import { useThemeColors } from "@/theme";
+import { useThemeColors, useThemeTypography } from "@/theme";
+import { useAdaptiveLayout } from "@/theme/layout";
 
 const statusActions = [
   DispatchStatus.Pending,
@@ -39,7 +42,9 @@ const statusActions = [
 
 export default function DispatchDetailScreen() {
   const colors = useThemeColors();
-  const styles = createStyles(colors);
+  const typography = useThemeTypography();
+  const layout = useAdaptiveLayout();
+  const styles = createStyles(colors, typography, layout);
   const router = useRouter();
   const params = useLocalSearchParams<{ id: string }>();
   const dispatchId = params.id ?? "";
@@ -62,17 +67,33 @@ export default function DispatchDetailScreen() {
   }
 
   return (
-    <ScreenContainer
-      accessory={
-        <MaterialSurface intensity={76} style={styles.hero} variant="panel">
-          <Text style={styles.heroCode}>{dispatch.dispatchCode}</Text>
-          <Text style={styles.heroTitle}>{dispatch.description ?? "No description"}</Text>
-          <View style={styles.heroBadges}>
-            <PriorityBadge priority={dispatch.priority} />
-            <StatusBadge status={dispatch.status} />
-          </View>
-        </MaterialSurface>
-      }
+    <>
+      <Stack.Screen options={{
+        headerRight: () => (
+          <NativeHeaderActionGroup>
+            <HeaderEditButton onPress={() => {
+              router.push({
+                pathname: "/(create)/dispatch/edit/[id]",
+                params: { id: dispatch.id },
+              });
+            }} />
+            <HeaderMoreButton onPress={() => {
+              // TODO: wire to action menu
+            }} />
+          </NativeHeaderActionGroup>
+        ),
+      }} />
+      <ScreenContainer
+        accessory={
+          <MaterialSurface intensity={76} style={styles.hero} variant="panel">
+            <Text style={styles.heroCode}>{dispatch.dispatchCode}</Text>
+            <Text style={styles.heroTitle}>{dispatch.description ?? "No description"}</Text>
+            <View style={styles.heroBadges}>
+              <PriorityBadge priority={dispatch.priority} />
+              <StatusBadge status={dispatch.status} />
+            </View>
+          </MaterialSurface>
+        }
       onRefresh={() => {
         void Promise.all([
           detailQuery.refetch(),
@@ -245,10 +266,15 @@ export default function DispatchDetailScreen() {
         </View>
       </SectionCard>
     </ScreenContainer>
+    </>
   );
 }
 
-function createStyles(colors: ReturnType<typeof useThemeColors>) {
+function createStyles(
+  colors: ReturnType<typeof useThemeColors>,
+  typography: ReturnType<typeof useThemeTypography>,
+  layout: ReturnType<typeof useAdaptiveLayout>
+) {
   return StyleSheet.create({
     actions: {
       flexDirection: "row",
@@ -257,8 +283,7 @@ function createStyles(colors: ReturnType<typeof useThemeColors>) {
     },
     copy: {
       color: colors.textSecondary,
-      fontSize: 15,
-      lineHeight: 22,
+      ...typography.subheadline,
     },
     hero: {
       gap: 8,
@@ -270,32 +295,34 @@ function createStyles(colors: ReturnType<typeof useThemeColors>) {
     },
     heroCode: {
       color: colors.accentSoft,
-      fontSize: 12,
-      fontWeight: "700",
+      ...typography.caption1,
+      fontWeight: "600",
       textTransform: "uppercase",
+      letterSpacing: 0.6,
     },
     heroTitle: {
       color: colors.textPrimary,
-      fontSize: 20,
+      fontSize: 28,
       fontWeight: "700",
-      lineHeight: 26,
+      lineHeight: 34,
+      letterSpacing: -0.6,
     },
     meta: {
       color: colors.textTertiary,
-      fontSize: 13,
+      ...typography.footnote,
     },
     stack: {
       gap: 12,
     },
     timelineRow: {
       backgroundColor: colors.surfaceSecondary,
-      borderRadius: 18,
+      borderRadius: 12,
       gap: 8,
-      padding: 14,
+      padding: layout.listItemPadding,
     },
     timelineTitle: {
       color: colors.textPrimary,
-      fontSize: 15,
+      ...typography.subheadline,
       fontWeight: "700",
     },
   });

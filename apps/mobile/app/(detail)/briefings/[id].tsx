@@ -1,4 +1,4 @@
-import { useLocalSearchParams, useRouter } from "expo-router";
+import { useLocalSearchParams, useRouter, Stack } from "expo-router";
 import { useMemo, useState } from "react";
 import {
   Alert,
@@ -8,6 +8,8 @@ import {
 } from "react-native";
 
 import { ScreenContainer } from "@/components/layout/ScreenContainer";
+import { NativeHeaderActionGroup } from "@/navigation/NativeHeaderActionGroup";
+import { HeaderEditButton } from "@/navigation/header-buttons";
 import { Button } from "@/components/ui/Button";
 import { PriorityBadge } from "@/components/ui/PriorityBadge";
 import { SectionCard } from "@/components/ui/SectionCard";
@@ -22,10 +24,12 @@ import {
 import { useSessionContext } from "@/hooks/useSessionContext";
 import { useToast } from "@/providers/ToastProvider";
 import { useThemeColors } from "@/theme";
+import { useAdaptiveLayout } from "@/theme/layout";
 
 export default function BriefingDetailScreen() {
   const colors = useThemeColors();
-  const styles = createStyles(colors);
+  const layout = useAdaptiveLayout();
+  const styles = createStyles(colors, layout);
   const router = useRouter();
   const { profile } = useSessionContext();
   const { showToast } = useToast();
@@ -56,7 +60,20 @@ export default function BriefingDetailScreen() {
   }
 
   return (
-    <ScreenContainer
+    <>
+      <Stack.Screen options={{
+        headerRight: () => (
+          <NativeHeaderActionGroup>
+            <HeaderEditButton onPress={() => {
+              router.push({
+                pathname: "/(create)/briefings/edit/[id]",
+                params: { id: briefing.id },
+              });
+            }} />
+          </NativeHeaderActionGroup>
+        ),
+      }} />
+      <ScreenContainer
       onRefresh={() => {
         void detailQuery.refetch();
       }}
@@ -220,10 +237,14 @@ export default function BriefingDetailScreen() {
         </View>
       </SectionCard>
     </ScreenContainer>
+    </>
   );
 }
 
-function createStyles(colors: ReturnType<typeof useThemeColors>) {
+function createStyles(
+  colors: ReturnType<typeof useThemeColors>,
+  layout: ReturnType<typeof useAdaptiveLayout>
+) {
   return StyleSheet.create({
     actions: {
       flexDirection: "row",
@@ -250,9 +271,9 @@ function createStyles(colors: ReturnType<typeof useThemeColors>) {
     },
     row: {
       backgroundColor: colors.surfaceSecondary,
-      borderRadius: 18,
+      borderRadius: 12,
       gap: 8,
-      padding: 14,
+      padding: layout.listItemPadding,
     },
     rowBetween: {
       alignItems: "center",
@@ -273,7 +294,7 @@ function createStyles(colors: ReturnType<typeof useThemeColors>) {
       flex: 1,
       fontSize: 18,
       fontWeight: "700",
-      paddingRight: 12,
+      paddingHorizontal: layout.listItemPadding,
     },
   });
 }

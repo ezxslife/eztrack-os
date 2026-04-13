@@ -26,21 +26,21 @@ export function SectionCard({
   const layout = useAdaptiveLayout();
   const styles = StyleSheet.create({
     card: {
-      gap: layout.cardPadding - 2,
+      gap: layout.cardPadding - 4,
     },
     footer: {
-      paddingTop: 6,
+      paddingTop: 4,
     },
     header: {
-      gap: 4,
+      gap: 2,
     },
     subtitle: {
-      ...typography.caption1,
+      ...typography.footnote,
       color: colors.textSecondary,
       lineHeight: 18,
     },
     title: {
-      ...typography.title3,
+      ...typography.callout,
       color: colors.textPrimary,
       fontWeight: "700",
     },

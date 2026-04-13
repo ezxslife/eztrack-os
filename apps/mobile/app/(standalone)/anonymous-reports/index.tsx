@@ -281,7 +281,7 @@ function createStyles(
     confirmation: {
       backgroundColor: colors.surfaceFrosted,
       borderColor: colors.borderLight,
-      borderRadius: 18,
+      borderRadius: 12,
       borderWidth: 1,
       gap: 6,
       padding: 14,
@@ -303,7 +303,7 @@ function createStyles(
     emptyState: {
       backgroundColor: colors.surfaceTintSubtle,
       borderColor: colors.borderLight,
-      borderRadius: 18,
+      borderRadius: 12,
       borderWidth: 1,
       padding: 16,
     },
@@ -322,7 +322,7 @@ function createStyles(
     lookupCard: {
       backgroundColor: colors.surfaceFrosted,
       borderColor: colors.borderLight,
-      borderRadius: 18,
+      borderRadius: 12,
       borderWidth: 1,
       gap: 8,
       padding: 14,

@@ -1,51 +1,40 @@
-import { Ionicons } from "@expo/vector-icons";
 import { Stack, useRouter } from "expo-router";
-import { Pressable } from "react-native";
+import type { NativeStackNavigationOptions } from "@react-navigation/native-stack";
 
 import { RequireAuth } from "@/components/auth/RouteGate";
+import { HeaderBackButton } from "@/navigation/header-buttons";
 import { NativeHeaderProvider } from "@/navigation/NativeHeaderContext";
-import { platformHeaderItems } from "@/navigation/native-header-items";
 import { CREATE_ROUTE_METADATA } from "@/navigation/route-metadata";
 import { buildStackScreenOptions } from "@/navigation/stack-screen-options";
 import { useThemeColors } from "@/theme";
+import { getGlassHeaderOptions } from "@/theme/headers";
 
 export default function CreateLayout() {
   const colors = useThemeColors();
   const router = useRouter();
-  const closeItems = platformHeaderItems({
-    rightNative: [
-      {
-        icon: { name: "xmark", type: "sfSymbol" },
-        label: "Close",
-        onPress: () => router.back(),
-        tintColor: colors.primaryInk,
-        type: "button",
-      },
-    ],
-    rightReact: () => (
-      <Pressable
-        accessibilityLabel="Close"
-        accessibilityRole="button"
-        onPress={() => router.back()}
-        style={({ pressed }) => ({ opacity: pressed ? 0.65 : 1, paddingHorizontal: 6 })}
-      >
-        <Ionicons color={colors.primaryInk} name="close" size={22} />
-      </Pressable>
-    ),
-  });
+
+  // ── Default screen options ──────────────────────────────────────────
+  // Applied to ALL screens in this stack (registered & unregistered).
+  // "new" screens override with their own Cancel + Save via <Stack.Screen options>.
+  // Edit/sub-feature screens that DON'T set their own options inherit these
+  // defaults — glass header styling, tint color, and a back button to return
+  // to the parent detail screen.
+  const defaultScreenOptions: NativeStackNavigationOptions = {
+    ...getGlassHeaderOptions(colors.background),
+    headerLeft: () => <HeaderBackButton onPress={() => router.back()} />,
+    headerTintColor: colors.primaryInk,
+    presentation: "card",
+  };
 
   return (
     <RequireAuth>
       <NativeHeaderProvider enabled>
-        <Stack>
+        <Stack screenOptions={defaultScreenOptions}>
           {Object.entries(CREATE_ROUTE_METADATA).map(([name, metadata]) => (
             <Stack.Screen
               key={name}
               name={name}
-              options={{
-                ...buildStackScreenOptions(colors, metadata),
-                ...closeItems,
-              }}
+              options={buildStackScreenOptions(colors, metadata)}
             />
           ))}
         </Stack>

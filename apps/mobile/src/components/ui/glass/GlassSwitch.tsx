@@ -4,7 +4,7 @@ import {
 } from "react-native";
 
 import { triggerSelectionHaptic } from "@/lib/haptics";
-import { useThemeControls } from "@/theme";
+import { useThemeColors, useThemeControls } from "@/theme";
 
 interface GlassSwitchProps {
   onToggle: (value: boolean) => void;
@@ -13,6 +13,7 @@ interface GlassSwitchProps {
 
 export function GlassSwitch({ onToggle, value }: GlassSwitchProps) {
   const controls = useThemeControls();
+  const colors = useThemeColors();
 
   return (
     <Switch
@@ -21,7 +22,7 @@ export function GlassSwitch({ onToggle, value }: GlassSwitchProps) {
         triggerSelectionHaptic();
         onToggle(nextValue);
       }}
-      thumbColor={Platform.OS === "android" ? "#FFFFFF" : undefined}
+      thumbColor={Platform.OS === "android" ? colors.surfaceElevated : undefined}
       trackColor={{ false: controls.switchTrackFalse, true: controls.switchTrackTrue }}
       value={value}
     />
