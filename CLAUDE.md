@@ -99,7 +99,11 @@ Per plan.md and L0a/L0b sprint decisions:
 - **Multi-day:** every event hub must respect `events.is_multi_day` + `event_days.*` + `tickets.valid_for_days[]` + `event_days.reentry_policy`. Do not write code that assumes single-day.
 - **Pixel/scan canonicalization:** every check-in lands in `check_ins` regardless of source (Eventbrite webhook / Stripe / manual / POS / own-scanner). The `checkin-router` Edge Function is the single writer. Do not bypass it.
 - **Latency budget:** scan → /live banner ≤ 500ms.
-- **Theme:** existing eztrack-os iOS 26 tokens (13px base, 36px touch targets). Bump to **44pt minimum** on `/scanner` (v1.5), `/pos`, `/live` quick-action buttons + full-width `#34C759` success / `#EF4444` reject banners on scan results.
+- **Theme — split by mode:**
+  - **Security mode** (`(dashboard)/*` route group + every legacy eztrack-os surface): existing eztrack-os iOS 26 tokens (13px base, 36px touch targets). **Do not modify.** This is a live product.
+  - **Events mode** (`(events-mode)/*` route group, wall-display app, mobile `(events-mode)/*` screens): **ezxs-settle is the canonical chrome + token source.** Inherits settle's full iOS 26 + Laylo-inspired token sheet (`tokens.css`, `laylo.css`, `sidebar.css`, `mobile.css`, `drilldown.css`, `public.css`, `assistant.css`) and chrome components (`Layout`, `Sidebar`, `MobileNav`, `QuickAddSheet`, `AssistantPanel`, `ThemeToggle`). Imported under `apps/web/src/styles/settle/` and gated to events mode only — wrapped in `[data-venue-mode="events"]` so security-mode pages are untouched.
+  - **Both modes** still bump to **44pt minimum** on `/scanner` (v1.5), `/pos`, `/live` quick-action buttons + full-width `#34C759` success / `#EF4444` reject banners on scan results.
+- **Style boundary rule:** never reference settle CSS classes (`.app`, `.sidebar`, `.btn-money`, `.stat-card`, etc.) outside `(events-mode)/*` and never reference eztrack-os legacy classes inside it. The two design systems are mutually exclusive per route group.
 
 If a request implies deviation from any of these, surface the lock and ask before proceeding.
 
@@ -109,7 +113,13 @@ If a request implies deviation from any of these, surface the lock and ask befor
 L0a — Schema + Edge Functions + VENUE_MODE flag + auth shims     (DONE)
 L0b — Auth port from ezxs-os                                      (DONE — except L0b-3-tail)
 L0b-3-tail — Mobile CountryPhoneInput + welcome.tsx + authStore wiring (TODO)
-L1  — /live + wall-display + full Eventbrite handler              (NEXT)
+L0c — Settle CSS bundle dropped at apps/web/src/styles/settle/    (DONE — see styles/settle/README.md; React chrome ports below in L1)
+L1  — /live + wall-display + full Eventbrite handler + scaffold (events-mode)/ route group with layout.tsx that:
+      • imports "@/styles/settle/index.css"
+      • wraps children in <div data-venue-mode="events">
+      • ports settle's Layout/Sidebar/MobileNav/QuickAddSheet/AssistantPanel/ThemeToggle React components
+        (adapt: react-router-dom → next/link + usePathname; import.meta.env → process.env.NEXT_PUBLIC_*;
+         settle's Zustand useStore → track's stores/; APP_BRAND → track-events brand file)
 L2  — /pos (Stripe Terminal + Square + cash) + Run-of-show + reframes
 L3  — Multi-day editor + re-entry rules + multi-day pass POS + per-day RoS tabs
 v1.5 fast-follow — own-scanner, Bluetooth handhelds, DICE/Posh, audit log UI
