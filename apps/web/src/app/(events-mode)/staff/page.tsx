@@ -1,8 +1,10 @@
 'use client';
 
-import { useEffect, useState } from 'react';
-import { Megaphone, Radio, ShieldAlert, UserCheck, Users } from 'lucide-react';
+import { useCallback, useEffect, useState } from 'react';
+import { Check, Loader2, Megaphone, Radio, ShieldAlert, UserCheck, Users } from 'lucide-react';
 import {
+  acceptShiftAssignment,
+  approveShiftAssignment,
   fetchActiveEvent,
   fetchCurrentEventDay,
   fetchOpenDispatches,
@@ -24,6 +26,13 @@ const STATUS_COLOR: Record<ShiftAssignmentRow['status'], string> = {
   no_show: '#EF4444',
 };
 
+// Crescat-style 3-state approval lifecycle (separate from runtime status).
+const APPROVAL_COLOR: Record<NonNullable<ShiftAssignmentRow['approval_status']>, { bg: string; fg: string; label: string }> = {
+  pending:  { bg: 'rgba(245, 158, 11, 0.18)', fg: '#F59E0B', label: 'PENDING' },
+  approved: { bg: 'rgba(59, 130, 246, 0.18)', fg: '#3B82F6', label: 'APPROVED' },
+  accepted: { bg: 'rgba(52, 199, 89, 0.18)',  fg: '#34C759', label: 'ACCEPTED' },
+};
+
 const PRIORITY_COLOR: Record<string, string> = {
   critical: '#EF4444',
   high: '#F97316',
@@ -38,6 +47,34 @@ export default function StaffPage() {
   const [assignments, setAssignments] = useState<ShiftAssignmentRow[]>([]);
   const [dispatches, setDispatches] = useState<DispatchLite[]>([]);
   const [loading, setLoading] = useState(true);
+  const [busyShiftId, setBusyShiftId] = useState<string | null>(null);
+
+  const refreshShifts = useCallback(async (eventDayId: string) => {
+    const sa = await fetchShiftAssignments(eventDayId);
+    setAssignments(sa);
+  }, []);
+
+  async function handleApprove(shiftId: string) {
+    if (!day) return;
+    setBusyShiftId(shiftId);
+    try {
+      await approveShiftAssignment(shiftId);
+      await refreshShifts(day.id);
+    } finally {
+      setBusyShiftId(null);
+    }
+  }
+
+  async function handleAccept(shiftId: string) {
+    if (!day) return;
+    setBusyShiftId(shiftId);
+    try {
+      await acceptShiftAssignment(shiftId);
+      await refreshShifts(day.id);
+    } finally {
+      setBusyShiftId(null);
+    }
+  }
 
   useEffect(() => {
     let cancelled = false;
@@ -76,6 +113,7 @@ export default function StaffPage() {
   const personnelById = new Map(personnel.map((p) => [p.id, p]));
   const onShift = assignments.filter((a) => a.status === 'on_shift' || a.status === 'en_route');
   const upcoming = assignments.filter((a) => a.status === 'scheduled');
+  const pendingApproval = assignments.filter((a) => (a.approval_status ?? 'pending') !== 'accepted');
   const dispatchOpen = dispatches.filter((d) => d.status !== 'closed' && d.status !== 'completed');
 
   return (
@@ -175,6 +213,75 @@ export default function StaffPage() {
                   </span>
                 </li>
               ))}
+            </ul>
+          )}
+        </section>
+
+        {/* Approval queue (Crescat 3-state) */}
+        <section className="rounded-2xl border border-[var(--border)] bg-[var(--surface)] lg:col-span-2">
+          <header className="flex items-center justify-between border-b border-[var(--border)] px-5 py-3">
+            <h2 className="text-[14px] font-semibold uppercase tracking-wider text-[var(--ink-500)]">
+              Approval queue
+            </h2>
+            <span className="text-[12px] tabular-nums text-[var(--ink-400)]">
+              {pendingApproval.length}
+            </span>
+          </header>
+          {pendingApproval.length === 0 ? (
+            <p className="px-5 py-8 text-center text-[13px] text-[var(--ink-400)]">
+              All shifts approved + accepted.
+            </p>
+          ) : (
+            <ul className="divide-y divide-[var(--border)]">
+              {pendingApproval.map((a) => {
+                const p = personnelById.get(a.personnel_id);
+                const apv = a.approval_status ?? 'pending';
+                const c = APPROVAL_COLOR[apv];
+                return (
+                  <li key={a.id} className="flex items-center gap-3 px-5 py-2.5">
+                    <span
+                      className="rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider"
+                      style={{ background: c.bg, color: c.fg }}
+                    >
+                      {c.label}
+                    </span>
+                    <span className="flex-1 truncate text-[13px] text-[var(--ink-900)]">
+                      {p?.full_name ?? 'Unknown'}{' '}
+                      <span className="text-[var(--ink-500)]">· {a.role}</span>
+                    </span>
+                    {apv === 'pending' ? (
+                      <button
+                        type="button"
+                        onClick={() => handleApprove(a.id)}
+                        disabled={busyShiftId === a.id}
+                        className="inline-flex min-h-[32px] items-center gap-1 rounded-lg bg-[#3B82F6] px-3 py-1 text-[12px] font-semibold text-white hover:opacity-90 disabled:opacity-50"
+                      >
+                        {busyShiftId === a.id ? (
+                          <Loader2 size={11} className="animate-spin" />
+                        ) : (
+                          <Check size={11} />
+                        )}
+                        Approve
+                      </button>
+                    ) : null}
+                    {apv === 'approved' ? (
+                      <button
+                        type="button"
+                        onClick={() => handleAccept(a.id)}
+                        disabled={busyShiftId === a.id}
+                        className="inline-flex min-h-[32px] items-center gap-1 rounded-lg bg-[#34C759] px-3 py-1 text-[12px] font-semibold text-white hover:opacity-90 disabled:opacity-50"
+                      >
+                        {busyShiftId === a.id ? (
+                          <Loader2 size={11} className="animate-spin" />
+                        ) : (
+                          <Check size={11} />
+                        )}
+                        Mark accepted
+                      </button>
+                    ) : null}
+                  </li>
+                );
+              })}
             </ul>
           )}
         </section>

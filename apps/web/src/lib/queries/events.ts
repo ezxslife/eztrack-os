@@ -1010,6 +1010,41 @@ export interface ShiftAssignmentRow {
     | 'off_shift'
     | 'no_show';
   geo_verified: boolean;
+  // L2 m16 (0112)
+  approval_status?: 'pending' | 'approved' | 'accepted';
+  approved_at?: string | null;
+  approved_by?: string | null;
+  accepted_at?: string | null;
+}
+
+export async function approveShiftAssignment(
+  shiftId: string,
+): Promise<{ ok: boolean; error?: string }> {
+  const supabase = eventsDb();
+  const { data: userData } = await supabase.auth.getUser();
+  const { error } = await supabase
+    .from('shift_assignments')
+    .update({
+      approval_status: 'approved',
+      approved_at: new Date().toISOString(),
+      approved_by: userData?.user?.id ?? null,
+    })
+    .eq('id', shiftId);
+  return error ? { ok: false, error: error.message } : { ok: true };
+}
+
+export async function acceptShiftAssignment(
+  shiftId: string,
+): Promise<{ ok: boolean; error?: string }> {
+  const supabase = eventsDb();
+  const { error } = await supabase
+    .from('shift_assignments')
+    .update({
+      approval_status: 'accepted',
+      accepted_at: new Date().toISOString(),
+    })
+    .eq('id', shiftId);
+  return error ? { ok: false, error: error.message } : { ok: true };
 }
 
 export interface DispatchLite {
