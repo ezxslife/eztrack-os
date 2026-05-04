@@ -17,7 +17,7 @@ const ITEMS: NavItem[] = [
   { href: '/live', label: 'Live', icon: Radio, enabled: true },
   { href: '/events', label: 'Events', icon: CalendarDays, enabled: true },
   { href: '/wall-display', label: 'Wall display', icon: Tv, enabled: true },
-  { href: '/pos', label: 'POS', icon: Ticket, enabled: false },
+  { href: '/pos', label: 'POS', icon: Ticket, enabled: true },
 ];
 
 export function EventsModeNav() {

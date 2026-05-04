@@ -556,6 +556,190 @@ export async function revokeWallDisplaySession(
   return (data ?? { ok: false, error: 'no_response' }) as { ok: boolean; error?: string };
 }
 
+/* ─── POS (cash mode) ────────────────────────────── */
+
+export interface PosTier {
+  name: string;
+  price_cents: number;
+}
+
+/**
+ * Resolve the POS tier list for an event. Reads `events.live_ops_config.pos_tiers`
+ * if present; otherwise falls back to a sensible default so /pos works on any
+ * event without operator config first.
+ */
+export function tierDefinitionsFor(event: EventRow): PosTier[] {
+  const cfg = (event.live_ops_config ?? {}) as { pos_tiers?: PosTier[] };
+  const tiers = Array.isArray(cfg.pos_tiers) ? cfg.pos_tiers : null;
+  if (tiers && tiers.length > 0) {
+    return tiers.filter((t) => typeof t.name === 'string' && Number.isFinite(t.price_cents));
+  }
+  return [
+    { name: 'GA', price_cents: 2500 },
+    { name: 'VIP', price_cents: 5000 },
+  ];
+}
+
+export interface PosSaleResult {
+  ok: boolean;
+  order_id?: string;
+  ticket_id?: string;
+  check_in_id?: string;
+  result?:
+    | 'success'
+    | 'already_scanned'
+    | 'invalid'
+    | 'expired'
+    | 'wrong_day'
+    | 'wrong_event';
+  error?: string;
+}
+
+/**
+ * Cash-mode walk-up sale that auto-checks-in the customer. Three writes
+ * happen client-side under RLS, then the canonical checkin-router writes the
+ * check_in:
+ *   1. tickets row (source='pos', state='valid')
+ *   2. orders row (source='pos_cash', status='paid')
+ *   3. order_line_items row linking order ↔ ticket
+ *   4. POST /functions/v1/checkin-router source='pos_auto_checkin'
+ *
+ * The auto-checkin is gated by `events.live_ops_config.auto_checkin_at_pos`
+ * (default true). When false, the function returns the order/ticket but
+ * skips the check_in dispatch — e.g. for advance sales that shouldn't
+ * count as door entries yet.
+ */
+export async function createPosSale(args: {
+  org_id: string;
+  event_id: string;
+  tier: string;
+  price_cents: number;
+  email?: string | null;
+  device?: string | null;
+}): Promise<PosSaleResult> {
+  const supabase = eventsDb();
+
+  // 1. Fetch event (for live_ops_config + auto-checkin flag)
+  const evRes = await supabase
+    .from('events')
+    .select('live_ops_config')
+    .eq('id', args.event_id)
+    .maybeSingle();
+  const liveOpsConfig = (evRes.data as { live_ops_config?: Record<string, unknown> } | null)
+    ?.live_ops_config ?? {};
+  const autoCheckin =
+    (liveOpsConfig as { auto_checkin_at_pos?: boolean }).auto_checkin_at_pos !== false;
+
+  // 2. Optional customer (only if email provided)
+  let customerId: string | null = null;
+  if (args.email && args.email.includes('@')) {
+    const { data: existing } = await supabase
+      .from('customers')
+      .select('id')
+      .eq('org_id', args.org_id)
+      .eq('email', args.email.trim().toLowerCase())
+      .maybeSingle();
+    if ((existing as { id: string } | null)?.id) {
+      customerId = (existing as { id: string }).id;
+    } else {
+      const { data: created } = await supabase
+        .from('customers')
+        .insert({ org_id: args.org_id, email: args.email.trim().toLowerCase() })
+        .select('id')
+        .single();
+      customerId = (created as { id: string } | null)?.id ?? null;
+    }
+  }
+
+  // 3. Ticket
+  const ticketExternalId = `pos-${Date.now()}-${Math.floor(Math.random() * 1_000_000)}`;
+  const { data: ticket, error: ticketErr } = await supabase
+    .from('tickets')
+    .insert({
+      org_id: args.org_id,
+      event_id: args.event_id,
+      customer_id: customerId,
+      source: 'pos',
+      tier: args.tier,
+      state: 'valid',
+      external_id: ticketExternalId,
+      price_cents: args.price_cents,
+    })
+    .select('id')
+    .single();
+  if (ticketErr || !ticket) return { ok: false, error: ticketErr?.message ?? 'ticket_insert_failed' };
+  const ticketId = (ticket as { id: string }).id;
+
+  // 4. Order
+  const orderExternalId = `pos-cash-${Date.now()}`;
+  const { data: order, error: orderErr } = await supabase
+    .from('orders')
+    .insert({
+      org_id: args.org_id,
+      event_id: args.event_id,
+      customer_id: customerId,
+      source: 'pos_cash',
+      external_id: orderExternalId,
+      status: 'paid',
+      total_cents: args.price_cents,
+      net_cents: args.price_cents,
+      device: args.device ?? null,
+    })
+    .select('id')
+    .single();
+  if (orderErr || !order) return { ok: false, error: orderErr?.message ?? 'order_insert_failed' };
+  const orderId = (order as { id: string }).id;
+
+  // 5. Line item
+  await supabase.from('order_line_items').insert({
+    order_id: orderId,
+    ticket_id: ticketId,
+    description: `${args.tier} (cash)`,
+    tier: args.tier,
+    quantity: 1,
+    unit_price_cents: args.price_cents,
+    total_cents: args.price_cents,
+  });
+
+  if (!autoCheckin) {
+    return { ok: true, order_id: orderId, ticket_id: ticketId };
+  }
+
+  // 6. Auto-checkin via canonical router
+  const { data: routerRes, error: routerErr } = await supabase.functions.invoke('checkin-router', {
+    body: {
+      source: 'pos_auto_checkin',
+      org_id: args.org_id,
+      event_id: args.event_id,
+      ticket_id: ticketId,
+      device: args.device ?? 'POS',
+      location: 'POS auto check-in',
+    },
+  });
+  if (routerErr) {
+    return {
+      ok: true,
+      order_id: orderId,
+      ticket_id: ticketId,
+      error: `auto_checkin_failed: ${routerErr.message}`,
+    };
+  }
+  const r = (routerRes ?? {}) as {
+    ok?: boolean;
+    result?: PosSaleResult['result'];
+    check_in_id?: string;
+    error?: string;
+  };
+  return {
+    ok: true,
+    order_id: orderId,
+    ticket_id: ticketId,
+    check_in_id: r.check_in_id,
+    result: r.result,
+    error: r.error,
+  };
+}
+
 export function slugify(input: string): string {
   return input
     .toLowerCase()
