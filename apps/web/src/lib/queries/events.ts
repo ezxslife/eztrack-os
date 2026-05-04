@@ -1172,6 +1172,165 @@ export async function fetchPatrons(flagFilter?: string[]): Promise<PatronRow[]> 
   return (data as PatronRow[] | null) ?? [];
 }
 
+/* ─── Templates (polymorphic; running_order at launch) ─── */
+
+export type TemplateType =
+  | 'running_order'
+  | 'event'
+  | 'timeline'
+  | 'board'
+  | 'checklist';
+
+export interface TemplateRow {
+  id: string;
+  org_id: string;
+  template_type: TemplateType;
+  name: string;
+  description: string | null;
+  payload: Record<string, unknown>;
+  created_at: string;
+}
+
+interface RunningOrderTemplatePayload {
+  slots: Array<{
+    label: string;
+    description: string | null;
+    minutes_offset: number;
+    duration_minutes: number;
+    display_order: number;
+    trigger_type: 'manual' | 'time' | 'cue';
+  }>;
+  checklist: Array<{ label: string; display_order: number }>;
+}
+
+export async function fetchTemplates(
+  templateType?: TemplateType,
+): Promise<TemplateRow[]> {
+  const supabase = eventsDb();
+  let q = supabase
+    .from('templates')
+    .select('*')
+    .is('deleted_at', null)
+    .order('created_at', { ascending: false })
+    .limit(100);
+  if (templateType) q = q.eq('template_type', templateType);
+  const { data } = await q;
+  return (data as TemplateRow[] | null) ?? [];
+}
+
+/**
+ * Save the current run-of-show + checklist as a polymorphic template.
+ * Slots are stored as minutes_offset from the source event_day.starts_at +
+ * duration_minutes, so the template is reusable across any event_day.
+ */
+export async function saveRunOfShowAsTemplate(args: {
+  org_id: string;
+  event_day_id: string;
+  ros_id: string;
+  name: string;
+  description?: string;
+}): Promise<{ ok: boolean; template_id?: string; error?: string }> {
+  const supabase = eventsDb();
+
+  const { data: dayData } = await supabase
+    .from('event_days')
+    .select('starts_at')
+    .eq('id', args.event_day_id)
+    .maybeSingle();
+  if (!dayData) return { ok: false, error: 'event_day_not_found' };
+  const dayStart = new Date((dayData as { starts_at: string }).starts_at).getTime();
+
+  const [slots, checklist] = await Promise.all([
+    fetchRosSlots(args.ros_id),
+    fetchChecklistItems(args.ros_id),
+  ]);
+
+  const payload: RunningOrderTemplatePayload = {
+    slots: slots.map((s) => {
+      const slotStart = new Date(s.starts_at).getTime();
+      const slotEnd = new Date(s.ends_at).getTime();
+      return {
+        label: s.label,
+        description: s.description,
+        minutes_offset: Math.round((slotStart - dayStart) / 60_000),
+        duration_minutes: Math.round((slotEnd - slotStart) / 60_000),
+        display_order: s.display_order,
+        trigger_type: 'manual',
+      };
+    }),
+    checklist: checklist.map((c) => ({ label: c.label, display_order: c.display_order })),
+  };
+
+  const { data: userData } = await supabase.auth.getUser();
+  const { data, error } = await supabase
+    .from('templates')
+    .insert({
+      org_id: args.org_id,
+      template_type: 'running_order',
+      name: args.name,
+      description: args.description ?? null,
+      payload,
+      created_by: userData?.user?.id ?? null,
+    })
+    .select('id')
+    .single();
+  if (error || !data) return { ok: false, error: error?.message ?? 'template_insert_failed' };
+  return { ok: true, template_id: (data as { id: string }).id };
+}
+
+export async function applyRunningOrderTemplate(args: {
+  template_id: string;
+  target_event_day_id: string;
+  target_event_id: string;
+  org_id: string;
+}): Promise<{ ok: boolean; error?: string }> {
+  const supabase = eventsDb();
+
+  const [{ data: tmpl }, { data: dayData }] = await Promise.all([
+    supabase.from('templates').select('*').eq('id', args.template_id).maybeSingle(),
+    supabase.from('event_days').select('starts_at').eq('id', args.target_event_day_id).maybeSingle(),
+  ]);
+  if (!tmpl) return { ok: false, error: 'template_not_found' };
+  if (!dayData) return { ok: false, error: 'event_day_not_found' };
+
+  const t = tmpl as TemplateRow;
+  if (t.template_type !== 'running_order') return { ok: false, error: 'wrong_template_type' };
+
+  const payload = t.payload as unknown as RunningOrderTemplatePayload;
+  const dayStart = new Date((dayData as { starts_at: string }).starts_at).getTime();
+
+  const ros = await fetchOrCreateRunOfShow(args.org_id, args.target_event_id, args.target_event_day_id);
+
+  if (payload.slots && payload.slots.length > 0) {
+    const rows = payload.slots.map((s) => {
+      const start = new Date(dayStart + s.minutes_offset * 60_000).toISOString();
+      const end = new Date(dayStart + (s.minutes_offset + s.duration_minutes) * 60_000).toISOString();
+      return {
+        ros_id: ros.id,
+        label: s.label,
+        description: s.description,
+        starts_at: start,
+        ends_at: end,
+        display_order: s.display_order,
+      };
+    });
+    const { error } = await supabase.from('ros_slots').insert(rows);
+    if (error) return { ok: false, error: error.message };
+  }
+
+  if (payload.checklist && payload.checklist.length > 0) {
+    const rows = payload.checklist.map((c) => ({
+      ros_id: ros.id,
+      label: c.label,
+      display_order: c.display_order,
+    }));
+    const { error } = await supabase.from('checklist_items').insert(rows);
+    if (error) return { ok: false, error: error.message };
+  }
+
+  return { ok: true };
+}
+
 /* ─── Event members (per-event invite + write permission) ─── */
 
 export interface EventMemberRow {

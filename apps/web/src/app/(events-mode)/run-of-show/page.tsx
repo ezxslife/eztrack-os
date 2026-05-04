@@ -2,9 +2,11 @@
 
 import { FormEvent, useCallback, useEffect, useMemo, useState } from 'react';
 import {
+  BookmarkPlus,
   CheckSquare,
   Clock,
   Copy,
+  FileText,
   Loader2,
   Plus,
   Send,
@@ -14,6 +16,7 @@ import {
 import {
   addChecklistItem,
   addRosSlot,
+  applyRunningOrderTemplate,
   cloneRunOfShowDay,
   deleteRosSlot,
   fetchActiveEvent,
@@ -22,13 +25,16 @@ import {
   fetchEventDays,
   fetchOrCreateRunOfShow,
   fetchRosSlots,
+  fetchTemplates,
   publishRunOfShow,
+  saveRunOfShowAsTemplate,
   toggleChecklistItem,
   type ChecklistItemRow,
   type EventDayRow,
   type EventRow,
   type RosSlotRow,
   type RunOfShowRow,
+  type TemplateRow,
 } from '@/lib/queries/events';
 import { useAuth } from '@/lib/api/hooks';
 
@@ -40,6 +46,7 @@ export default function RunOfShowPage() {
   const [ros, setRos] = useState<RunOfShowRow | null>(null);
   const [slots, setSlots] = useState<RosSlotRow[]>([]);
   const [checklist, setChecklist] = useState<ChecklistItemRow[]>([]);
+  const [templates, setTemplates] = useState<TemplateRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
 
@@ -61,11 +68,13 @@ export default function RunOfShowPage() {
         return;
       }
       setEvent(ev);
-      const [allDays, currentDay] = await Promise.all([
+      const [allDays, currentDay, tpls] = await Promise.all([
         fetchEventDays(ev.id),
         fetchCurrentEventDay(ev.id),
+        fetchTemplates('running_order'),
       ]);
       setDays(allDays);
+      setTemplates(tpls);
       const d = currentDay ?? allDays[0] ?? null;
       setDay(d);
       if (d) await refresh(ev.id, d.id, ev.org_id);
@@ -154,6 +163,47 @@ export default function RunOfShowPage() {
     }
   }
 
+  async function handleSaveAsTemplate() {
+    if (!event || !day || !ros || busy) return;
+    if (slots.length === 0 && checklist.length === 0) return;
+    const name = window.prompt(
+      'Template name?',
+      `${event.name} · ${day.label} run-of-show`,
+    );
+    if (!name?.trim()) return;
+    setBusy(true);
+    try {
+      const res = await saveRunOfShowAsTemplate({
+        org_id: event.org_id,
+        event_day_id: day.id,
+        ros_id: ros.id,
+        name: name.trim(),
+      });
+      if (res.ok) {
+        const tpls = await fetchTemplates('running_order');
+        setTemplates(tpls);
+      }
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function handleApplyTemplate(templateId: string) {
+    if (!event || !day || !ros || busy) return;
+    setBusy(true);
+    try {
+      const res = await applyRunningOrderTemplate({
+        template_id: templateId,
+        target_event_day_id: day.id,
+        target_event_id: event.id,
+        org_id: event.org_id,
+      });
+      if (res.ok) await refresh(event.id, day.id, event.org_id);
+    } finally {
+      setBusy(false);
+    }
+  }
+
   async function handleCloneFrom(sourceDay: EventDayRow) {
     if (!event || !day || !ros || busy) return;
     setBusy(true);
@@ -216,17 +266,50 @@ export default function RunOfShowPage() {
               : ' · draft'}
           </p>
         </div>
-        <button
-          type="button"
-          onClick={handlePublish}
-          disabled={busy || !!ros.published_to_staff_at}
-          className="inline-flex min-h-[44px] items-center gap-1.5 rounded-xl px-4 py-2 text-[14px] font-semibold text-white hover:opacity-90 disabled:opacity-50"
-          style={{ background: 'var(--ezxs-gradient-money)' }}
-        >
-          <Send size={14} />
-          {ros.published_to_staff_at ? 'Published' : 'Publish to staff'}
-        </button>
+        <div className="flex items-center gap-2">
+          {slots.length > 0 || checklist.length > 0 ? (
+            <button
+              type="button"
+              onClick={handleSaveAsTemplate}
+              disabled={busy}
+              className="inline-flex min-h-[36px] items-center gap-1.5 rounded-lg border border-[var(--border)] bg-[var(--surface)] px-3 py-1.5 text-[12px] font-medium text-[var(--ink-700)] hover:bg-[var(--hover)] disabled:opacity-50"
+              title="Save as template"
+            >
+              <BookmarkPlus size={12} />
+              Save as template
+            </button>
+          ) : null}
+          <button
+            type="button"
+            onClick={handlePublish}
+            disabled={busy || !!ros.published_to_staff_at}
+            className="inline-flex min-h-[44px] items-center gap-1.5 rounded-xl px-4 py-2 text-[14px] font-semibold text-white hover:opacity-90 disabled:opacity-50"
+            style={{ background: 'var(--ezxs-gradient-money)' }}
+          >
+            <Send size={14} />
+            {ros.published_to_staff_at ? 'Published' : 'Publish to staff'}
+          </button>
+        </div>
       </header>
+
+      {/* Empty state: offer template apply */}
+      {slots.length === 0 && checklist.length === 0 && templates.length > 0 ? (
+        <div className="flex flex-wrap items-center gap-2 rounded-xl border border-dashed border-[var(--border-strong)] bg-[var(--surface)] p-3">
+          <FileText size={14} className="text-[var(--ink-400)]" />
+          <span className="text-[12px] text-[var(--ink-500)]">Apply a template:</span>
+          {templates.slice(0, 5).map((t) => (
+            <button
+              key={t.id}
+              type="button"
+              onClick={() => handleApplyTemplate(t.id)}
+              disabled={busy}
+              className="inline-flex h-8 items-center gap-1 rounded-lg bg-[var(--surface-2)] px-3 text-[12px] font-medium text-[var(--ink-900)] hover:bg-[var(--hover)] disabled:opacity-50"
+            >
+              {t.name}
+            </button>
+          ))}
+        </div>
+      ) : null}
 
       {/* Day tabs (multi-day only) + Clone-from picker */}
       {days.length > 1 ? (
