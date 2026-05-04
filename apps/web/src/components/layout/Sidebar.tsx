@@ -6,6 +6,7 @@ import { usePathname } from "next/navigation";
 import clsx from "clsx";
 import { NAV_ITEMS, NAV_BOTTOM_ITEMS } from "@eztrack/shared";
 import { Button } from "@/components/ui/Button";
+import { VenueModeSwitch } from "@/components/venue-mode/VenueModeSwitch";
 import {
   LayoutDashboard,
   ClipboardList,
@@ -164,6 +165,12 @@ export function Sidebar({
       <div className="px-2 py-2 space-y-0.5">
         {NAV_BOTTOM_ITEMS.map((item, i) => renderNavItem(item, i + 100))}
       </div>
+
+      {!isCollapsed && (
+        <div className="px-3 pb-3 md:hidden">
+          <VenueModeSwitch className="w-full justify-center" />
+        </div>
+      )}
 
       {/* User profile */}
       <div
