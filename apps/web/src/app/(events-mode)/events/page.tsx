@@ -76,7 +76,11 @@ function EventCard({ event }: { event: EventRow }) {
   const isLive = event.status === 'live';
 
   return (
-    <li className="rounded-2xl border border-[var(--border)] bg-[var(--surface)] p-4">
+    <li className="overflow-hidden rounded-2xl border border-[var(--border)] bg-[var(--surface)]">
+      <Link
+        href={`/events/${event.slug}`}
+        className="block p-4 hover:bg-[var(--hover)]"
+      >
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
           <h2 className="truncate text-[16px] font-semibold text-[var(--ink-900)]">
@@ -109,14 +113,13 @@ function EventCard({ event }: { event: EventRow }) {
       </dl>
       <div className="mt-3 flex items-center justify-end gap-2">
         {isLive ? (
-          <Link
-            href="/live"
-            className="inline-flex min-h-[36px] items-center gap-1 rounded-lg px-3 py-1.5 text-[13px] font-semibold text-white hover:opacity-90"
+          <span
+            className="inline-flex min-h-[28px] items-center gap-1 rounded-lg px-2.5 py-1 text-[11px] font-semibold uppercase tracking-wider text-white"
             style={{ background: '#34C759' }}
           >
-            <Radio size={13} />
+            <Radio size={11} />
             Open live
-          </Link>
+          </span>
         ) : (
           <span className="text-[11px] tabular-nums text-[var(--ink-400)]">
             {event.record_number ?? '—'}
@@ -124,6 +127,7 @@ function EventCard({ event }: { event: EventRow }) {
         )}
         <ChevronRight size={16} className="text-[var(--ink-400)]" />
       </div>
+      </Link>
     </li>
   );
 }

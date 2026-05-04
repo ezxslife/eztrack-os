@@ -1127,6 +1127,181 @@ export async function fetchPatrons(flagFilter?: string[]): Promise<PatronRow[]> 
   return (data as PatronRow[] | null) ?? [];
 }
 
+/* ─── Event detail (view + edit) ─────────────────── */
+
+export async function fetchEventBySlug(slug: string): Promise<EventRow | null> {
+  const supabase = eventsDb();
+  const { data } = await supabase
+    .from('events')
+    .select('*')
+    .eq('slug', slug)
+    .is('deleted_at', null)
+    .maybeSingle();
+  return (data as EventRow | null) ?? null;
+}
+
+export async function updateEventLiveOpsConfig(
+  eventId: string,
+  patch: Record<string, unknown>,
+): Promise<{ ok: boolean; error?: string }> {
+  const supabase = eventsDb();
+  const { data: ev } = await supabase
+    .from('events')
+    .select('live_ops_config')
+    .eq('id', eventId)
+    .maybeSingle();
+  const current = ((ev as { live_ops_config?: Record<string, unknown> } | null)?.live_ops_config ?? {});
+  const next = { ...current, ...patch };
+  const { error } = await supabase
+    .from('events')
+    .update({ live_ops_config: next })
+    .eq('id', eventId);
+  return error ? { ok: false, error: error.message } : { ok: true };
+}
+
+export async function updateEventStatus(
+  eventId: string,
+  status: EventRow['status'],
+): Promise<{ ok: boolean; error?: string }> {
+  const supabase = eventsDb();
+  const { error } = await supabase.from('events').update({ status }).eq('id', eventId);
+  return error ? { ok: false, error: error.message } : { ok: true };
+}
+
+export async function addEventDay(args: {
+  event_id: string;
+  label: string;
+  date: string;
+  starts_at: string;
+  ends_at: string;
+  capacity: number;
+  reentry_policy?: EventDayRow['reentry_policy'];
+}): Promise<{ ok: boolean; day?: EventDayRow; error?: string }> {
+  const supabase = eventsDb();
+  const existing = await fetchEventDays(args.event_id);
+  const nextIndex = existing.length === 0 ? 1 : Math.max(...existing.map((d) => d.day_index)) + 1;
+  const { data, error } = await supabase
+    .from('event_days')
+    .insert({
+      event_id: args.event_id,
+      day_index: nextIndex,
+      label: args.label,
+      date: args.date,
+      starts_at: args.starts_at,
+      ends_at: args.ends_at,
+      capacity: args.capacity,
+      reentry_policy: args.reentry_policy ?? 'count_once_per_day',
+    })
+    .select('*')
+    .single();
+  if (error || !data) return { ok: false, error: error?.message ?? 'day_insert_failed' };
+  return { ok: true, day: data as EventDayRow };
+}
+
+export async function updateEventDay(
+  dayId: string,
+  patch: Partial<Pick<EventDayRow, 'label' | 'capacity' | 'starts_at' | 'ends_at' | 'reentry_policy'>>,
+): Promise<{ ok: boolean; error?: string }> {
+  const supabase = eventsDb();
+  const { error } = await supabase.from('event_days').update(patch).eq('id', dayId);
+  return error ? { ok: false, error: error.message } : { ok: true };
+}
+
+export async function deleteEventDay(
+  dayId: string,
+): Promise<{ ok: boolean; error?: string }> {
+  const supabase = eventsDb();
+  const { error } = await supabase
+    .from('event_days')
+    .update({ deleted_at: new Date().toISOString() })
+    .eq('id', dayId);
+  return error ? { ok: false, error: error.message } : { ok: true };
+}
+
+/* ─── Incidents (events-mode quick create) ───────── */
+
+export type IncidentSeverity = 'low' | 'medium' | 'high' | 'critical';
+
+export interface IncidentRow {
+  id: string;
+  org_id: string;
+  record_number: string;
+  incident_type: string;
+  severity: IncidentSeverity;
+  status: string;
+  synopsis: string | null;
+  description: string | null;
+  reported_by: string | null;
+  event_id: string | null;
+  event_day_id: string | null;
+  created_at: string;
+}
+
+export const INCIDENT_TYPES: Array<{ value: string; label: string }> = [
+  { value: 'medical', label: 'Medical' },
+  { value: 'security', label: 'Security' },
+  { value: 'facilities', label: 'Facilities' },
+  { value: 'operations', label: 'Operations' },
+  { value: 'patron_dispute', label: 'Patron dispute' },
+  { value: 'lost_found', label: 'Lost & found' },
+  { value: 'other', label: 'Other' },
+];
+
+export async function createEventIncident(args: {
+  org_id: string;
+  event_id: string;
+  event_day_id: string | null;
+  incident_type: string;
+  severity: IncidentSeverity;
+  synopsis: string;
+  description?: string;
+  reported_by?: string;
+}): Promise<{ ok: boolean; incident_id?: string; record_number?: string; error?: string }> {
+  const supabase = eventsDb();
+
+  const { data: rec, error: recErr } = await supabase.rpc('next_record_number', {
+    p_org_id: args.org_id,
+    p_prefix: 'INC',
+  });
+  if (recErr) return { ok: false, error: recErr.message };
+  const recordNumber = rec as unknown as string;
+
+  const { data, error } = await supabase
+    .from('incidents')
+    .insert({
+      org_id: args.org_id,
+      record_number: recordNumber,
+      incident_type: args.incident_type,
+      severity: args.severity,
+      status: 'open',
+      synopsis: args.synopsis,
+      description: args.description ?? null,
+      reported_by: args.reported_by ?? null,
+      event_id: args.event_id,
+      event_day_id: args.event_day_id,
+    })
+    .select('id, record_number')
+    .single();
+  if (error || !data) return { ok: false, error: error?.message ?? 'incident_insert_failed' };
+  return {
+    ok: true,
+    incident_id: (data as { id: string }).id,
+    record_number: (data as { record_number: string }).record_number,
+  };
+}
+
+export async function fetchEventIncidents(eventId: string): Promise<IncidentRow[]> {
+  const supabase = eventsDb();
+  const { data } = await supabase
+    .from('incidents')
+    .select('id, org_id, record_number, incident_type, severity, status, synopsis, description, reported_by, event_id, event_day_id, created_at')
+    .eq('event_id', eventId)
+    .is('deleted_at', null)
+    .order('created_at', { ascending: false })
+    .limit(50);
+  return (data as IncidentRow[] | null) ?? [];
+}
+
 export function slugify(input: string): string {
   return input
     .toLowerCase()
