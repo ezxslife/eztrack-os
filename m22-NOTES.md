@@ -59,11 +59,16 @@ Action verbs are color-coded:
 
 Limit is 200 rows; if traffic ever justifies it we can paginate. Read-only — no UI to mutate the audit trail (matching the spec: it should be tamper-resistant for compliance).
 
-## 4. /notifications editor
+## 4. /notification-rules editor
 
 **Files:**
 - `apps/web/src/lib/queries/events.ts` (EVENTS_MODE_NOTIFICATION_TYPES + fetchNotificationRules + upsertNotificationRule + deleteNotificationRule)
-- `apps/web/src/app/(events-mode)/notifications/page.tsx` (new) + nav item
+- `apps/web/src/app/(events-mode)/notification-rules/page.tsx` (new) + nav item
+
+> Path is `/notification-rules` (not `/notifications`) because the security-mode
+> `(dashboard)/notifications` already owns the in-app notification feed.
+> Next.js disallows two route groups resolving to the same URL, and the
+> CLAUDE.md style boundary forbids touching the security-mode surface.
 
 Six event types covering the events-mode signal surface:
 1. `capacity_threshold` — capacity_threshold_worker crosses configured %

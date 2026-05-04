@@ -33,7 +33,7 @@ const ITEMS: NavItem[] = [
   { href: '/vip-deny', label: 'VIP/Deny', icon: Crown, enabled: true },
   { href: '/events', label: 'Events', icon: CalendarDays, enabled: true },
   { href: '/templates', label: 'Templates', icon: BookmarkPlus, enabled: true },
-  { href: '/notifications', label: 'Notifications', icon: Bell, enabled: true },
+  { href: '/notification-rules', label: 'Notify rules', icon: Bell, enabled: true },
   { href: '/audit', label: 'Audit', icon: ShieldCheck, enabled: true },
   { href: '/wall-display', label: 'Wall display', icon: Tv, enabled: true },
 ];
