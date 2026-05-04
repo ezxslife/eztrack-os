@@ -1,0 +1,303 @@
+/**
+ * EZXS Finance — Design Tokens
+ * Light/Dark + iOS 26 liquid-glass primitives.
+ *
+ * Source of truth for ezxs brand: C:/Users/Donny/Desktop/Ezxs-os/apps/web/src/styles/tokens.css
+ * Light + Dark surfaces are theme-scoped via [data-theme="light"|"dark"].
+ */
+
+:root {
+  /* ============================================================
+     BRAND — Stable across themes
+     ============================================================ */
+  --ezxs-primary-50: #ECFEFF;
+  --ezxs-primary-100: #CFFAFE;
+  --ezxs-primary-200: #A5F3FC;
+  --ezxs-primary-300: #67E8F9;
+  --ezxs-primary-400: #22D3EE;
+  --ezxs-primary-500: #06B6D4;
+  --ezxs-primary-600: #0891B2;
+  --ezxs-primary-700: #0E7490;
+  --ezxs-primary-800: #0E5568;
+  --ezxs-primary-900: #164E63;
+
+  --ezxs-accent-300: #FDBA74;
+  --ezxs-accent-400: #FB923C;
+  --ezxs-accent-500: #F97316;
+  --ezxs-accent-600: #EA580C;
+
+  /* Money gradient — same in both modes */
+  --ezxs-gradient-money: linear-gradient(135deg, #06B6D4 0%, #0891B2 60%, #164E63 100%);
+  --ezxs-gradient: linear-gradient(135deg, #4F46E5 0%, #EC4899 100%);
+  --ezxs-gradient-soft: linear-gradient(135deg, #6366F1 0%, #06B6D4 100%);
+
+  /* Status — color stays meaningful in both modes; surface tint flips per theme */
+  --success: #10B981;
+  --warning: #F59E0B;
+  --danger: #EF4444;
+  --info: #3B82F6;
+
+  /* ============================================================
+     SPACING (4px base)
+     ============================================================ */
+  --space-0: 0;
+  --space-1: 0.25rem;
+  --space-2: 0.5rem;
+  --space-3: 0.75rem;
+  --space-4: 1rem;
+  --space-5: 1.25rem;
+  --space-6: 1.5rem;
+  --space-7: 1.75rem;
+  --space-8: 2rem;
+  --space-10: 2.5rem;
+  --space-12: 3rem;
+  --space-16: 4rem;
+
+  /* ============================================================
+     TYPOGRAPHY
+     ============================================================ */
+  --font-sans: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Inter", "Segoe UI", Roboto, sans-serif;
+  --font-display: "SF Pro Display", "Inter Tight", "Inter", sans-serif;
+
+  --font-size-2xs: 0.625rem;
+  --font-size-xs: 0.6875rem;
+  --font-size-sm: 0.75rem;
+  --font-size-base: 0.8125rem;
+  --font-size-md: 0.875rem;
+  --font-size-lg: 1rem;
+  --font-size-xl: 1.25rem;
+  --font-size-2xl: 1.5rem;
+  --font-size-3xl: 1.875rem;
+  --font-size-display: 2.5rem;
+
+  --font-weight-normal: 400;
+  --font-weight-medium: 500;
+  --font-weight-semibold: 600;
+  --font-weight-bold: 700;
+  --font-weight-extrabold: 800;
+
+  --letter-spacing-tight: -0.02em;
+  --letter-spacing-wide: 0.02em;
+  --letter-spacing-wider: 0.04em;
+
+  /* ============================================================
+     RADII — iOS 26 leans into softer, larger
+     ============================================================ */
+  --r-xs: 6px;
+  --r-sm: 10px;
+  --r-md: 14px;
+  --r-lg: 18px;
+  --r-xl: 24px;
+  --r-2xl: 32px;
+  --r-pill: 9999px;
+
+  /* ============================================================
+     MOTION — iOS 26 spring vocabulary
+     ============================================================ */
+  --duration-instant: 0ms;
+  --duration-fast: 150ms;
+  --duration-normal: 250ms;
+  --duration-slow: 400ms;
+  --ease-standard: cubic-bezier(0.4, 0, 0.2, 1);
+  --ease-entrance: cubic-bezier(0, 0, 0.2, 1);
+  --ease-exit: cubic-bezier(0.4, 0, 1, 1);
+  --ease-spring: cubic-bezier(0.34, 1.56, 0.64, 1);
+  --ease-ios: cubic-bezier(0.32, 0.72, 0, 1);
+
+  /* ============================================================
+     Z-INDEX
+     ============================================================ */
+  --z-base: 0;
+  --z-dropdown: 1000;
+  --z-sticky: 1100;
+  --z-fixed: 1200;
+  --z-banner: 1250;
+  --z-modal-backdrop: 1300;
+  --z-modal: 1400;
+  --z-popover: 1500;
+  --z-toast: 1600;
+  --z-tooltip: 1700;
+
+  /* Control heights (Apple HIG ≥44px tappable) */
+  --control-height-xs: 24px;
+  --control-height-sm: 30px;
+  --control-height-md: 36px;
+  --control-height-lg: 44px;
+  --control-height-xl: 52px;
+
+  /* ============================================================
+     BREAKPOINTS
+     ============================================================ */
+  --breakpoint-sm: 640px;
+  --breakpoint-md: 768px;
+  --breakpoint-lg: 1024px;
+  --breakpoint-xl: 1280px;
+}
+
+/* ============================================================
+   LIGHT THEME (default) — Laylo-inspired, soft gray canvas
+   ============================================================ */
+[data-theme="light"], :root {
+  color-scheme: light;
+
+  /* Surfaces */
+  --bg: #F5F7FC;
+  --bg-elevated: #FFFFFF;
+  --surface: #FFFFFF;
+  --surface-2: #FBFCFF;
+  --surface-3: #EEF2F8;
+  --surface-translucent: rgba(255, 255, 255, 0.76);
+  --surface-glass: rgba(255, 255, 255, 0.68);
+  --surface-glass-strong: rgba(255, 255, 255, 0.9);
+
+  /* Borders */
+  --border: rgba(25, 33, 61, 0.075);
+  --border-strong: rgba(25, 33, 61, 0.12);
+  --hover: rgba(25, 33, 61, 0.045);
+  --press: rgba(25, 33, 61, 0.085);
+
+  /* Ink */
+  --ink-900: #0B0D17;
+  --ink-700: #1F2335;
+  --ink-500: #5A6075;
+  --ink-400: #8A90A2;
+  --ink-300: #B5BAC9;
+  --ink-on-color: #FFFFFF;
+
+  /* Status fills */
+  --success-fill: #D7F7E9;
+  --success-ink: #0E6245;
+  --danger-fill: #FFEAEA;
+  --danger-ink: #C72D2D;
+  --warning-fill: #FFF8E6;
+  --warning-ink: #8A5200;
+  --info-fill: #E6F0FF;
+  --info-ink: #0055FF;
+
+  /* Brand soft surfaces */
+  --primary-soft: #ECFEFF;
+  --primary-soft-strong: #CFFAFE;
+
+  /* Shadows — iOS 26 leans softer, more layered */
+  --shadow-xs: 0 1px 2px rgba(11, 13, 23, 0.04);
+  --shadow-sm: 0 1px 2px rgba(25, 33, 61, 0.045), 0 0 0 0.5px rgba(25, 33, 61, 0.035);
+  --shadow-md: 0 8px 22px rgba(25, 33, 61, 0.055), 0 2px 6px rgba(25, 33, 61, 0.035);
+  --shadow-lg: 0 20px 48px rgba(25, 33, 61, 0.09), 0 8px 18px rgba(25, 33, 61, 0.05);
+  --shadow-glow: 0 0 0 4px rgba(6, 182, 212, 0.18);
+  --shadow-money: 0 8px 28px rgba(6, 182, 212, 0.32);
+  --shadow-elevation: 0 24px 64px rgba(11, 13, 23, 0.14);
+
+  /* Glass blur (iOS 26 liquid glass) */
+  --glass-blur: saturate(180%) blur(28px);
+  --glass-blur-strong: saturate(200%) blur(40px);
+  --glass-tint: rgba(255, 255, 255, 0.76);
+}
+
+/* ============================================================
+   DARK THEME — Laylo-style near-black, iOS 26 vibrancy
+   ============================================================ */
+[data-theme="dark"] {
+  color-scheme: dark;
+
+  /* Surfaces */
+  --bg: #08090C;
+  --bg-elevated: #111319;
+  --surface: #14161D;
+  --surface-2: #181A22;
+  --surface-3: #1F2230;
+  --surface-translucent: rgba(20, 22, 29, 0.72);
+  --surface-glass: rgba(28, 30, 38, 0.55);
+  --surface-glass-strong: rgba(28, 30, 38, 0.78);
+
+  /* Borders — subtle white at low opacity for that iOS 26 hairline feel */
+  --border: rgba(255, 255, 255, 0.07);
+  --border-strong: rgba(255, 255, 255, 0.12);
+  --hover: rgba(255, 255, 255, 0.04);
+  --press: rgba(255, 255, 255, 0.08);
+
+  /* Ink (inverted) */
+  --ink-900: #F4F5FA;
+  --ink-700: #D6D9E2;
+  --ink-500: #8A90A2;
+  --ink-400: #6B7185;
+  --ink-300: #4A4F60;
+  --ink-on-color: #FFFFFF;
+
+  /* Status fills — darker, lower-saturation backgrounds with bright ink */
+  --success-fill: rgba(16, 185, 129, 0.14);
+  --success-ink: #34D399;
+  --danger-fill: rgba(239, 68, 68, 0.14);
+  --danger-ink: #F87171;
+  --warning-fill: rgba(245, 158, 11, 0.14);
+  --warning-ink: #FBBF24;
+  --info-fill: rgba(59, 130, 246, 0.14);
+  --info-ink: #60A5FA;
+
+  /* Brand soft surfaces */
+  --primary-soft: rgba(6, 182, 212, 0.10);
+  --primary-soft-strong: rgba(6, 182, 212, 0.18);
+
+  /* Shadows — darker mode uses subtle inner elevation more than drop */
+  --shadow-xs: 0 1px 2px rgba(0, 0, 0, 0.4);
+  --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.4), 0 0 0 0.5px rgba(255, 255, 255, 0.04);
+  --shadow-md: 0 6px 18px rgba(0, 0, 0, 0.4), 0 2px 4px rgba(0, 0, 0, 0.3);
+  --shadow-lg: 0 20px 48px rgba(0, 0, 0, 0.5), 0 8px 16px rgba(0, 0, 0, 0.3);
+  --shadow-glow: 0 0 0 4px rgba(6, 182, 212, 0.32);
+  --shadow-money: 0 12px 36px rgba(6, 182, 212, 0.42);
+  --shadow-elevation: 0 24px 64px rgba(0, 0, 0, 0.6);
+
+  /* Glass blur in dark = darker tint, even more saturation */
+  --glass-blur: saturate(180%) blur(30px);
+  --glass-blur-strong: saturate(220%) blur(48px);
+  --glass-tint: rgba(20, 22, 29, 0.75);
+}
+
+/* Auto dark via system preference if no explicit theme set */
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme]) {
+    color-scheme: dark;
+    --bg: #08090C;
+    --bg-elevated: #111319;
+    --surface: #14161D;
+    --surface-2: #181A22;
+    --surface-3: #1F2230;
+    --surface-translucent: rgba(20, 22, 29, 0.72);
+    --surface-glass: rgba(28, 30, 38, 0.55);
+    --surface-glass-strong: rgba(28, 30, 38, 0.78);
+    --border: rgba(255, 255, 255, 0.07);
+    --border-strong: rgba(255, 255, 255, 0.12);
+    --hover: rgba(255, 255, 255, 0.04);
+    --press: rgba(255, 255, 255, 0.08);
+    --ink-900: #F4F5FA;
+    --ink-700: #D6D9E2;
+    --ink-500: #8A90A2;
+    --ink-400: #6B7185;
+    --ink-300: #4A4F60;
+    --success-fill: rgba(16, 185, 129, 0.14);
+    --success-ink: #34D399;
+    --danger-fill: rgba(239, 68, 68, 0.14);
+    --danger-ink: #F87171;
+    --warning-fill: rgba(245, 158, 11, 0.14);
+    --warning-ink: #FBBF24;
+    --info-fill: rgba(59, 130, 246, 0.14);
+    --info-ink: #60A5FA;
+    --primary-soft: rgba(6, 182, 212, 0.10);
+    --primary-soft-strong: rgba(6, 182, 212, 0.18);
+    --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.4), 0 0 0 0.5px rgba(255, 255, 255, 0.04);
+    --shadow-md: 0 6px 18px rgba(0, 0, 0, 0.4), 0 2px 4px rgba(0, 0, 0, 0.3);
+    --shadow-lg: 0 20px 48px rgba(0, 0, 0, 0.5), 0 8px 16px rgba(0, 0, 0, 0.3);
+    --shadow-glow: 0 0 0 4px rgba(6, 182, 212, 0.32);
+    --shadow-money: 0 12px 36px rgba(6, 182, 212, 0.42);
+    --glass-tint: rgba(20, 22, 29, 0.75);
+  }
+}
+
+/* Smooth theme transitions on user toggle (skip system flips to avoid jank) */
+html.theme-animate,
+html.theme-animate * {
+  transition:
+    background-color var(--duration-normal) var(--ease-standard),
+    border-color var(--duration-normal) var(--ease-standard),
+    color var(--duration-normal) var(--ease-standard),
+    box-shadow var(--duration-normal) var(--ease-standard) !important;
+}

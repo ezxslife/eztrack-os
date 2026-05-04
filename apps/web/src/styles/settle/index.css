@@ -1,0 +1,34 @@
+/**
+ * EZXS-track — settle chrome aggregator (events-mode only)
+ *
+ * Per CLAUDE.md "Theme — split by mode":
+ *   • Security mode keeps eztrack-os tokens (do not modify).
+ *   • Events mode uses ezxs-settle as the canonical chrome + token source.
+ *
+ * IMPORT CONTRACT (do this exactly):
+ *   1. Import this file ONLY from `apps/web/src/app/(events-mode)/layout.tsx`
+ *      (NOT from the root layout, NOT from globals.css, NOT from any
+ *      `(dashboard)/*` security-mode layout). Next.js App Router scopes
+ *      route-segment CSS imports to that segment only — this is what keeps
+ *      settle CSS off security-mode pages.
+ *   2. Set `data-venue-mode="events"` on the layout root, e.g.
+ *        <div data-venue-mode="events">{children}</div>
+ *      so future `[data-venue-mode="events"]` overrides have an anchor.
+ *
+ * Files are copied VERBATIM from ezxs-settle/app/src/styles. When settle
+ * bumps tokens, re-copy with:
+ *   cp ezxs-settle/app/src/styles/{tokens,laylo,sidebar,mobile,drilldown,public,assistant}.css \
+ *      ezxs-track/apps/web/src/styles/settle/
+ *
+ * No marketing accent overlay here (that lives in ezxs-promote only).
+ * Order matters: tokens first, then primitives, then chrome, then floating
+ * surfaces, then public marketing pages.
+ */
+
+@import "./tokens.css";
+@import "./laylo.css";
+@import "./sidebar.css";
+@import "./mobile.css";
+@import "./drilldown.css";
+@import "./assistant.css";
+@import "./public.css";
