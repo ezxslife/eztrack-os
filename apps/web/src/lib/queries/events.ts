@@ -182,6 +182,97 @@ export async function fetchRecentCheckIns(
   return (data as CheckInRow[] | null) ?? [];
 }
 
+/**
+ * All scans within the last `windowMinutes` for an event_day.
+ * Used by the door-flow chart on /live to bucket-by-minute.
+ */
+export async function fetchScansSince(
+  eventDayId: string,
+  windowMinutes = 60,
+): Promise<CheckInRow[]> {
+  const supabase = eventsDb();
+  const sinceIso = new Date(Date.now() - windowMinutes * 60_000).toISOString();
+  const { data } = await supabase
+    .from('check_ins')
+    .select('*')
+    .eq('event_day_id', eventDayId)
+    .gte('scanned_at', sinceIso)
+    .order('scanned_at', { ascending: true });
+
+  return (data as CheckInRow[] | null) ?? [];
+}
+
+/**
+ * All event_days for a given event, ordered by day_index. Used by the
+ * multi-day day picker in /live's header.
+ */
+export async function fetchEventDays(eventId: string): Promise<EventDayRow[]> {
+  const supabase = eventsDb();
+  const { data } = await supabase
+    .from('event_days')
+    .select('*')
+    .eq('event_id', eventId)
+    .is('deleted_at', null)
+    .order('day_index', { ascending: true });
+
+  return (data as EventDayRow[] | null) ?? [];
+}
+
+export interface DayRollupRow {
+  event_day_id: string;
+  day_index: number;
+  label: string;
+  date: string;
+  capacity: number;
+  checked_in: number;
+  capacity_pct: number;
+  threshold_breached: 'yellow' | 'red' | 'alert' | null;
+}
+
+/**
+ * Per-day rollup across an event — used by the multi-day rolling totals card.
+ * Reads the latest capacity_snapshot per event_day; falls back to zeros if no
+ * snapshot has been written yet (no scans on that day).
+ */
+export async function fetchEventRollup(eventId: string): Promise<DayRollupRow[]> {
+  const supabase = eventsDb();
+  const days = await fetchEventDays(eventId);
+  if (days.length === 0) return [];
+
+  const dayIds = days.map((d) => d.id);
+  const { data } = await supabase
+    .from('capacity_snapshots')
+    .select('event_day_id, recorded_at, checked_in, capacity_pct, threshold_breached')
+    .in('event_day_id', dayIds)
+    .order('recorded_at', { ascending: false });
+
+  type RawSnap = {
+    event_day_id: string;
+    recorded_at: string;
+    checked_in: number;
+    capacity_pct: number;
+    threshold_breached: 'yellow' | 'red' | 'alert' | null;
+  };
+  const latestByDay = new Map<string, RawSnap>();
+  for (const row of (data as RawSnap[] | null) ?? []) {
+    if (!latestByDay.has(row.event_day_id)) latestByDay.set(row.event_day_id, row);
+  }
+
+  return days.map((d) => {
+    const snap = latestByDay.get(d.id);
+    return {
+      event_day_id: d.id,
+      day_index: d.day_index,
+      label: d.label,
+      date: d.date,
+      capacity: d.capacity,
+      checked_in: snap?.checked_in ?? 0,
+      capacity_pct: snap?.capacity_pct ?? 0,
+      threshold_breached: snap?.threshold_breached ?? null,
+    };
+  });
+}
+
 /* ─── Helpers ─────────────────────────────────────── */
 
 export function thresholdColor(snapshot: CapacitySnapshotRow | null): {

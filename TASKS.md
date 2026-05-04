@@ -10,7 +10,7 @@
 - [x] supabase/functions: eventbrite-webhook, stripe-webhook, checkin-router (skeleton)
 - [x] apps/web venue-mode lib + hook
 - [x] apps/web supabase shim modules (client/server/middleware)
-- [x] apps/web root middleware (session refresh)
+- [x] apps/web root proxy (session refresh; Next.js 16 replacement for middleware)
 - [x] apps/web api/hooks (useAuth, useRequireAuth, useOrganization)
 - [x] .env.example.events-mode + L0-NOTES.md
 - [x] Apply migrations 0001→0100 to eztrack-prod (`pjxmkliosgfwfbwjycxv`) via Supabase MCP — 13 migrations registered
@@ -20,7 +20,9 @@
 
 ### L0a — Follow-ups before /live demo
 - [ ] **You:** `supabase secrets set EVENTBRITE_WEBHOOK_SECRET=<from Eventbrite app>`
+- [ ] **You:** Optional for order/ticket enrichment: `supabase secrets set EVENTBRITE_API_TOKEN=<Eventbrite private token>`
 - [ ] **You:** `supabase secrets set STRIPE_WEBHOOK_SECRET=<from Stripe dashboard>`
+- [ ] **You:** Optional for manual/cron worker protection: `supabase secrets set CAPACITY_WORKER_SECRET=<random secret>`
 - [ ] **You:** Subscribe Eventbrite webhook → `POST https://pjxmkliosgfwfbwjycxv.supabase.co/functions/v1/eventbrite-webhook` (actions: `attendee.checked_in`, `attendee.updated`, `order.placed`, `order.refunded`, `event.updated`)
 - [ ] **You:** Subscribe Stripe webhook → `POST https://pjxmkliosgfwfbwjycxv.supabase.co/functions/v1/stripe-webhook` (events: `charge.succeeded`, `charge.refunded`, `checkout.session.completed`, `terminal.reader.action_succeeded`)
 - [ ] Harden new helper functions: add `SET search_path = public` to `refresh_event_multi_day_flag`, `current_event_day`, `refresh_capacity_snapshot` (security advisor flagged mutable search_path) — write as new migration `0101_function_search_path.sql`
@@ -56,9 +58,9 @@
 - [ ] L0b-5: Welcome-animation + get-notified screens (cosmetic — can defer to L1)
 
 ## L1 — Live + Wall-display
-- [ ] /live route (multi-day-aware capacity board, recent scans, door flow)
-- [ ] Capacity threshold worker (Edge Function or pg_cron)
-- [ ] Full Eventbrite handler in checkin-router
+- [x] /live route (multi-day-aware capacity board, recent scans, door flow)
+- [x] Capacity threshold worker (Edge Function or pg_cron)
+- [x] Full Eventbrite handler in checkin-router
 - [ ] apps/wall-display: capacity board + recent scans + door-flow chart
 - [ ] Wall-display pairing flow (`Settings → Wall Display → Add display`)
 

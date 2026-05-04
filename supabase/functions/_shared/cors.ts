@@ -3,7 +3,7 @@
 export const corsHeaders: Record<string, string> = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers':
-    'authorization, x-client-info, apikey, content-type, stripe-signature, x-eventbrite-signature, x-square-signature, x-shopify-hmac-sha256',
+    'authorization, x-client-info, apikey, content-type, stripe-signature, x-eventbrite-signature, x-square-signature, x-shopify-hmac-sha256, x-capacity-worker-secret',
   'Access-Control-Allow-Methods': 'POST, OPTIONS',
 };
 

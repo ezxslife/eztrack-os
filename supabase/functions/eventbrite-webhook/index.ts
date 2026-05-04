@@ -48,9 +48,10 @@ Deno.serve(async (req: Request) => {
   const supabase = getServiceRoleClient();
   const action = payload?.config?.action ?? 'unknown';
   const externalEventId =
-    `${payload?.config?.webhook_id ?? 'unknown'}:${payload?.api_url ?? 'unknown'}:${Date.now()}`;
+    req.headers.get('x-eventbrite-delivery') ??
+    `${payload?.config?.webhook_id ?? 'unknown'}:${action}:${payload?.api_url ?? 'unknown'}`;
 
-  const { data: logRow, error: logErr } = await supabase
+  let { data: logRow, error: logErr } = await supabase
     .from('scan_webhooks')
     .insert({
       provider: 'eventbrite',
@@ -64,12 +65,23 @@ Deno.serve(async (req: Request) => {
     .single();
 
   if (logErr) {
-    console.error('[eventbrite-webhook] log insert failed', logErr);
-    // Still 200 — we don't want Eventbrite to retry on our internal errors
-    return new Response(JSON.stringify({ ok: false, error: 'log_failed' }), {
-      status: 200,
-      headers: { ...corsHeaders, 'content-type': 'application/json' },
-    });
+    const { data: existing } = await supabase
+      .from('scan_webhooks')
+      .select('id')
+      .eq('provider', 'eventbrite')
+      .eq('external_event_id', externalEventId)
+      .maybeSingle();
+
+    if (existing) {
+      logRow = existing;
+    } else {
+      console.error('[eventbrite-webhook] log insert failed', logErr);
+      // Still 200 — we don't want Eventbrite to retry on our internal errors
+      return new Response(JSON.stringify({ ok: false, error: 'log_failed' }), {
+        status: 200,
+        headers: { ...corsHeaders, 'content-type': 'application/json' },
+      });
+    }
   }
 
   if (!sigValid) {

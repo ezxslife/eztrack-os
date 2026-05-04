@@ -5,24 +5,34 @@ import Link from 'next/link';
 import {
   Activity,
   AlertTriangle,
+  CalendarDays,
+  ChevronDown,
   PauseCircle,
   Radio,
   Ticket,
+  TrendingUp,
   Users,
 } from 'lucide-react';
 import { useRealtimeSubscription } from '@/hooks/useRealtimeSubscription';
 import {
   fetchActiveEvent,
   fetchCurrentEventDay,
+  fetchEventDays,
+  fetchEventRollup,
   fetchLatestCapacitySnapshot,
   fetchRecentCheckIns,
+  fetchScansSince,
   sourceLabel,
   thresholdColor,
   type CapacitySnapshotRow,
   type CheckInRow,
+  type DayRollupRow,
   type EventDayRow,
   type EventRow,
 } from '@/lib/queries/events';
+
+const DOOR_FLOW_WINDOW_MIN = 60;
+const SURGE_RATIO = 2;
 
 /**
  * /live — multi-day-aware capacity board. The single most-opened screen
@@ -31,11 +41,19 @@ import {
  */
 export default function LivePage() {
   const [event, setEvent] = useState<EventRow | null>(null);
-  const [eventDay, setEventDay] = useState<EventDayRow | null>(null);
+  const [eventDays, setEventDays] = useState<EventDayRow[]>([]);
+  const [viewingDayId, setViewingDayId] = useState<string | null>(null);
   const [snapshot, setSnapshot] = useState<CapacitySnapshotRow | null>(null);
   const [scans, setScans] = useState<CheckInRow[]>([]);
+  const [scans60min, setScans60min] = useState<CheckInRow[]>([]);
+  const [rollup, setRollup] = useState<DayRollupRow[]>([]);
   const [now, setNow] = useState(new Date());
   const [loading, setLoading] = useState(true);
+
+  const eventDay = useMemo(
+    () => eventDays.find((d) => d.id === viewingDayId) ?? null,
+    [eventDays, viewingDayId],
+  );
 
   const refresh = useCallback(async () => {
     const ev = await fetchActiveEvent();
@@ -44,21 +62,50 @@ export default function LivePage() {
       setLoading(false);
       return;
     }
-    const ed = await fetchCurrentEventDay(ev.id);
-    setEventDay(ed);
-    if (ed) {
-      const [snap, recent] = await Promise.all([
-        fetchLatestCapacitySnapshot(ed.id),
-        fetchRecentCheckIns(ed.id),
+
+    const [days, currentDay, eventRollup] = await Promise.all([
+      fetchEventDays(ev.id),
+      fetchCurrentEventDay(ev.id),
+      fetchEventRollup(ev.id),
+    ]);
+    setEventDays(days);
+    setRollup(eventRollup);
+
+    const initialDayId =
+      currentDay?.id ?? days[0]?.id ?? null;
+    setViewingDayId(initialDayId);
+
+    if (initialDayId) {
+      const [snap, recent, since] = await Promise.all([
+        fetchLatestCapacitySnapshot(initialDayId),
+        fetchRecentCheckIns(initialDayId),
+        fetchScansSince(initialDayId, DOOR_FLOW_WINDOW_MIN),
       ]);
       setSnapshot(snap);
       setScans(recent);
+      setScans60min(since);
     }
     setLoading(false);
   }, []);
 
+  // When operator picks a different day from the picker, refetch day-scoped state.
+  const switchDay = useCallback(async (dayId: string) => {
+    setViewingDayId(dayId);
+    const [snap, recent, since] = await Promise.all([
+      fetchLatestCapacitySnapshot(dayId),
+      fetchRecentCheckIns(dayId),
+      fetchScansSince(dayId, DOOR_FLOW_WINDOW_MIN),
+    ]);
+    setSnapshot(snap);
+    setScans(recent);
+    setScans60min(since);
+  }, []);
+
   useEffect(() => {
-    refresh();
+    const timer = window.setTimeout(() => {
+      void refresh();
+    }, 0);
+    return () => window.clearTimeout(timer);
   }, [refresh]);
 
   useEffect(() => {
@@ -70,19 +117,41 @@ export default function LivePage() {
   // Hook generic requires Record<string, unknown>; cast row inside callback.
   useRealtimeSubscription({
     table: 'capacity_snapshots',
-    filter: eventDay ? `event_day_id=eq.${eventDay.id}` : undefined,
-    enabled: !!eventDay,
-    onInsert: (row) => setSnapshot(row as unknown as CapacitySnapshotRow),
+    filter: event ? `event_id=eq.${event.id}` : undefined,
+    enabled: !!event,
+    onInsert: (row) => {
+      const nextSnapshot = row as unknown as CapacitySnapshotRow;
+      if (nextSnapshot.event_day_id === viewingDayId) {
+        setSnapshot(nextSnapshot);
+      }
+      setRollup((prev) =>
+        prev.map((day) =>
+          day.event_day_id === nextSnapshot.event_day_id
+            ? {
+                ...day,
+                checked_in: nextSnapshot.checked_in,
+                capacity_pct: nextSnapshot.capacity_pct,
+                threshold_breached: nextSnapshot.threshold_breached,
+              }
+            : day,
+        ),
+      );
+    },
   });
 
-  // Realtime: check_ins — prepend to the recent-scans feed
+  // Realtime: check_ins — prepend to the recent-scans feed AND append to the
+  // 60-min door-flow window. Drop entries older than the window each tick.
   useRealtimeSubscription({
     table: 'check_ins',
-    filter: eventDay ? `event_day_id=eq.${eventDay.id}` : undefined,
-    enabled: !!eventDay,
+    filter: viewingDayId ? `event_day_id=eq.${viewingDayId}` : undefined,
+    enabled: !!viewingDayId,
     onInsert: (row) => {
       const scan = row as unknown as CheckInRow;
       setScans((prev) => [scan, ...prev.filter((s) => s.id !== scan.id)].slice(0, 20));
+      setScans60min((prev) => {
+        const cutoff = Date.now() - DOOR_FLOW_WINDOW_MIN * 60_000;
+        return [...prev.filter((s) => Date.parse(s.scanned_at) >= cutoff), scan];
+      });
     },
   });
 
@@ -94,19 +163,28 @@ export default function LivePage() {
     );
   }
 
-  if (!event) {
-    return <NoEventState />;
-  }
-
-  if (!eventDay) {
-    return <BetweenDoorsState event={event} />;
-  }
+  if (!event) return <NoEventState />;
+  if (!eventDay) return <BetweenDoorsState event={event} now={now} />;
 
   return (
     <div className="mx-auto flex w-full max-w-7xl flex-col gap-5 px-4 py-5 sm:px-6 lg:px-8">
-      <Header event={event} eventDay={eventDay} now={now} />
+      <Header
+        event={event}
+        eventDay={eventDay}
+        eventDays={eventDays}
+        onPickDay={switchDay}
+        now={now}
+      />
       <CapacityCard eventDay={eventDay} snapshot={snapshot} />
       <CountsRow snapshot={snapshot} eventDay={eventDay} />
+      <DoorFlowChart scans={scans60min} now={now} />
+      {event.is_multi_day ? (
+        <RollingTotalsCard
+          rollup={rollup}
+          viewingDayId={viewingDayId}
+          onPickDay={switchDay}
+        />
+      ) : null}
       <div className="grid grid-cols-1 gap-5 lg:grid-cols-3">
         <RecentScansCard scans={scans} className="lg:col-span-2" />
         <QuickActions />
@@ -115,34 +193,38 @@ export default function LivePage() {
   );
 }
 
-/* ─── Subcomponents ──────────────────────────────── */
+/* ─── Header (with multi-day picker) ─────────────── */
 
 function Header({
   event,
   eventDay,
+  eventDays,
+  onPickDay,
   now,
 }: {
   event: EventRow;
   eventDay: EventDayRow;
+  eventDays: EventDayRow[];
+  onPickDay: (dayId: string) => void;
   now: Date;
 }) {
-  const dayLabel = event.is_multi_day
-    ? `${eventDay.label} · Day ${eventDay.day_index}`
-    : 'Tonight';
-
   return (
     <header className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
       <div className="min-w-0">
         <h1 className="truncate text-[28px] font-bold leading-tight tracking-tight text-[var(--ink-900)]">
           {event.name}
         </h1>
-        <p className="text-[14px] text-[var(--ink-500)]">
-          {dayLabel}
-          {' · '}
+        <div className="mt-0.5 flex items-center gap-2 text-[14px] text-[var(--ink-500)]">
+          {event.is_multi_day ? (
+            <DayPicker eventDay={eventDay} eventDays={eventDays} onPick={onPickDay} />
+          ) : (
+            <span>Tonight</span>
+          )}
+          <span aria-hidden>·</span>
           <span className="tabular-nums">
             {now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
           </span>
-        </p>
+        </div>
       </div>
       <div className="inline-flex items-center gap-1.5 rounded-full bg-[var(--surface)] px-3 py-1 text-[12px] font-medium text-[var(--ink-500)]">
         <Activity size={14} className="text-[#34C759]" />
@@ -151,6 +233,80 @@ function Header({
     </header>
   );
 }
+
+function DayPicker({
+  eventDay,
+  eventDays,
+  onPick,
+}: {
+  eventDay: EventDayRow;
+  eventDays: EventDayRow[];
+  onPick: (dayId: string) => void;
+}) {
+  const [open, setOpen] = useState(false);
+
+  if (eventDays.length <= 1) {
+    return (
+      <span>
+        {eventDay.label} · Day {eventDay.day_index}
+      </span>
+    );
+  }
+
+  return (
+    <div className="relative">
+      <button
+        type="button"
+        onClick={() => setOpen((o) => !o)}
+        aria-haspopup="listbox"
+        aria-expanded={open}
+        className="inline-flex min-h-[28px] items-center gap-1 rounded-md px-1.5 py-0.5 text-[14px] font-medium text-[var(--ink-700)] hover:bg-[var(--hover)]"
+      >
+        <CalendarDays size={14} />
+        {eventDay.label} · Day {eventDay.day_index} of {eventDays.length}
+        <ChevronDown size={14} className={open ? 'rotate-180' : ''} />
+      </button>
+      {open ? (
+        <ul
+          role="listbox"
+          className="absolute left-0 top-full z-20 mt-1 w-64 overflow-hidden rounded-xl border border-[var(--border)] bg-[var(--surface)] py-1 shadow-lg"
+        >
+          {eventDays.map((d) => {
+            const selected = d.id === eventDay.id;
+            return (
+              <li key={d.id}>
+                <button
+                  type="button"
+                  role="option"
+                  aria-selected={selected}
+                  onClick={() => {
+                    onPick(d.id);
+                    setOpen(false);
+                  }}
+                  className={`flex w-full items-center justify-between gap-2 px-3 py-2 text-left text-[13px] hover:bg-[var(--hover)] ${
+                    selected ? 'text-[var(--ink-900)]' : 'text-[var(--ink-700)]'
+                  }`}
+                >
+                  <span>
+                    Day {d.day_index} · {d.label}
+                  </span>
+                  <span className="text-[12px] tabular-nums text-[var(--ink-400)]">
+                    {new Date(d.date).toLocaleDateString(undefined, {
+                      month: 'short',
+                      day: 'numeric',
+                    })}
+                  </span>
+                </button>
+              </li>
+            );
+          })}
+        </ul>
+      ) : null}
+    </div>
+  );
+}
+
+/* ─── Capacity ───────────────────────────────────── */
 
 function CapacityCard({
   eventDay,
@@ -201,6 +357,8 @@ function CapacityCard({
   );
 }
 
+/* ─── Counts row ─────────────────────────────────── */
+
 function CountsRow({
   snapshot,
   eventDay,
@@ -221,10 +379,7 @@ function CountsRow({
   ];
 
   return (
-    <section
-      aria-label="Counts"
-      className="grid grid-cols-2 gap-3 lg:grid-cols-4"
-    >
+    <section aria-label="Counts" className="grid grid-cols-2 gap-3 lg:grid-cols-4">
       {items.map(({ label, value, icon: Icon }) => (
         <div
           key={label}
@@ -242,6 +397,176 @@ function CountsRow({
     </section>
   );
 }
+
+/* ─── Door-flow chart ────────────────────────────── */
+
+interface MinuteBucket {
+  minuteOffset: number;
+  scans: number;
+}
+
+function DoorFlowChart({ scans, now }: { scans: CheckInRow[]; now: Date }) {
+  const buckets = useMemo<MinuteBucket[]>(() => {
+    const out: MinuteBucket[] = [];
+    const nowMs = now.getTime();
+    for (let i = DOOR_FLOW_WINDOW_MIN - 1; i >= 0; i--) {
+      out.push({ minuteOffset: i, scans: 0 });
+    }
+    for (const s of scans) {
+      const ageMin = Math.floor((nowMs - Date.parse(s.scanned_at)) / 60_000);
+      if (ageMin < 0 || ageMin >= DOOR_FLOW_WINDOW_MIN) continue;
+      const idx = DOOR_FLOW_WINDOW_MIN - 1 - ageMin;
+      if (out[idx]) out[idx].scans += 1;
+    }
+    return out;
+  }, [scans, now]);
+
+  const totalScans = scans.length;
+  const max = Math.max(1, ...buckets.map((b) => b.scans));
+  const baselinePerMin = totalScans / DOOR_FLOW_WINDOW_MIN;
+  const lastFiveMin = buckets.slice(-5).reduce((sum, b) => sum + b.scans, 0) / 5;
+  const surge = baselinePerMin > 0 && lastFiveMin >= baselinePerMin * SURGE_RATIO;
+
+  return (
+    <section
+      aria-label="Door flow (last 60 min)"
+      className="overflow-hidden rounded-2xl border border-[var(--border)] bg-[var(--surface)] p-5"
+    >
+      <div className="flex items-baseline justify-between">
+        <h2 className="text-[14px] font-semibold uppercase tracking-wider text-[var(--ink-500)]">
+          Door flow · last 60 min
+        </h2>
+        <div className="flex items-center gap-2 text-[12px] tabular-nums text-[var(--ink-400)]">
+          <span>{totalScans} scans</span>
+          {surge ? (
+            <span
+              className="inline-flex items-center gap-1 rounded-full bg-[#EF4444] px-2 py-0.5 text-[11px] font-semibold uppercase tracking-wider text-white"
+              role="status"
+            >
+              <TrendingUp size={11} />
+              Surge
+            </span>
+          ) : null}
+        </div>
+      </div>
+      <div className="mt-3 flex h-16 items-end gap-[2px]">
+        {buckets.map((b) => {
+          const h = (b.scans / max) * 100;
+          return (
+            <div
+              key={b.minuteOffset}
+              className="flex-1 rounded-sm"
+              style={{
+                height: `${Math.max(2, h)}%`,
+                background:
+                  b.scans === 0
+                    ? 'var(--border)'
+                    : b.scans >= max
+                      ? '#34C759'
+                      : 'var(--ink-300)',
+              }}
+              title={`${b.minuteOffset === 0 ? 'now' : `${b.minuteOffset}m ago`}: ${b.scans} scans`}
+            />
+          );
+        })}
+      </div>
+      <div className="mt-1 flex justify-between text-[10px] tabular-nums text-[var(--ink-400)]">
+        <span>60m ago</span>
+        <span>30m ago</span>
+        <span>now</span>
+      </div>
+    </section>
+  );
+}
+
+/* ─── Multi-day rolling totals ───────────────────── */
+
+function RollingTotalsCard({
+  rollup,
+  viewingDayId,
+  onPickDay,
+}: {
+  rollup: DayRollupRow[];
+  viewingDayId: string | null;
+  onPickDay: (dayId: string) => void;
+}) {
+  const totalCheckedIn = rollup.reduce((sum, d) => sum + d.checked_in, 0);
+  const totalCapacity = rollup.reduce((sum, d) => sum + d.capacity, 0);
+  const totalPct = totalCapacity > 0
+    ? Math.min(100, Math.round((totalCheckedIn / totalCapacity) * 100))
+    : 0;
+
+  return (
+    <section
+      aria-label="Multi-day rolling totals"
+      className="overflow-hidden rounded-2xl border border-[var(--border)] bg-[var(--surface)] p-5"
+    >
+      <div className="flex items-baseline justify-between">
+        <h2 className="text-[14px] font-semibold uppercase tracking-wider text-[var(--ink-500)]">
+          Across event
+        </h2>
+        <span className="text-[12px] tabular-nums text-[var(--ink-400)]">
+          {totalCheckedIn.toLocaleString()} / {totalCapacity.toLocaleString()} ·{' '}
+          {totalPct}%
+        </span>
+      </div>
+      <ul className="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-3">
+        {rollup.map((d) => {
+          const pct = d.capacity > 0
+            ? Math.min(100, Math.round((d.checked_in / d.capacity) * 100))
+            : 0;
+          const breach = d.threshold_breached;
+          const barColor =
+            breach === 'alert'
+              ? '#EF4444'
+              : breach === 'red'
+                ? '#F97316'
+                : breach === 'yellow'
+                  ? '#F59E0B'
+                  : '#34C759';
+          const selected = d.event_day_id === viewingDayId;
+          return (
+            <li key={d.event_day_id}>
+              <button
+                type="button"
+                onClick={() => onPickDay(d.event_day_id)}
+                aria-pressed={selected}
+                className={`block w-full rounded-xl border p-3 text-left transition-colors ${
+                  selected
+                    ? 'border-[var(--ink-700)] bg-[var(--surface-2)]'
+                    : 'border-[var(--border)] bg-[var(--surface)] hover:bg-[var(--hover)]'
+                }`}
+              >
+                <div className="flex items-center justify-between gap-2">
+                  <span className="text-[13px] font-semibold text-[var(--ink-900)]">
+                    Day {d.day_index} · {d.label}
+                  </span>
+                  <span className="text-[11px] tabular-nums text-[var(--ink-400)]">
+                    {pct}%
+                  </span>
+                </div>
+                <div className="mt-1 flex items-baseline gap-1.5 text-[12px] tabular-nums text-[var(--ink-500)]">
+                  <span>{d.checked_in.toLocaleString()}</span>
+                  <span className="text-[var(--ink-400)]">
+                    / {d.capacity.toLocaleString()}
+                  </span>
+                </div>
+                <div className="mt-1.5 h-1.5 w-full overflow-hidden rounded-full bg-[var(--bg)]">
+                  <div
+                    className="h-full transition-all"
+                    style={{ width: `${pct}%`, background: barColor }}
+                  />
+                </div>
+              </button>
+            </li>
+          );
+        })}
+      </ul>
+    </section>
+  );
+}
+
+/* ─── Recent scans ───────────────────────────────── */
 
 function RecentScansCard({
   scans,
@@ -314,9 +639,15 @@ function ScanRow({ scan }: { scan: CheckInRow }) {
   );
 }
 
+/* ─── Quick actions ──────────────────────────────── */
+
 function QuickActions() {
-  // 44pt minimum tap targets per CLAUDE.md theme guidance.
-  const actions: Array<{ label: string; href: string; icon: typeof Radio; tone: 'primary' | 'danger' }> = [
+  const actions: Array<{
+    label: string;
+    href: string;
+    icon: typeof Radio;
+    tone: 'primary' | 'danger';
+  }> = [
     { label: 'Log incident', href: '/incidents/new', icon: AlertTriangle, tone: 'danger' },
     { label: 'Page staff', href: '#', icon: Radio, tone: 'primary' },
     { label: 'Open will-call', href: '#', icon: Users, tone: 'primary' },
@@ -349,6 +680,8 @@ function QuickActions() {
   );
 }
 
+/* ─── Empty states ───────────────────────────────── */
+
 function NoEventState() {
   return (
     <div className="mx-auto flex max-w-md flex-col items-center justify-center gap-4 px-6 py-20 text-center">
@@ -360,7 +693,7 @@ function NoEventState() {
         Connect Eventbrite or create an event to see real-time capacity, scans, and door flow.
       </p>
       <Link
-        href="/settings#connections"
+        href="/settings/integrations"
         className="mt-2 inline-flex min-h-[44px] items-center rounded-xl px-5 py-2 text-[14px] font-semibold text-white hover:opacity-90"
         style={{ background: 'var(--ezxs-gradient-money)' }}
       >
@@ -370,9 +703,9 @@ function NoEventState() {
   );
 }
 
-function BetweenDoorsState({ event }: { event: EventRow }) {
+function BetweenDoorsState({ event, now }: { event: EventRow; now: Date }) {
   const startsAt = new Date(event.starts_at);
-  const closed = startsAt.getTime() < Date.now();
+  const closed = startsAt.getTime() < now.getTime();
 
   return (
     <div className="mx-auto flex max-w-md flex-col items-center justify-center gap-4 px-6 py-20 text-center">

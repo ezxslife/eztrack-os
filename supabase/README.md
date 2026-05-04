@@ -31,8 +31,10 @@ supabase/
    │  └─ index.ts             (receives `attendee.checked_in`, `order.placed`, etc.)
    ├─ stripe-webhook/
    │  └─ index.ts             (receives `terminal.reader.action_succeeded`, `charge.refunded`)
-   └─ checkin-router/
-      └─ index.ts             (canonical writer — fans in from webhooks, POS, manual-lookup, own-scanner)
+   ├─ checkin-router/
+   │  └─ index.ts             (canonical writer — fans in from webhooks, POS, manual-lookup, own-scanner)
+   └─ capacity-threshold-worker/
+      └─ index.ts             (raises Alerts rows from breached capacity snapshots)
 ```
 
 ## First-run order
@@ -50,6 +52,7 @@ supabase db push
 supabase functions deploy eventbrite-webhook --no-verify-jwt
 supabase functions deploy stripe-webhook --no-verify-jwt
 supabase functions deploy checkin-router
+supabase functions deploy capacity-threshold-worker
 
 # 4. Set webhook URLs in providers
 #    - Eventbrite:    POST https://<project>.supabase.co/functions/v1/eventbrite-webhook
@@ -63,7 +66,9 @@ Set as Supabase secrets via `supabase secrets set KEY=VALUE`:
 
 ```
 EVENTBRITE_WEBHOOK_SECRET=<from Eventbrite app settings>
+EVENTBRITE_API_TOKEN=<optional; enables Eventbrite order/ticket enrichment>
 STRIPE_WEBHOOK_SECRET=<from stripe dashboard>
+CAPACITY_WORKER_SECRET=<optional; require this bearer/header on worker invocations>
 SUPABASE_SERVICE_ROLE_KEY=<already set by Supabase>
 ```
 

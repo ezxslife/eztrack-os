@@ -1,44 +1,122 @@
-# L1 — Live + Wall-display sprint notes
+# L1 - Live + Wall-display sprint notes
 
-> Status: **in progress.** Builds on L0 (events-mode/L0-foundation, merged or in PR).
->
-> Branch: `events-mode/L1-live` off `events-mode/L0-foundation`.
+> Status: **in progress.** Builds on L0 (`events-mode/L0-foundation`, merged
+> or in PR). Current branch: `events-mode/L1-live`.
 
 ---
 
-## Definition of done (per plan.md §14)
+## Definition of done (per plan.md section 14)
 
 > Operator wires Eventbrite webhook on a real event (single-day). Capacity bar
 > updates within 500ms on every native-Eventbrite scan. Manager's iPad shows
 > wall-display in production trailer. Push fires at 75% threshold.
 
+---
+
 ## Slices
 
 | # | Slice | Status |
 |---|---|---|
-| L0c | Settle CSS bundle at `apps/web/src/styles/settle/` (tokens · laylo · sidebar · mobile · drilldown · assistant · public) | done (out-of-band by user) |
-| 1 | `/live` route + (events-mode) layout (slim header, settle tokens, `data-venue-mode="events"`) + capacity board UI | done |
-| 1b | Realtime subscriptions on `/live` to `capacity_snapshots` + `check_ins` filtered by `event_day_id` | done |
-| 2 | Demo seed via MCP `execute_sql` (event `2e662e3d…`, 5 tickets, 3 check_ins, capacity_snapshot trigger fired) | done |
+| L0c | Settle CSS bundle at `apps/web/src/styles/settle/` (tokens, laylo, sidebar, mobile, drilldown, assistant, public) | done (out-of-band by user) |
+| 1 | `/live` route + `(events-mode)` layout + capacity board UI | done |
+| 1b | Realtime subscriptions on `/live` to `capacity_snapshots` + `check_ins` | done |
+| 1c | Multi-day day picker + rolling totals + 60-minute door-flow chart | done |
+| 2 | Demo seed via MCP `execute_sql` (event `2e662e3d...`, 5 tickets, 3 check_ins, capacity_snapshot trigger fired) | done |
 | 3 | `connections` table migration (encrypted Eventbrite OAuth tokens via `pgcrypto` or `vault`) | pending |
 | 3 | Eventbrite OAuth connect + callback (`apps/web/src/app/auth/eventbrite/`) | pending |
-| 3 | Full Eventbrite handler in `checkin-router` (Eventbrite API → resolve ticket → write check_in) | pending |
+| 3 | Full Eventbrite handler in `checkin-router` (Eventbrite API or pre-synced ticket mapping -> canonical `check_ins`) | done |
 | 4 | `apps/wall-display` Expo app (capacity board + recent scans + door-flow chart) | pending |
 | 4 | Wall-display pairing flow (Settings page + Edge Function for short-lived JWT) | pending |
-| 5 | Capacity threshold worker (pg_cron + Alerts hub for push at 75/90/100%) | pending |
-| chrome | Port settle's `Layout` / `Sidebar` / `MobileNav` / `QuickAddSheet` / `AssistantPanel` / `ThemeToggle` (per CLAUDE.md L1 scope expansion) — adapt `react-router-dom` → `next/link` + `usePathname`, `import.meta.env` → `process.env.NEXT_PUBLIC_*`, settle's Zustand `useStore` → track's `stores/`, `APP_BRAND` → track-events brand file | pending |
+| 5 | Capacity threshold worker (Edge Function raises existing Alerts rows at 75/90/100%) | done |
+| chrome | Port settle's `Layout` / `Sidebar` / `MobileNav` / `QuickAddSheet` / `AssistantPanel` / `ThemeToggle` | pending |
 
-## Architectural decisions
+---
 
-- **(events-mode) route group:** edge-to-edge layout with no sidebar. `/live` is meant to be the focused command center; max screen real-estate goes to capacity bar / counts / scan feed. Events-mode navigation arrives in L2 alongside `/pos` and `/run-of-show`.
-- **44pt minimum tap targets** on `/live` quick actions, full-width #34C759 success / #EF4444 reject banners on scan results (per CLAUDE.md theme guidance).
-- **Auth gate:** `useRequireAuth()` client-side guard from L0. Server-side guard is a follow-up.
-- **Active event resolution:** most recent event for the org with `status='live'` OR (`starts_at <= now < ends_at`). If none, empty state + CTA to create one.
-- **Realtime channels:** subscribe per-event-day via `event_day_id=eq.<id>` filter to avoid noisy fan-out.
+## What landed in this pass
+
+### Web
+
+| File | Purpose |
+|---|---|
+| `apps/web/src/app/(events-mode)/live/page.tsx` | Multi-day-aware live command center: capacity card, counts, recent scans, day picker, door-flow chart, rolling multi-day totals, 44pt quick actions. |
+| `apps/web/src/lib/queries/events.ts` | Events-mode query layer for active event, current day, day list, latest capacity snapshot, recent scans, 60-minute scan window, and multi-day rollup. |
+| `apps/web/src/proxy.ts` | Cleaned unused cookie option destructure. Next.js 16 proxy remains the auth/session refresh path; obsolete `src/middleware.ts` is removed. |
+
+### Edge Functions
+
+| Function | Purpose |
+|---|---|
+| `checkin-router` | Eventbrite path handles `attendee.checked_in`, `attendee.updated`, `order.placed`, `order.refunded`, and `event.updated`. |
+| `eventbrite-webhook` | Uses a stable idempotency key so Eventbrite retries reuse the existing `scan_webhooks` row instead of creating duplicates. |
+| `capacity-threshold-worker` | Scans latest breached capacity snapshots and raises existing `alerts` rows at yellow/red/alert thresholds. |
+
+---
+
+## Eventbrite ingestion notes
+
+- `attendee.checked_in` can work without an Eventbrite API token if
+  `tickets.external_id` already contains the Eventbrite attendee id.
+- Set `EVENTBRITE_API_TOKEN` as a Supabase secret to enable order/ticket/customer
+  enrichment from the Eventbrite API.
+- API enrichment maps Eventbrite events by `events.live_ops_config.eventbrite_event_id`.
+  Until the Eventbrite connection UI lands, seed that JSON key on the event that
+  should receive Eventbrite orders/attendees.
+- `checkin-router` remains the only writer of `check_ins`; webhook receivers only
+  log raw payloads and dispatch.
+
+---
+
+## Deploy notes
+
+```bash
+supabase secrets set EVENTBRITE_WEBHOOK_SECRET=<from Eventbrite app>
+supabase secrets set EVENTBRITE_API_TOKEN=<optional private token>
+supabase secrets set CAPACITY_WORKER_SECRET=<optional random secret>
+
+supabase functions deploy eventbrite-webhook --no-verify-jwt
+supabase functions deploy checkin-router
+supabase functions deploy capacity-threshold-worker
+```
+
+If `CAPACITY_WORKER_SECRET` is set, invoke the worker with either:
+
+```bash
+curl -X POST "$SUPABASE_URL/functions/v1/capacity-threshold-worker" \
+  -H "Authorization: Bearer $CAPACITY_WORKER_SECRET"
+```
+
+or:
+
+```bash
+curl -X POST "$SUPABASE_URL/functions/v1/capacity-threshold-worker" \
+  -H "x-capacity-worker-secret: $CAPACITY_WORKER_SECRET"
+```
+
+---
+
+## Verification run locally
+
+- `apps/web`: `pnpm type-check` passes.
+- Focused ESLint on touched web files passes.
+- Edge Function TypeScript syntax checked via local TypeScript transpilation.
+- `/login` returns 200 on the app dev server; `/live` redirects unauthenticated
+  users to `/login?redirectTo=%2Flive`.
+- Full `pnpm --filter web test` still fails on pre-existing mobile color contrast
+  assertion in `apps/web/src/__tests__/contrast-tokens.test.ts`.
+
+---
 
 ## Risks + watch items
 
-1. **No `connections` table yet** — Eventbrite OAuth needs encrypted token storage. Will add in slice 3 with `pgcrypto` (already installed).
-2. **`apps/wall-display` does not exist** — plan.md said "already scaffolded" but the dir is absent. Will create from scratch as Expo Router project in slice 4.
-3. **Database types stale** — `apps/web/src/types/database.ts` predates the new migrations. Generated types are 151KB so re-merging is a follow-up. For now, queries use locally-declared types matching the migration shapes.
-4. **Capacity threshold worker design** — `pg_cron` available but per-second polling not ideal for push latency. Better: a Postgres trigger on `capacity_snapshots` insert that conditionally enqueues a notification job (via `pg_net` or a simple "alerts_outbox" table polled by Edge Function).
+1. **No `connections` table yet.** Eventbrite OAuth still needs encrypted token
+   storage. Current enrichment uses `EVENTBRITE_API_TOKEN` as a deploy secret.
+2. **Eventbrite event mapping is manual for now.** Seed
+   `events.live_ops_config.eventbrite_event_id` until the Eventbrite connection UI
+   writes the mapping.
+3. **`apps/wall-display` does not exist.** plan.md said "already scaffolded" but
+   the dir is absent. Create it in the remaining L1 wall-display slice.
+4. **Database types stale.** `apps/web/src/types/database.ts` predates the new
+   migrations. Events-mode queries use local row types until Supabase types are
+   regenerated.
+5. **Capacity worker raises Alerts rows only.** Twilio/Slack/Discord fan-out stays
+   behind the existing Alerts/Notifications delivery layer.
