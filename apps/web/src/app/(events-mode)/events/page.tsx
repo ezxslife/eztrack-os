@@ -1,8 +1,8 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
-import { CalendarDays, ChevronRight, Plus, Radio } from 'lucide-react';
+import { Ban, CalendarDays, ChevronRight, Plus, Radio } from 'lucide-react';
 import { fetchEvents, type EventRow } from '@/lib/queries/events';
 
 const STATUS_COLOR: Record<EventRow['status'], { bg: string; fg: string }> = {
@@ -10,12 +10,16 @@ const STATUS_COLOR: Record<EventRow['status'], { bg: string; fg: string }> = {
   on_sale:   { bg: 'rgba(59, 130, 246, 0.18)',  fg: '#3B82F6' },
   sold_out:  { bg: 'rgba(245, 158, 11, 0.18)',  fg: '#F59E0B' },
   live:      { bg: 'rgba(52, 199, 89, 0.18)',   fg: '#34C759' },
+  hold:      { bg: 'rgba(168, 85, 247, 0.18)',  fg: '#A855F7' },
   past:      { bg: 'rgba(138, 144, 162, 0.12)', fg: 'var(--ink-400)' },
   cancelled: { bg: 'rgba(239, 68, 68, 0.18)',   fg: '#EF4444' },
 };
 
+type FilterMode = 'active' | 'cancelled' | 'all';
+
 export default function EventsListPage() {
   const [events, setEvents] = useState<EventRow[] | null>(null);
+  const [filter, setFilter] = useState<FilterMode>('active');
 
   useEffect(() => {
     let cancelled = false;
@@ -27,6 +31,19 @@ export default function EventsListPage() {
       cancelled = true;
     };
   }, []);
+
+  const counts = useMemo(() => {
+    const all = events ?? [];
+    const cancelled = all.filter((e) => e.status === 'cancelled' || !!e.cancelled_at).length;
+    return { all: all.length, cancelled, active: all.length - cancelled };
+  }, [events]);
+
+  const visible = useMemo(() => {
+    const all = events ?? [];
+    if (filter === 'all') return all;
+    if (filter === 'cancelled') return all.filter((e) => e.status === 'cancelled' || !!e.cancelled_at);
+    return all.filter((e) => e.status !== 'cancelled' && !e.cancelled_at);
+  }, [events, filter]);
 
   return (
     <div className="mx-auto flex w-full max-w-5xl flex-col gap-5 px-4 py-5 sm:px-6 lg:px-8">
@@ -49,18 +66,69 @@ export default function EventsListPage() {
         </Link>
       </header>
 
+      {/* Filter chips */}
+      <div className="flex flex-wrap items-center gap-2">
+        <FilterChip label="Active" count={counts.active} active={filter === 'active'} onClick={() => setFilter('active')} />
+        <FilterChip
+          label="Cancelled"
+          count={counts.cancelled}
+          active={filter === 'cancelled'}
+          onClick={() => setFilter('cancelled')}
+          danger
+        />
+        <FilterChip label="All" count={counts.all} active={filter === 'all'} onClick={() => setFilter('all')} />
+      </div>
+
       {events === null ? (
         <p className="text-[13px] text-[var(--ink-400)]">Loading events…</p>
-      ) : events.length === 0 ? (
-        <EmptyState />
+      ) : visible.length === 0 ? (
+        filter === 'cancelled' ? (
+          <p className="rounded-2xl border border-dashed border-[var(--border-strong)] bg-[var(--surface)] p-10 text-center text-[13px] text-[var(--ink-400)]">
+            No cancelled events.
+          </p>
+        ) : (
+          <EmptyState />
+        )
       ) : (
         <ul className="grid grid-cols-1 gap-3 md:grid-cols-2">
-          {events.map((event) => (
+          {visible.map((event) => (
             <EventCard key={event.id} event={event} />
           ))}
         </ul>
       )}
     </div>
+  );
+}
+
+function FilterChip({
+  label,
+  count,
+  active,
+  onClick,
+  danger,
+}: {
+  label: string;
+  count: number;
+  active: boolean;
+  onClick: () => void;
+  danger?: boolean;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={`inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-[12px] font-medium transition-colors ${
+        active
+          ? danger
+            ? 'border-[#EF4444] bg-[#EF4444]/10 text-[#EF4444]'
+            : 'border-[var(--ink-700)] bg-[var(--surface-2)] text-[var(--ink-900)]'
+          : 'border-[var(--border)] bg-[var(--surface)] text-[var(--ink-500)] hover:bg-[var(--hover)]'
+      }`}
+    >
+      {danger ? <Ban size={11} /> : null}
+      {label}
+      <span className="tabular-nums text-[var(--ink-400)]">{count}</span>
+    </button>
   );
 }
 
@@ -74,9 +142,10 @@ function EventCard({ event }: { event: EventRow }) {
     minute: '2-digit',
   });
   const isLive = event.status === 'live';
+  const isCancelled = event.status === 'cancelled' || !!event.cancelled_at;
 
   return (
-    <li className="overflow-hidden rounded-2xl border border-[var(--border)] bg-[var(--surface)]">
+    <li className={`overflow-hidden rounded-2xl border bg-[var(--surface)] ${isCancelled ? 'border-[#EF4444]/40 opacity-70' : 'border-[var(--border)]'}`}>
       <Link
         href={`/events/${event.slug}`}
         className="block p-4 hover:bg-[var(--hover)]"

@@ -28,9 +28,19 @@ export interface EventRow {
   starts_at: string;
   ends_at: string;
   capacity: number | null;
-  status: 'draft' | 'on_sale' | 'sold_out' | 'live' | 'past' | 'cancelled';
+  status: 'draft' | 'on_sale' | 'sold_out' | 'live' | 'past' | 'cancelled' | 'hold';
   cover_image_url: string | null;
   live_ops_config: Record<string, unknown>;
+  // L1 m14 additions (0104–0111)
+  production_starts_at?: string | null;
+  production_ends_at?: string | null;
+  project_leader_user_id?: string | null;
+  cancelled_at?: string | null;
+  cancellation_reason?: string | null;
+  cancelled_by_user_id?: string | null;
+  performance_id?: string | null;
+  hold_rank?: number | null;
+  hold_expires_at?: string | null;
 }
 
 export interface EventDayRow {
@@ -1156,6 +1166,47 @@ export async function updateEventLiveOpsConfig(
     .from('events')
     .update({ live_ops_config: next })
     .eq('id', eventId);
+  return error ? { ok: false, error: error.message } : { ok: true };
+}
+
+/**
+ * Cancel an event without deleting it. Sets cancelled_at + cancellation_reason
+ * + cancelled_by_user_id, flips status to 'cancelled'. Reinstating clears all
+ * three back to NULL and restores the previous status (operator picks on
+ * reinstate).
+ */
+export async function cancelEvent(args: {
+  event_id: string;
+  reason: string;
+}): Promise<{ ok: boolean; error?: string }> {
+  const supabase = eventsDb();
+  const { data: userData } = await supabase.auth.getUser();
+  const { error } = await supabase
+    .from('events')
+    .update({
+      status: 'cancelled',
+      cancelled_at: new Date().toISOString(),
+      cancellation_reason: args.reason,
+      cancelled_by_user_id: userData?.user?.id ?? null,
+    })
+    .eq('id', args.event_id);
+  return error ? { ok: false, error: error.message } : { ok: true };
+}
+
+export async function reinstateEvent(args: {
+  event_id: string;
+  next_status?: EventRow['status'];
+}): Promise<{ ok: boolean; error?: string }> {
+  const supabase = eventsDb();
+  const { error } = await supabase
+    .from('events')
+    .update({
+      status: args.next_status ?? 'draft',
+      cancelled_at: null,
+      cancellation_reason: null,
+      cancelled_by_user_id: null,
+    })
+    .eq('id', args.event_id);
   return error ? { ok: false, error: error.message } : { ok: true };
 }
 

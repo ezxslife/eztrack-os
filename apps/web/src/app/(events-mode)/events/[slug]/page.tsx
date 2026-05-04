@@ -5,11 +5,13 @@ import Link from 'next/link';
 import {
   AlertTriangle,
   ArrowLeft,
+  Ban,
   CalendarDays,
   Clock,
   DollarSign,
   Loader2,
   Plus,
+  RotateCcw,
   Save,
   ShieldAlert,
   Ticket,
@@ -19,11 +21,13 @@ import {
 } from 'lucide-react';
 import {
   addEventDay,
+  cancelEvent,
   deleteEventDay,
   fetchEventBySlug,
   fetchEventDays,
   fetchEventIncidents,
   fetchEventReport,
+  reinstateEvent,
   sourceLabel,
   tierDefinitionsFor,
   updateEventDay,
@@ -159,6 +163,41 @@ export default function EventDetailPage({ params }: PageProps) {
     }
   }
 
+  async function handleCancel() {
+    if (!event || busy) return;
+    const reason = window.prompt('Why is this event being cancelled?', 'Promoter scheduling conflict');
+    if (!reason) return;
+    setBusy(true);
+    try {
+      const res = await cancelEvent({ event_id: event.id, reason });
+      if (res.ok) {
+        await refresh();
+        setToast('Event cancelled. Data preserved for reinstatement.');
+      } else {
+        setToast(`Failed: ${res.error ?? 'unknown'}`);
+      }
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function handleReinstate() {
+    if (!event || busy) return;
+    if (!window.confirm('Reinstate this event? Status will be set to draft.')) return;
+    setBusy(true);
+    try {
+      const res = await reinstateEvent({ event_id: event.id, next_status: 'draft' });
+      if (res.ok) {
+        await refresh();
+        setToast('Event reinstated. Status → draft.');
+      } else {
+        setToast(`Failed: ${res.error ?? 'unknown'}`);
+      }
+    } finally {
+      setBusy(false);
+    }
+  }
+
   async function handleSaveTiers(nextTiers: PosTier[]) {
     if (!event || busy) return;
     setBusy(true);
@@ -230,18 +269,53 @@ export default function EventDetailPage({ params }: PageProps) {
         ) : null}
       </header>
 
+      {/* Cancellation banner */}
+      {event.cancelled_at ? (
+        <section
+          role="status"
+          className="rounded-2xl border-2 border-[#EF4444] p-4"
+          style={{ background: 'rgba(239, 68, 68, 0.08)' }}
+        >
+          <div className="flex items-start gap-3">
+            <Ban size={18} className="flex-none text-[#EF4444]" />
+            <div className="flex-1">
+              <h2 className="text-[14px] font-bold text-[#EF4444]">
+                Cancelled {new Date(event.cancelled_at).toLocaleString(undefined, { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
+              </h2>
+              {event.cancellation_reason ? (
+                <p className="mt-0.5 text-[13px] text-[var(--ink-700)]">
+                  Reason: {event.cancellation_reason}
+                </p>
+              ) : null}
+              <p className="mt-1 text-[11px] text-[var(--ink-400)]">
+                Data is preserved. Reinstate to restore operations.
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={handleReinstate}
+              disabled={busy}
+              className="inline-flex min-h-[36px] flex-none items-center gap-1 rounded-lg bg-[var(--surface)] px-3 py-1.5 text-[12px] font-semibold text-[var(--ink-900)] hover:bg-[var(--hover)] disabled:opacity-50"
+            >
+              <RotateCcw size={12} />
+              Reinstate
+            </button>
+          </div>
+        </section>
+      ) : null}
+
       {/* Status switcher */}
       <section className="rounded-2xl border border-[var(--border)] bg-[var(--surface)] p-5">
         <h2 className="text-[14px] font-semibold uppercase tracking-wider text-[var(--ink-500)]">
           Status
         </h2>
         <div className="mt-2 flex flex-wrap gap-2">
-          {(['draft', 'on_sale', 'live', 'sold_out', 'past', 'cancelled'] as const).map((s) => (
+          {(['draft', 'on_sale', 'live', 'sold_out', 'hold', 'past'] as const).map((s) => (
             <button
               key={s}
               type="button"
               onClick={() => handleStatus(s)}
-              disabled={busy || event.status === s}
+              disabled={busy || event.status === s || !!event.cancelled_at}
               className={`rounded-full px-3 py-1.5 text-[12px] font-semibold uppercase tracking-wider transition-colors ${
                 event.status === s
                   ? 'bg-[var(--ink-700)] text-white'
@@ -252,6 +326,17 @@ export default function EventDetailPage({ params }: PageProps) {
             </button>
           ))}
         </div>
+        {!event.cancelled_at ? (
+          <button
+            type="button"
+            onClick={handleCancel}
+            disabled={busy}
+            className="mt-3 inline-flex min-h-[36px] items-center gap-1 rounded-lg border border-[#EF4444]/30 bg-transparent px-3 py-1.5 text-[12px] font-semibold text-[#EF4444] hover:bg-[#EF4444]/10 disabled:opacity-50"
+          >
+            <Ban size={12} />
+            Cancel event…
+          </button>
+        ) : null}
       </section>
 
       {/* Auto check-in toggle */}
