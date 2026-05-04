@@ -14,6 +14,7 @@ import {
   Users,
 } from 'lucide-react';
 import { useRealtimeSubscription } from '@/hooks/useRealtimeSubscription';
+import { ManualScanWidget } from '../_components/ManualScanWidget';
 import {
   fetchActiveEvent,
   fetchCurrentEventDay,
@@ -187,7 +188,10 @@ export default function LivePage() {
       ) : null}
       <div className="grid grid-cols-1 gap-5 lg:grid-cols-3">
         <RecentScansCard scans={scans} className="lg:col-span-2" />
-        <QuickActions />
+        <div className="flex flex-col gap-5">
+          <QuickActions />
+          <ManualScanWidget orgId={event.org_id} eventId={event.id} />
+        </div>
       </div>
     </div>
   );

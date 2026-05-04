@@ -293,6 +293,211 @@ export function thresholdColor(snapshot: CapacitySnapshotRow | null): {
   }
 }
 
+/* ─── Operator workflows (events list, create, manual scan) ─── */
+
+/**
+ * Returns the current operator's org_id by reading their profiles row.
+ * Returns null if the session is anonymous or the profile row is missing.
+ */
+export async function fetchCurrentOrgId(): Promise<string | null> {
+  const supabase = eventsDb();
+  const { data: userData } = await supabase.auth.getUser();
+  const userId = userData?.user?.id;
+  if (!userId) return null;
+  const { data } = await supabase
+    .from('profiles')
+    .select('org_id')
+    .eq('id', userId)
+    .maybeSingle();
+  return (data as { org_id: string } | null)?.org_id ?? null;
+}
+
+/**
+ * List events for the operator's org. RLS scopes automatically; ordering
+ * surfaces the most recent / live events first.
+ */
+export async function fetchEvents(): Promise<EventRow[]> {
+  const supabase = eventsDb();
+  const { data } = await supabase
+    .from('events')
+    .select('*')
+    .is('deleted_at', null)
+    .order('starts_at', { ascending: false })
+    .limit(50);
+  return (data as EventRow[] | null) ?? [];
+}
+
+export interface CreateEventInput {
+  org_id: string;
+  name: string;
+  slug: string;
+  starts_at: string;
+  ends_at: string;
+  capacity: number;
+  status?: EventRow['status'];
+  reentry_policy?: EventDayRow['reentry_policy'];
+}
+
+/**
+ * Insert an event + a single event_day matching the event window. Multi-day
+ * editor lands in L3.
+ */
+export async function createEvent(input: CreateEventInput): Promise<EventRow> {
+  const supabase = eventsDb();
+  const { data: ev, error: evErr } = await supabase
+    .from('events')
+    .insert({
+      org_id: input.org_id,
+      name: input.name,
+      slug: input.slug,
+      starts_at: input.starts_at,
+      ends_at: input.ends_at,
+      capacity: input.capacity,
+      status: input.status ?? 'draft',
+      is_multi_day: false,
+    })
+    .select('*')
+    .single();
+  if (evErr || !ev) throw new Error(evErr?.message ?? 'event_insert_failed');
+
+  const { error: dayErr } = await supabase.from('event_days').insert({
+    event_id: (ev as EventRow).id,
+    day_index: 1,
+    label: 'Tonight',
+    date: new Date(input.starts_at).toISOString().slice(0, 10),
+    starts_at: input.starts_at,
+    ends_at: input.ends_at,
+    capacity: input.capacity,
+    reentry_policy: input.reentry_policy ?? 'count_once_per_day',
+  });
+  if (dayErr) throw new Error(dayErr.message);
+
+  return ev as EventRow;
+}
+
+export interface TicketSearchResult {
+  ticket_id: string;
+  event_id: string;
+  tier: string;
+  state: string;
+  external_id: string | null;
+  customer_first_name: string | null;
+  customer_last_name: string | null;
+  customer_email: string | null;
+}
+
+/**
+ * Search tickets within an event by external_id or customer name/email.
+ * Used by the manual-scan / will-call lookup widget on /live. Two parallel
+ * queries (one for external_id, one via customer-side filter) are merged
+ * and de-duplicated client-side because Postgrest's foreign-table OR is
+ * awkward.
+ */
+export async function searchTickets(
+  eventId: string,
+  query: string,
+  limit = 10,
+): Promise<TicketSearchResult[]> {
+  const trimmed = query.trim();
+  if (!trimmed) return [];
+  const supabase = eventsDb();
+
+  const select = `
+    id, event_id, tier, state, external_id,
+    customers ( first_name, last_name, email )
+  `;
+
+  const [byExternal, byCustomer] = await Promise.all([
+    supabase
+      .from('tickets')
+      .select(select)
+      .eq('event_id', eventId)
+      .is('deleted_at', null)
+      .ilike('external_id', `%${trimmed}%`)
+      .limit(limit),
+    supabase
+      .from('tickets')
+      .select(select)
+      .eq('event_id', eventId)
+      .is('deleted_at', null)
+      .or(
+        `first_name.ilike.%${trimmed}%,last_name.ilike.%${trimmed}%,email.ilike.%${trimmed}%`,
+        { foreignTable: 'customers' },
+      )
+      .limit(limit),
+  ]);
+
+  type Raw = {
+    id: string;
+    event_id: string;
+    tier: string;
+    state: string;
+    external_id: string | null;
+    customers: { first_name: string | null; last_name: string | null; email: string | null } | null;
+  };
+  const merged = new Map<string, Raw>();
+  for (const row of [
+    ...((byExternal.data as Raw[] | null) ?? []),
+    ...((byCustomer.data as Raw[] | null) ?? []),
+  ]) {
+    if (!merged.has(row.id)) merged.set(row.id, row);
+  }
+  return Array.from(merged.values()).slice(0, limit).map((t) => ({
+    ticket_id: t.id,
+    event_id: t.event_id,
+    tier: t.tier,
+    state: t.state,
+    external_id: t.external_id,
+    customer_first_name: t.customers?.first_name ?? null,
+    customer_last_name: t.customers?.last_name ?? null,
+    customer_email: t.customers?.email ?? null,
+  }));
+}
+
+/**
+ * Trigger a manual check-in via the canonical `checkin-router` Edge Function.
+ * The router applies re-entry policy, picks the current event_day, and writes
+ * the canonical check_ins row. Direct-scan path — no 3rd-party platform needed.
+ */
+export async function triggerManualCheckIn(args: {
+  org_id: string;
+  event_id: string;
+  ticket_id: string;
+  scanned_by?: string;
+  device?: string;
+  location?: string;
+}): Promise<{
+  ok: boolean;
+  result?: 'success' | 'already_scanned' | 'invalid' | 'expired' | 'wrong_day' | 'wrong_event';
+  check_in_id?: string;
+  ticket?: { id: string; tier: string };
+  entry_number?: number;
+  error?: string;
+}> {
+  const supabase = eventsDb();
+  const { data, error } = await supabase.functions.invoke('checkin-router', {
+    body: { source: 'manual_lookup', ...args },
+  });
+  if (error) return { ok: false, error: error.message };
+  return (data ?? { ok: false, error: 'no_response' }) as {
+    ok: boolean;
+    result?: 'success' | 'already_scanned' | 'invalid' | 'expired' | 'wrong_day' | 'wrong_event';
+    check_in_id?: string;
+    ticket?: { id: string; tier: string };
+    entry_number?: number;
+    error?: string;
+  };
+}
+
+export function slugify(input: string): string {
+  return input
+    .toLowerCase()
+    .trim()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '')
+    .slice(0, 60);
+}
+
 export function sourceLabel(source: CheckInRow['source']): string {
   switch (source) {
     case 'eventbrite_webhook':
