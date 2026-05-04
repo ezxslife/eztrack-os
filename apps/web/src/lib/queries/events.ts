@@ -1302,6 +1302,136 @@ export async function fetchEventIncidents(eventId: string): Promise<IncidentRow[
   return (data as IncidentRow[] | null) ?? [];
 }
 
+/* ─── Post-event report (aggregator) ─────────────── */
+
+export interface EventReport {
+  totals: {
+    tickets_sold: number;
+    tickets_used: number;
+    check_ins: number;
+    re_entries: number;
+    pos_revenue_cents: number;
+    pos_orders: number;
+    incidents_open: number;
+    incidents_closed: number;
+  };
+  check_ins_by_source: Record<string, number>;
+  incidents_by_severity: Record<string, number>;
+  by_day: Array<{
+    event_day_id: string;
+    label: string;
+    day_index: number;
+    capacity: number;
+    checked_in: number;
+    pct: number;
+  }>;
+}
+
+/**
+ * Aggregator for the per-event report card. All counts come from existing
+ * tables — no separate report-cache infrastructure needed in v1. Acceptable
+ * latency since it's an operator-triggered view, not a hot path.
+ */
+export async function fetchEventReport(eventId: string): Promise<EventReport> {
+  const supabase = eventsDb();
+
+  const [
+    ticketsRes,
+    checkInsRes,
+    ordersRes,
+    incidentsRes,
+    rollupRes,
+  ] = await Promise.all([
+    supabase
+      .from('tickets')
+      .select('id, state')
+      .eq('event_id', eventId)
+      .is('deleted_at', null),
+    supabase
+      .from('check_ins')
+      .select('id, source, result, entry_number')
+      .eq('event_id', eventId),
+    supabase
+      .from('orders')
+      .select('id, total_cents, source, status')
+      .eq('event_id', eventId)
+      .is('deleted_at', null),
+    supabase
+      .from('incidents')
+      .select('id, severity, status')
+      .eq('event_id', eventId)
+      .is('deleted_at', null),
+    fetchEventRollup(eventId),
+  ]);
+
+  type TicketLite = { id: string; state: string };
+  type CheckInLite = { id: string; source: string; result: string; entry_number: number };
+  type OrderLite = { id: string; total_cents: number; source: string; status: string };
+  type IncidentLite = { id: string; severity: string; status: string };
+
+  const tickets = (ticketsRes.data as TicketLite[] | null) ?? [];
+  const checkIns = (checkInsRes.data as CheckInLite[] | null) ?? [];
+  const orders = (ordersRes.data as OrderLite[] | null) ?? [];
+  const incidents = (incidentsRes.data as IncidentLite[] | null) ?? [];
+
+  const ticketsSold = tickets.filter((t) => t.state === 'valid' || t.state === 'used').length;
+  const ticketsUsed = tickets.filter((t) => t.state === 'used').length;
+
+  const successfulCheckIns = checkIns.filter((c) => c.result === 'success').length;
+  const reentries = checkIns.filter(
+    (c) => c.result === 'already_scanned' || (c.result === 'success' && c.entry_number > 1),
+  ).length;
+
+  const checkInsBySource: Record<string, number> = {};
+  for (const c of checkIns) {
+    if (c.result !== 'success' && c.result !== 'already_scanned') continue;
+    checkInsBySource[c.source] = (checkInsBySource[c.source] ?? 0) + 1;
+  }
+
+  const posOrders = orders.filter(
+    (o) =>
+      o.source.startsWith('pos_') &&
+      (o.status === 'paid' || o.status === 'partial_refund'),
+  );
+  const posRevenueCents = posOrders.reduce((sum, o) => sum + (o.total_cents ?? 0), 0);
+
+  const incidentsOpen = incidents.filter(
+    (i) =>
+      i.status !== 'closed' && i.status !== 'completed' && i.status !== 'archived',
+  ).length;
+  const incidentsClosed = incidents.length - incidentsOpen;
+
+  const incidentsBySeverity: Record<string, number> = {};
+  for (const i of incidents) {
+    incidentsBySeverity[i.severity] = (incidentsBySeverity[i.severity] ?? 0) + 1;
+  }
+
+  const byDay = rollupRes.map((d) => ({
+    event_day_id: d.event_day_id,
+    label: d.label,
+    day_index: d.day_index,
+    capacity: d.capacity,
+    checked_in: d.checked_in,
+    pct: d.capacity > 0 ? Math.round((d.checked_in / d.capacity) * 100) : 0,
+  }));
+
+  return {
+    totals: {
+      tickets_sold: ticketsSold,
+      tickets_used: ticketsUsed,
+      check_ins: successfulCheckIns,
+      re_entries: reentries,
+      pos_revenue_cents: posRevenueCents,
+      pos_orders: posOrders.length,
+      incidents_open: incidentsOpen,
+      incidents_closed: incidentsClosed,
+    },
+    check_ins_by_source: checkInsBySource,
+    incidents_by_severity: incidentsBySeverity,
+    by_day: byDay,
+  };
+}
+
 export function slugify(input: string): string {
   return input
     .toLowerCase()

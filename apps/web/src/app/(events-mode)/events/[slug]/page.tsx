@@ -7,12 +7,15 @@ import {
   ArrowLeft,
   CalendarDays,
   Clock,
+  DollarSign,
   Loader2,
   Plus,
   Save,
   ShieldAlert,
   Ticket,
   Trash2,
+  TrendingUp,
+  Users,
 } from 'lucide-react';
 import {
   addEventDay,
@@ -20,11 +23,14 @@ import {
   fetchEventBySlug,
   fetchEventDays,
   fetchEventIncidents,
+  fetchEventReport,
+  sourceLabel,
   tierDefinitionsFor,
   updateEventDay,
   updateEventLiveOpsConfig,
   updateEventStatus,
   type EventDayRow,
+  type EventReport,
   type EventRow,
   type IncidentRow,
   type PosTier,
@@ -40,6 +46,7 @@ export default function EventDetailPage({ params }: PageProps) {
   const [event, setEvent] = useState<EventRow | null>(null);
   const [days, setDays] = useState<EventDayRow[]>([]);
   const [incidents, setIncidents] = useState<IncidentRow[]>([]);
+  const [report, setReport] = useState<EventReport | null>(null);
   const [tiers, setTiers] = useState<PosTier[]>([]);
   const [autoCheckin, setAutoCheckin] = useState(true);
   const [busy, setBusy] = useState(false);
@@ -56,9 +63,14 @@ export default function EventDetailPage({ params }: PageProps) {
     const cfg = ev.live_ops_config as { auto_checkin_at_pos?: boolean };
     setAutoCheckin(cfg.auto_checkin_at_pos !== false);
     setTiers(tierDefinitionsFor(ev));
-    const [d, inc] = await Promise.all([fetchEventDays(ev.id), fetchEventIncidents(ev.id)]);
+    const [d, inc, rep] = await Promise.all([
+      fetchEventDays(ev.id),
+      fetchEventIncidents(ev.id),
+      fetchEventReport(ev.id),
+    ]);
     setDays(d);
     setIncidents(inc);
+    setReport(rep);
     setLoading(false);
   }, [slug]);
 
@@ -258,6 +270,9 @@ export default function EventDetailPage({ params }: PageProps) {
         </div>
       </section>
 
+      {/* Post-event / live report */}
+      {report ? <ReportSection report={report} /> : null}
+
       {/* POS tiers editor */}
       <TiersEditor tiers={tiers} onSave={handleSaveTiers} busy={busy} />
 
@@ -366,6 +381,184 @@ export default function EventDetailPage({ params }: PageProps) {
 }
 
 /* ─── Subcomponents ──────────────────────────────── */
+
+function ReportSection({ report }: { report: EventReport }) {
+  const t = report.totals;
+  const sources = Object.entries(report.check_ins_by_source).sort((a, b) => b[1] - a[1]);
+  const totalSourceCount = sources.reduce((sum, [, n]) => sum + n, 0);
+  const sevOrder: Array<keyof typeof report.incidents_by_severity> = [
+    'critical',
+    'high',
+    'medium',
+    'low',
+  ];
+  const SEV_COLORS: Record<string, string> = {
+    critical: '#EF4444',
+    high: '#F97316',
+    medium: '#F59E0B',
+    low: '#3B82F6',
+  };
+
+  return (
+    <section className="overflow-hidden rounded-2xl border border-[var(--border)] bg-[var(--surface)]">
+      <header className="flex items-center justify-between border-b border-[var(--border)] px-5 py-3">
+        <h2 className="text-[14px] font-semibold uppercase tracking-wider text-[var(--ink-500)]">
+          Report
+        </h2>
+        <span className="text-[11px] text-[var(--ink-400)]">
+          rolled up from existing tables · live data
+        </span>
+      </header>
+
+      {/* Top-line stats */}
+      <ul className="grid grid-cols-2 gap-px bg-[var(--border)] sm:grid-cols-4">
+        <Stat icon={Ticket} label="Sold" value={t.tickets_sold.toLocaleString()} />
+        <Stat icon={Users} label="Checked in" value={t.check_ins.toLocaleString()} />
+        <Stat icon={DollarSign} label="POS revenue" value={`$${(t.pos_revenue_cents / 100).toFixed(2)}`} />
+        <Stat
+          icon={ShieldAlert}
+          label="Incidents (open / total)"
+          value={`${t.incidents_open} / ${t.incidents_open + t.incidents_closed}`}
+        />
+      </ul>
+
+      <div className="grid grid-cols-1 gap-5 p-5 lg:grid-cols-2">
+        {/* Source breakdown */}
+        <div>
+          <h3 className="text-[12px] font-semibold uppercase tracking-wider text-[var(--ink-500)]">
+            Check-ins by source
+          </h3>
+          {sources.length === 0 ? (
+            <p className="mt-2 text-[12px] text-[var(--ink-400)]">No check-ins yet.</p>
+          ) : (
+            <ul className="mt-2 space-y-1.5">
+              {sources.map(([src, count]) => {
+                const pct = totalSourceCount > 0 ? Math.round((count / totalSourceCount) * 100) : 0;
+                return (
+                  <li key={src}>
+                    <div className="flex items-center justify-between text-[12px] text-[var(--ink-700)]">
+                      <span className="font-mono uppercase tracking-wider">
+                        {sourceLabel(src as Parameters<typeof sourceLabel>[0])}
+                      </span>
+                      <span className="tabular-nums text-[var(--ink-500)]">
+                        {count} · {pct}%
+                      </span>
+                    </div>
+                    <div className="mt-0.5 h-1.5 w-full overflow-hidden rounded-full bg-[var(--bg)]">
+                      <div
+                        className="h-full"
+                        style={{ width: `${pct}%`, background: 'var(--ezxs-gradient-money)' }}
+                      />
+                    </div>
+                  </li>
+                );
+              })}
+            </ul>
+          )}
+        </div>
+
+        {/* Incidents by severity */}
+        <div>
+          <h3 className="text-[12px] font-semibold uppercase tracking-wider text-[var(--ink-500)]">
+            Incidents by severity
+          </h3>
+          {Object.keys(report.incidents_by_severity).length === 0 ? (
+            <p className="mt-2 text-[12px] text-[var(--ink-400)]">None logged.</p>
+          ) : (
+            <ul className="mt-2 grid grid-cols-2 gap-2 sm:grid-cols-4">
+              {sevOrder.map((sev) => {
+                const count = report.incidents_by_severity[sev as string] ?? 0;
+                return (
+                  <li
+                    key={sev as string}
+                    className="rounded-xl border border-[var(--border)] bg-[var(--surface-2)] p-2 text-center"
+                  >
+                    <span
+                      className="block text-[20px] font-bold tabular-nums"
+                      style={{ color: SEV_COLORS[sev as string] }}
+                    >
+                      {count}
+                    </span>
+                    <span className="text-[10px] uppercase tracking-wider text-[var(--ink-400)]">
+                      {sev as string}
+                    </span>
+                  </li>
+                );
+              })}
+            </ul>
+          )}
+        </div>
+
+        {/* Per-day capacity */}
+        {report.by_day.length > 0 ? (
+          <div className="lg:col-span-2">
+            <h3 className="text-[12px] font-semibold uppercase tracking-wider text-[var(--ink-500)]">
+              By day
+            </h3>
+            <ul className="mt-2 space-y-1.5">
+              {report.by_day.map((d) => (
+                <li key={d.event_day_id}>
+                  <div className="flex items-center justify-between text-[12px]">
+                    <span className="text-[var(--ink-700)]">
+                      Day {d.day_index} · {d.label}
+                    </span>
+                    <span className="tabular-nums text-[var(--ink-500)]">
+                      {d.checked_in.toLocaleString()} / {d.capacity.toLocaleString()} · {d.pct}%
+                    </span>
+                  </div>
+                  <div className="mt-0.5 h-1.5 w-full overflow-hidden rounded-full bg-[var(--bg)]">
+                    <div
+                      className="h-full"
+                      style={{
+                        width: `${d.pct}%`,
+                        background:
+                          d.pct >= 100
+                            ? '#EF4444'
+                            : d.pct >= 90
+                              ? '#F97316'
+                              : d.pct >= 75
+                                ? '#F59E0B'
+                                : '#34C759',
+                      }}
+                    />
+                  </div>
+                </li>
+              ))}
+            </ul>
+          </div>
+        ) : null}
+
+        {/* Re-entries hint */}
+        {t.re_entries > 0 ? (
+          <p className="text-[11px] text-[var(--ink-400)] lg:col-span-2">
+            <TrendingUp size={11} className="mr-1 inline-block" />
+            {t.re_entries} re-entry scan{t.re_entries === 1 ? '' : 's'} (already_scanned + entry &gt; 1).
+          </p>
+        ) : null}
+      </div>
+    </section>
+  );
+}
+
+function Stat({
+  icon: Icon,
+  label,
+  value,
+}: {
+  icon: typeof Ticket;
+  label: string;
+  value: string;
+}) {
+  return (
+    <li className="flex flex-col gap-0.5 bg-[var(--surface)] px-4 py-3">
+      <span className="inline-flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wider text-[var(--ink-400)]">
+        <Icon size={11} />
+        {label}
+      </span>
+      <span className="text-[20px] font-bold tabular-nums text-[var(--ink-900)]">{value}</span>
+    </li>
+  );
+}
 
 function Toggle({
   on,
