@@ -25,10 +25,12 @@
 | 3 | `connections` table migration (encrypted Eventbrite OAuth tokens via `pgcrypto` or `vault`) | pending |
 | 3 | Eventbrite OAuth connect + callback (`apps/web/src/app/auth/eventbrite/`) | pending |
 | 3 | Full Eventbrite handler in `checkin-router` (Eventbrite API or pre-synced ticket mapping -> canonical `check_ins`) | done |
-| 4 | `apps/wall-display` Expo app (capacity board + recent scans + door-flow chart) | pending |
-| 4 | Wall-display pairing flow (Settings page + Edge Function for short-lived JWT) | pending |
+| 4 | `apps/wall-display` Expo app (capacity board + recent scans + door-flow chart) | done |
+| 4 | Wall-display pairing flow (Settings page + Edge Function for short-lived JWT) | done |
 | 5 | Capacity threshold worker (Edge Function raises existing Alerts rows at 75/90/100%) | done |
-| chrome | Port settle's `Layout` / `Sidebar` / `MobileNav` / `QuickAddSheet` / `AssistantPanel` / `ThemeToggle` | pending |
+| m3 | Operator UI: `/events` list + `/events/new` creator + `ManualScanWidget` on `/live` (manual_lookup path through canonical `checkin-router`) | done |
+| m5 | Operator-side wall-display pairing UI: `(events-mode)/wall-display/page.tsx` (settle theme) + `(dashboard)/settings/wall-display/page.tsx` (eztrack-os theme) + nav item | done |
+| chrome | Port settle's `Layout` / `Sidebar` / `MobileNav` / `QuickAddSheet` / `AssistantPanel` / `ThemeToggle` | pending (blocked: ezxs-settle sources sandboxed in this Claude Code session — re-launch from `Sauce/` parent to read them) |
 
 ---
 
@@ -39,8 +41,10 @@
 | File | Purpose |
 |---|---|
 | `apps/web/src/app/(events-mode)/live/page.tsx` | Multi-day-aware live command center: capacity card, counts, recent scans, day picker, door-flow chart, rolling multi-day totals, 44pt quick actions. |
+| `apps/web/src/app/(dashboard)/settings/wall-display/page.tsx` | Manager pairing screen: select event, create 6-digit code, list recent paired/pending display sessions. |
 | `apps/web/src/lib/queries/events.ts` | Events-mode query layer for active event, current day, day list, latest capacity snapshot, recent scans, 60-minute scan window, and multi-day rollup. |
 | `apps/web/src/proxy.ts` | Cleaned unused cookie option destructure. Next.js 16 proxy remains the auth/session refresh path; obsolete `src/middleware.ts` is removed. |
+| `apps/wall-display/` | Standalone Expo SDK 54 app for kiosk/iPad wall displays. Redeems a pairing code, reads via event-scoped JWT, and shows capacity, recent scans, and door-flow chart. |
 
 ### Edge Functions
 
@@ -49,6 +53,14 @@
 | `checkin-router` | Eventbrite path handles `attendee.checked_in`, `attendee.updated`, `order.placed`, `order.refunded`, and `event.updated`. |
 | `eventbrite-webhook` | Uses a stable idempotency key so Eventbrite retries reuse the existing `scan_webhooks` row instead of creating duplicates. |
 | `capacity-threshold-worker` | Scans latest breached capacity snapshots and raises existing `alerts` rows at yellow/red/alert thresholds. |
+| `wall-display-pairing` | Creates short-lived pairing codes for logged-in org members and redeems them for read-only event-scoped JWTs. |
+
+### Schema
+
+| Migration | Purpose |
+|---|---|
+| `0101_function_search_path.sql` | Pins `search_path = public` on helper functions flagged by the Supabase security advisor. |
+| `0102_wall_display_jwt_rls.sql` | Adds `is_wall_display_session(event_id)` and read-only RLS policies for wall-display JWT claims. |
 
 ---
 
@@ -72,10 +84,12 @@
 supabase secrets set EVENTBRITE_WEBHOOK_SECRET=<from Eventbrite app>
 supabase secrets set EVENTBRITE_API_TOKEN=<optional private token>
 supabase secrets set CAPACITY_WORKER_SECRET=<optional random secret>
+supabase secrets set SUPABASE_JWT_SECRET=<Supabase project JWT secret>
 
 supabase functions deploy eventbrite-webhook --no-verify-jwt
 supabase functions deploy checkin-router
 supabase functions deploy capacity-threshold-worker
+supabase functions deploy wall-display-pairing --no-verify-jwt
 ```
 
 If `CAPACITY_WORKER_SECRET` is set, invoke the worker with either:
@@ -97,6 +111,7 @@ curl -X POST "$SUPABASE_URL/functions/v1/capacity-threshold-worker" \
 ## Verification run locally
 
 - `apps/web`: `pnpm type-check` passes.
+- `apps/wall-display`: `pnpm --filter @eztrack/wall-display type-check` passes.
 - Focused ESLint on touched web files passes.
 - Edge Function TypeScript syntax checked via local TypeScript transpilation.
 - `/login` returns 200 on the app dev server; `/live` redirects unauthenticated
@@ -113,8 +128,8 @@ curl -X POST "$SUPABASE_URL/functions/v1/capacity-threshold-worker" \
 2. **Eventbrite event mapping is manual for now.** Seed
    `events.live_ops_config.eventbrite_event_id` until the Eventbrite connection UI
    writes the mapping.
-3. **`apps/wall-display` does not exist.** plan.md said "already scaffolded" but
-   the dir is absent. Create it in the remaining L1 wall-display slice.
+3. **Wall-display JWT secret is required.** `wall-display-pairing` cannot redeem
+   display codes until `SUPABASE_JWT_SECRET` is set as a Supabase secret.
 4. **Database types stale.** `apps/web/src/types/database.ts` predates the new
    migrations. Events-mode queries use local row types until Supabase types are
    regenerated.

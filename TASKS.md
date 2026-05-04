@@ -23,9 +23,10 @@
 - [ ] **You:** Optional for order/ticket enrichment: `supabase secrets set EVENTBRITE_API_TOKEN=<Eventbrite private token>`
 - [ ] **You:** `supabase secrets set STRIPE_WEBHOOK_SECRET=<from Stripe dashboard>`
 - [ ] **You:** Optional for manual/cron worker protection: `supabase secrets set CAPACITY_WORKER_SECRET=<random secret>`
+- [ ] **You:** Wall-display JWT issuer: `supabase secrets set SUPABASE_JWT_SECRET=<Supabase project JWT secret>`
 - [ ] **You:** Subscribe Eventbrite webhook → `POST https://pjxmkliosgfwfbwjycxv.supabase.co/functions/v1/eventbrite-webhook` (actions: `attendee.checked_in`, `attendee.updated`, `order.placed`, `order.refunded`, `event.updated`)
 - [ ] **You:** Subscribe Stripe webhook → `POST https://pjxmkliosgfwfbwjycxv.supabase.co/functions/v1/stripe-webhook` (events: `charge.succeeded`, `charge.refunded`, `checkout.session.completed`, `terminal.reader.action_succeeded`)
-- [ ] Harden new helper functions: add `SET search_path = public` to `refresh_event_multi_day_flag`, `current_event_day`, `refresh_capacity_snapshot` (security advisor flagged mutable search_path) — write as new migration `0101_function_search_path.sql`
+- [x] Harden new helper functions: add `SET search_path = public` to `refresh_event_multi_day_flag`, `current_event_day`, `refresh_capacity_snapshot` (`0101_function_search_path.sql`)
 
 ### Pre-existing tech debt surfaced during L0 verification
 - [ ] `packages/api/src/supabase.ts:5–6` — uses `process.env` but `@types/node` is missing from `packages/api/package.json` (broken since initial commit `aae184f`, hidden until L0 verification ran type-check)
@@ -61,8 +62,8 @@
 - [x] /live route (multi-day-aware capacity board, recent scans, door flow)
 - [x] Capacity threshold worker (Edge Function or pg_cron)
 - [x] Full Eventbrite handler in checkin-router
-- [ ] apps/wall-display: capacity board + recent scans + door-flow chart
-- [ ] Wall-display pairing flow (`Settings → Wall Display → Add display`)
+- [x] apps/wall-display: capacity board + recent scans + door-flow chart
+- [x] Wall-display pairing flow (`Settings → Wall Display → Add display`)
 
 ## L2 — POS + RoS + Reframes
 - [ ] /pos route (Stripe Terminal + Square + cash mode)
