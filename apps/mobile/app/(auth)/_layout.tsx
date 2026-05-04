@@ -13,6 +13,10 @@ export default function AuthLayout() {
         <Stack.Screen name="magic-link-sent" />
         <Stack.Screen name="accept-invite" />
         <Stack.Screen name="onboarding" />
+        {/* Events Mode auth flow (L0b) */}
+        <Stack.Screen name="phone-signin" />
+        <Stack.Screen name="phone-verify" />
+        <Stack.Screen name="profile-completion" />
       </Stack>
     </RequireGuest>
   );
