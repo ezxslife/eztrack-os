@@ -16,6 +16,7 @@ import {
   UserCheck,
   Users,
 } from 'lucide-react';
+import { VenueModeSwitch } from '@/components/venue-mode/VenueModeSwitch';
 
 interface NavItem {
   href: string;
@@ -89,12 +90,15 @@ export function EventsModeNav() {
           })}
         </ul>
       </div>
-      <span
-        className="rounded-full px-2.5 py-0.5 text-[11px] font-semibold uppercase tracking-wider text-white"
-        style={{ background: 'var(--ezxs-gradient-money)' }}
-      >
-        Events Mode
-      </span>
+      <div className="flex shrink-0 items-center gap-2">
+        <VenueModeSwitch variant="events" />
+        <span
+          className="rounded-full px-2.5 py-0.5 text-[11px] font-semibold uppercase tracking-wider text-white"
+          style={{ background: 'var(--ezxs-gradient-money)' }}
+        >
+          Events Mode
+        </span>
+      </div>
     </nav>
   );
 }

@@ -7,6 +7,7 @@ import { Breadcrumbs } from "./Breadcrumbs";
 import { Button } from "@/components/ui/Button";
 import { IconButton } from "@/components/ui/IconButton";
 import { ThemeToggle } from "@/components/ui/ThemeToggle";
+import { VenueModeSwitch } from "@/components/venue-mode/VenueModeSwitch";
 import { useToast } from "@/components/ui/Toast";
 import { getSupabaseBrowser } from "@/lib/supabase-browser";
 import { useRouter } from "next/navigation";
@@ -91,6 +92,8 @@ export function TopBar({
 
       {/* Right: Actions */}
       <div className="flex shrink-0 items-center gap-1.5">
+        <VenueModeSwitch className="hidden md:inline-flex" />
+
         {/* Theme Toggle */}
         <ThemeToggle />
 

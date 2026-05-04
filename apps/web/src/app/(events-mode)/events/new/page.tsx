@@ -300,7 +300,7 @@ export default function NewEventPage() {
         </div>
       </form>
 
-      <style jsx>{`
+      <style>{`
         .input {
           width: 100%;
           padding: 0.5rem 0.75rem;
@@ -419,7 +419,7 @@ function DayRow({
           </select>
         </Field>
       </div>
-      <style jsx>{`
+      <style>{`
         .input {
           width: 100%;
           padding: 0.5rem 0.75rem;
