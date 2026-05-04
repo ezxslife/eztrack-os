@@ -1,9 +1,10 @@
 'use client';
 
-import { FormEvent, useCallback, useEffect, useState } from 'react';
+import { FormEvent, useCallback, useEffect, useMemo, useState } from 'react';
 import {
   CheckSquare,
   Clock,
+  Copy,
   Loader2,
   Plus,
   Send,
@@ -13,6 +14,7 @@ import {
 import {
   addChecklistItem,
   addRosSlot,
+  cloneRunOfShowDay,
   deleteRosSlot,
   fetchActiveEvent,
   fetchChecklistItems,
@@ -141,6 +143,44 @@ export default function RunOfShowPage() {
     setSlots((prev) => prev.filter((s) => s.id !== id));
   }
 
+  async function handleSwitchDay(targetDay: EventDayRow) {
+    if (!event || busy) return;
+    setBusy(true);
+    try {
+      setDay(targetDay);
+      await refresh(event.id, targetDay.id, event.org_id);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function handleCloneFrom(sourceDay: EventDayRow) {
+    if (!event || !day || !ros || busy) return;
+    setBusy(true);
+    try {
+      // Need the source ros for the source day
+      const sourceRos = await fetchOrCreateRunOfShow(
+        event.org_id,
+        event.id,
+        sourceDay.id,
+      );
+      const res = await cloneRunOfShowDay({
+        source_ros_id: sourceRos.id,
+        source_event_day_id: sourceDay.id,
+        target_event_day_id: day.id,
+        target_event_id: event.id,
+        org_id: event.org_id,
+      });
+      if (!res.ok) {
+        console.error('clone failed', res.error);
+        return;
+      }
+      await refresh(event.id, day.id, event.org_id);
+    } finally {
+      setBusy(false);
+    }
+  }
+
   if (loading) {
     return (
       <div className="flex h-full items-center justify-center px-6 py-12">
@@ -187,6 +227,41 @@ export default function RunOfShowPage() {
           {ros.published_to_staff_at ? 'Published' : 'Publish to staff'}
         </button>
       </header>
+
+      {/* Day tabs (multi-day only) + Clone-from picker */}
+      {days.length > 1 ? (
+        <div className="flex flex-wrap items-center gap-2">
+          <ul className="flex flex-wrap gap-1 rounded-xl bg-[var(--surface)] p-1">
+            {days.map((d) => {
+              const active = d.id === day.id;
+              return (
+                <li key={d.id}>
+                  <button
+                    type="button"
+                    onClick={() => handleSwitchDay(d)}
+                    disabled={busy}
+                    aria-pressed={active}
+                    className={`min-h-[36px] rounded-lg px-3 py-1.5 text-[13px] font-medium transition-colors ${
+                      active
+                        ? 'bg-[var(--surface-2)] text-[var(--ink-900)]'
+                        : 'text-[var(--ink-500)] hover:bg-[var(--hover)] hover:text-[var(--ink-900)]'
+                    }`}
+                  >
+                    Day {d.day_index} · {d.label}
+                  </button>
+                </li>
+              );
+            })}
+          </ul>
+          {slots.length === 0 && checklist.length === 0 ? (
+            <CloneFromPicker
+              days={days.filter((d) => d.id !== day.id)}
+              busy={busy}
+              onPick={handleCloneFrom}
+            />
+          ) : null}
+        </div>
+      ) : null}
 
       {/* Timeline */}
       <section className="rounded-2xl border border-[var(--border)] bg-[var(--surface)] p-5">
@@ -312,6 +387,50 @@ export default function RunOfShowPage() {
           </button>
         </form>
       </section>
+    </div>
+  );
+}
+
+function CloneFromPicker({
+  days,
+  busy,
+  onPick,
+}: {
+  days: EventDayRow[];
+  busy: boolean;
+  onPick: (day: EventDayRow) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  if (days.length === 0) return null;
+  return (
+    <div className="relative">
+      <button
+        type="button"
+        onClick={() => setOpen((o) => !o)}
+        disabled={busy}
+        className="inline-flex h-9 items-center gap-1.5 rounded-lg border border-[var(--border)] bg-[var(--surface)] px-3 text-[13px] font-medium text-[var(--ink-700)] hover:bg-[var(--hover)] disabled:opacity-50"
+      >
+        <Copy size={12} />
+        Clone from…
+      </button>
+      {open ? (
+        <ul className="absolute left-0 top-full z-10 mt-1 w-56 overflow-hidden rounded-lg border border-[var(--border)] bg-[var(--surface)] py-1 shadow-lg">
+          {days.map((d) => (
+            <li key={d.id}>
+              <button
+                type="button"
+                onClick={() => {
+                  setOpen(false);
+                  onPick(d);
+                }}
+                className="flex w-full items-center px-3 py-2 text-left text-[13px] text-[var(--ink-700)] hover:bg-[var(--hover)]"
+              >
+                Day {d.day_index} · {d.label}
+              </button>
+            </li>
+          ))}
+        </ul>
+      ) : null}
     </div>
   );
 }

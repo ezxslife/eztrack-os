@@ -327,52 +327,154 @@ export async function fetchEvents(): Promise<EventRow[]> {
   return (data as EventRow[] | null) ?? [];
 }
 
+export interface CreateEventDayInput {
+  label: string;
+  date: string;
+  starts_at: string;
+  ends_at: string;
+  capacity: number;
+  reentry_policy?: EventDayRow['reentry_policy'];
+}
+
 export interface CreateEventInput {
   org_id: string;
   name: string;
   slug: string;
-  starts_at: string;
-  ends_at: string;
   capacity: number;
   status?: EventRow['status'];
-  reentry_policy?: EventDayRow['reentry_policy'];
+  /** Required: at least one event_day. The event's outer starts_at/ends_at are
+   * inferred from the earliest/latest day. is_multi_day flips automatically. */
+  days: CreateEventDayInput[];
 }
 
 /**
- * Insert an event + a single event_day matching the event window. Multi-day
- * editor lands in L3.
+ * Insert an event + N event_days. The event's window + capacity wrap the days.
+ * `is_multi_day` is set automatically by the trigger when days.length > 1.
  */
 export async function createEvent(input: CreateEventInput): Promise<EventRow> {
+  if (input.days.length === 0) throw new Error('event_must_have_at_least_one_day');
   const supabase = eventsDb();
+
+  const sorted = [...input.days].sort(
+    (a, b) => new Date(a.starts_at).getTime() - new Date(b.starts_at).getTime(),
+  );
+  const startsAt = sorted[0].starts_at;
+  const endsAt = sorted[sorted.length - 1].ends_at;
+
   const { data: ev, error: evErr } = await supabase
     .from('events')
     .insert({
       org_id: input.org_id,
       name: input.name,
       slug: input.slug,
-      starts_at: input.starts_at,
-      ends_at: input.ends_at,
+      starts_at: startsAt,
+      ends_at: endsAt,
       capacity: input.capacity,
       status: input.status ?? 'draft',
-      is_multi_day: false,
+      is_multi_day: sorted.length > 1,
     })
     .select('*')
     .single();
   if (evErr || !ev) throw new Error(evErr?.message ?? 'event_insert_failed');
 
-  const { error: dayErr } = await supabase.from('event_days').insert({
+  const dayRows = sorted.map((d, i) => ({
     event_id: (ev as EventRow).id,
-    day_index: 1,
-    label: 'Tonight',
-    date: new Date(input.starts_at).toISOString().slice(0, 10),
-    starts_at: input.starts_at,
-    ends_at: input.ends_at,
-    capacity: input.capacity,
-    reentry_policy: input.reentry_policy ?? 'count_once_per_day',
-  });
+    day_index: i + 1,
+    label: d.label,
+    date: d.date,
+    starts_at: d.starts_at,
+    ends_at: d.ends_at,
+    capacity: d.capacity,
+    reentry_policy: d.reentry_policy ?? 'count_once_per_day',
+  }));
+  const { error: dayErr } = await supabase.from('event_days').insert(dayRows);
   if (dayErr) throw new Error(dayErr.message);
 
   return ev as EventRow;
+}
+
+/* ─── /live quick actions ────────────────────────── */
+
+export async function pauseEventSales(eventId: string): Promise<{ ok: boolean; error?: string }> {
+  const supabase = eventsDb();
+  const { error } = await supabase
+    .from('events')
+    .update({ status: 'sold_out' })
+    .eq('id', eventId);
+  return error ? { ok: false, error: error.message } : { ok: true };
+}
+
+export async function pageStaffBroadcast(args: {
+  org_id: string;
+  event_id: string;
+  message: string;
+}): Promise<{ ok: boolean; error?: string }> {
+  const supabase = eventsDb();
+  const { error } = await supabase.from('alerts').insert({
+    org_id: args.org_id,
+    alert_type: 'staff_page',
+    title: 'Operator broadcast',
+    message: args.message,
+    severity: 'medium',
+  });
+  return error ? { ok: false, error: error.message } : { ok: true };
+}
+
+/* ─── Run-of-show clone-day ──────────────────────── */
+
+/**
+ * Clone the timeline + checklist from a source run_of_show into a target day.
+ * If the target day has no run_of_show row yet, one is created. Slot times are
+ * shifted forward by the day-delta between source and target dates so a Day-1
+ * 8pm slot becomes a Day-2 8pm slot.
+ */
+export async function cloneRunOfShowDay(args: {
+  source_ros_id: string;
+  source_event_day_id: string;
+  target_event_day_id: string;
+  target_event_id: string;
+  org_id: string;
+}): Promise<{ ok: boolean; error?: string }> {
+  const supabase = eventsDb();
+
+  const [{ data: srcDay }, { data: tgtDay }] = await Promise.all([
+    supabase.from('event_days').select('starts_at, ends_at, date').eq('id', args.source_event_day_id).maybeSingle(),
+    supabase.from('event_days').select('starts_at, ends_at, date').eq('id', args.target_event_day_id).maybeSingle(),
+  ]);
+  if (!srcDay || !tgtDay) return { ok: false, error: 'event_day_not_found' };
+
+  const deltaMs =
+    new Date((tgtDay as { date: string }).date).getTime() -
+    new Date((srcDay as { date: string }).date).getTime();
+
+  const target = await fetchOrCreateRunOfShow(args.org_id, args.target_event_id, args.target_event_day_id);
+
+  const sourceSlots = await fetchRosSlots(args.source_ros_id);
+  if (sourceSlots.length > 0) {
+    const slotRows = sourceSlots.map((s) => ({
+      ros_id: target.id,
+      label: s.label,
+      description: s.description,
+      starts_at: new Date(new Date(s.starts_at).getTime() + deltaMs).toISOString(),
+      ends_at: new Date(new Date(s.ends_at).getTime() + deltaMs).toISOString(),
+      display_order: s.display_order,
+    }));
+    const { error } = await supabase.from('ros_slots').insert(slotRows);
+    if (error) return { ok: false, error: error.message };
+  }
+
+  const sourceChecklist = await fetchChecklistItems(args.source_ros_id);
+  if (sourceChecklist.length > 0) {
+    const items = sourceChecklist.map((c) => ({
+      ros_id: target.id,
+      label: c.label,
+      display_order: c.display_order,
+    }));
+    const { error } = await supabase.from('checklist_items').insert(items);
+    if (error) return { ok: false, error: error.message };
+  }
+
+  return { ok: true };
 }
 
 export interface TicketSearchResult {

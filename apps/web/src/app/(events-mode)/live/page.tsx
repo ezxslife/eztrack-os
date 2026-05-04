@@ -23,6 +23,8 @@ import {
   fetchLatestCapacitySnapshot,
   fetchRecentCheckIns,
   fetchScansSince,
+  pageStaffBroadcast,
+  pauseEventSales,
   sourceLabel,
   thresholdColor,
   type CapacitySnapshotRow,
@@ -189,7 +191,7 @@ export default function LivePage() {
       <div className="grid grid-cols-1 gap-5 lg:grid-cols-3">
         <RecentScansCard scans={scans} className="lg:col-span-2" />
         <div className="flex flex-col gap-5">
-          <QuickActions />
+          <QuickActions event={event} />
           <ManualScanWidget orgId={event.org_id} eventId={event.id} />
         </div>
       </div>
@@ -645,18 +647,52 @@ function ScanRow({ scan }: { scan: CheckInRow }) {
 
 /* ─── Quick actions ──────────────────────────────── */
 
-function QuickActions() {
-  const actions: Array<{
-    label: string;
-    href: string;
-    icon: typeof Radio;
-    tone: 'primary' | 'danger';
-  }> = [
-    { label: 'Log incident', href: '/incidents/new', icon: AlertTriangle, tone: 'danger' },
-    { label: 'Page staff', href: '#', icon: Radio, tone: 'primary' },
-    { label: 'Open will-call', href: '#', icon: Users, tone: 'primary' },
-    { label: 'Pause sales', href: '#', icon: PauseCircle, tone: 'primary' },
-  ];
+function QuickActions({ event }: { event: EventRow }) {
+  const [busy, setBusy] = useState<string | null>(null);
+  const [toast, setToast] = useState<string | null>(null);
+  const [paused, setPaused] = useState(event.status === 'sold_out');
+
+  useEffect(() => {
+    if (!toast) return;
+    const t = setTimeout(() => setToast(null), 3000);
+    return () => clearTimeout(t);
+  }, [toast]);
+
+  async function handlePageStaff() {
+    const message = window.prompt('Broadcast message to on-shift staff:', 'All hands to door 1');
+    if (!message) return;
+    setBusy('page');
+    try {
+      const res = await pageStaffBroadcast({
+        org_id: event.org_id,
+        event_id: event.id,
+        message,
+      });
+      setToast(res.ok ? 'Broadcast queued via Alerts hub' : `Failed: ${res.error ?? 'unknown'}`);
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  async function handlePauseSales() {
+    if (paused) {
+      setToast('Already paused. Set status back to live in /events to reopen.');
+      return;
+    }
+    if (!window.confirm('Pause sales for this event? Sets status=sold_out.')) return;
+    setBusy('pause');
+    try {
+      const res = await pauseEventSales(event.id);
+      if (res.ok) {
+        setPaused(true);
+        setToast('Sales paused — status=sold_out');
+      } else {
+        setToast(`Failed: ${res.error ?? 'unknown'}`);
+      }
+    } finally {
+      setBusy(null);
+    }
+  }
 
   return (
     <section
@@ -664,22 +700,59 @@ function QuickActions() {
       className="rounded-2xl border border-[var(--border)] bg-[var(--surface)] p-3"
     >
       <ul className="grid grid-cols-2 gap-2 lg:grid-cols-1">
-        {actions.map(({ label, href, icon: Icon, tone }) => (
-          <li key={label}>
-            <Link
-              href={href}
-              className="flex min-h-[44px] items-center justify-center gap-2 rounded-xl px-4 py-2 text-[14px] font-semibold text-white hover:opacity-90"
-              style={{
-                background:
-                  tone === 'danger' ? '#EF4444' : 'var(--ezxs-gradient-money)',
-              }}
-            >
-              <Icon size={18} />
-              {label}
-            </Link>
-          </li>
-        ))}
+        <li>
+          <Link
+            href="/incidents/new"
+            className="flex min-h-[44px] items-center justify-center gap-2 rounded-xl px-4 py-2 text-[14px] font-semibold text-white hover:opacity-90"
+            style={{ background: '#EF4444' }}
+          >
+            <AlertTriangle size={18} />
+            Log incident
+          </Link>
+        </li>
+        <li>
+          <button
+            type="button"
+            onClick={handlePageStaff}
+            disabled={busy === 'page'}
+            className="flex min-h-[44px] w-full items-center justify-center gap-2 rounded-xl px-4 py-2 text-[14px] font-semibold text-white hover:opacity-90 disabled:opacity-60"
+            style={{ background: 'var(--ezxs-gradient-money)' }}
+          >
+            <Radio size={18} />
+            {busy === 'page' ? 'Sending…' : 'Page staff'}
+          </button>
+        </li>
+        <li>
+          <Link
+            href="/will-call"
+            className="flex min-h-[44px] items-center justify-center gap-2 rounded-xl px-4 py-2 text-[14px] font-semibold text-white hover:opacity-90"
+            style={{ background: 'var(--ezxs-gradient-money)' }}
+          >
+            <Users size={18} />
+            Open will-call
+          </Link>
+        </li>
+        <li>
+          <button
+            type="button"
+            onClick={handlePauseSales}
+            disabled={busy === 'pause' || paused}
+            className="flex min-h-[44px] w-full items-center justify-center gap-2 rounded-xl px-4 py-2 text-[14px] font-semibold text-white hover:opacity-90 disabled:opacity-60"
+            style={{ background: paused ? 'var(--ink-300)' : 'var(--ezxs-gradient-money)' }}
+          >
+            <PauseCircle size={18} />
+            {paused ? 'Sales paused' : busy === 'pause' ? 'Pausing…' : 'Pause sales'}
+          </button>
+        </li>
       </ul>
+      {toast ? (
+        <p
+          role="status"
+          className="mt-2 rounded-md bg-[var(--surface-2)] px-3 py-1.5 text-[12px] text-[var(--ink-700)]"
+        >
+          {toast}
+        </p>
+      ) : null}
     </section>
   );
 }
