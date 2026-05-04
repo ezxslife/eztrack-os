@@ -2,22 +2,34 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { CalendarDays, ChevronLeft, Radio, Ticket, Tv } from 'lucide-react';
+import {
+  CalendarDays,
+  CalendarRange,
+  ChevronLeft,
+  Crown,
+  Radio,
+  Ticket,
+  Tv,
+  UserCheck,
+  Users,
+} from 'lucide-react';
 
 interface NavItem {
   href: string;
   label: string;
   icon: typeof Radio;
-  /** True until /pos and /run-of-show land in L2. Disabled items still render so
-   * operators see the full mental model; clicks no-op. */
   enabled?: boolean;
 }
 
 const ITEMS: NavItem[] = [
   { href: '/live', label: 'Live', icon: Radio, enabled: true },
+  { href: '/pos', label: 'POS', icon: Ticket, enabled: true },
+  { href: '/run-of-show', label: 'Run-of-show', icon: CalendarRange, enabled: true },
+  { href: '/staff', label: 'Staff', icon: Users, enabled: true },
+  { href: '/will-call', label: 'Will-call', icon: UserCheck, enabled: true },
+  { href: '/vip-deny', label: 'VIP/Deny', icon: Crown, enabled: true },
   { href: '/events', label: 'Events', icon: CalendarDays, enabled: true },
   { href: '/wall-display', label: 'Wall display', icon: Tv, enabled: true },
-  { href: '/pos', label: 'POS', icon: Ticket, enabled: true },
 ];
 
 export function EventsModeNav() {

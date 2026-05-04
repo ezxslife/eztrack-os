@@ -740,6 +740,291 @@ export async function createPosSale(args: {
   };
 }
 
+/* ─── Run-of-show ────────────────────────────────── */
+
+export interface RunOfShowRow {
+  id: string;
+  org_id: string;
+  event_id: string;
+  event_day_id: string;
+  published_to_staff_at: string | null;
+  briefing_id: string | null;
+  notes: string | null;
+}
+
+export interface RosSlotRow {
+  id: string;
+  ros_id: string;
+  starts_at: string;
+  ends_at: string;
+  label: string;
+  description: string | null;
+  display_order: number;
+}
+
+export interface ChecklistItemRow {
+  id: string;
+  ros_id: string;
+  label: string;
+  display_order: number;
+  completed_at: string | null;
+  completed_by: string | null;
+}
+
+export async function fetchOrCreateRunOfShow(
+  orgId: string,
+  eventId: string,
+  eventDayId: string,
+): Promise<RunOfShowRow> {
+  const supabase = eventsDb();
+  const { data: existing } = await supabase
+    .from('run_of_show')
+    .select('*')
+    .eq('event_day_id', eventDayId)
+    .is('deleted_at', null)
+    .maybeSingle();
+  if (existing) return existing as RunOfShowRow;
+
+  const { data: created, error } = await supabase
+    .from('run_of_show')
+    .insert({ org_id: orgId, event_id: eventId, event_day_id: eventDayId })
+    .select('*')
+    .single();
+  if (error || !created) throw new Error(error?.message ?? 'ros_create_failed');
+  return created as RunOfShowRow;
+}
+
+export async function fetchRosSlots(rosId: string): Promise<RosSlotRow[]> {
+  const supabase = eventsDb();
+  const { data } = await supabase
+    .from('ros_slots')
+    .select('*')
+    .eq('ros_id', rosId)
+    .order('starts_at', { ascending: true });
+  return (data as RosSlotRow[] | null) ?? [];
+}
+
+export async function addRosSlot(args: {
+  ros_id: string;
+  starts_at: string;
+  ends_at: string;
+  label: string;
+  description?: string | null;
+}): Promise<RosSlotRow> {
+  const supabase = eventsDb();
+  const { data, error } = await supabase
+    .from('ros_slots')
+    .insert({ ...args, description: args.description ?? null })
+    .select('*')
+    .single();
+  if (error || !data) throw new Error(error?.message ?? 'slot_insert_failed');
+  return data as RosSlotRow;
+}
+
+export async function deleteRosSlot(id: string): Promise<void> {
+  const supabase = eventsDb();
+  await supabase.from('ros_slots').delete().eq('id', id);
+}
+
+export async function fetchChecklistItems(rosId: string): Promise<ChecklistItemRow[]> {
+  const supabase = eventsDb();
+  const { data } = await supabase
+    .from('checklist_items')
+    .select('*')
+    .eq('ros_id', rosId)
+    .order('display_order', { ascending: true });
+  return (data as ChecklistItemRow[] | null) ?? [];
+}
+
+export async function addChecklistItem(rosId: string, label: string): Promise<ChecklistItemRow> {
+  const supabase = eventsDb();
+  const { data, error } = await supabase
+    .from('checklist_items')
+    .insert({ ros_id: rosId, label })
+    .select('*')
+    .single();
+  if (error || !data) throw new Error(error?.message ?? 'checklist_insert_failed');
+  return data as ChecklistItemRow;
+}
+
+export async function toggleChecklistItem(
+  id: string,
+  complete: boolean,
+  userId: string | null,
+): Promise<void> {
+  const supabase = eventsDb();
+  await supabase
+    .from('checklist_items')
+    .update({
+      completed_at: complete ? new Date().toISOString() : null,
+      completed_by: complete ? userId : null,
+    })
+    .eq('id', id);
+}
+
+export async function publishRunOfShow(rosId: string): Promise<void> {
+  const supabase = eventsDb();
+  await supabase
+    .from('run_of_show')
+    .update({ published_to_staff_at: new Date().toISOString() })
+    .eq('id', rosId);
+}
+
+/* ─── Staff Console ──────────────────────────────── */
+
+export interface PersonnelLite {
+  id: string;
+  full_name: string;
+  email: string | null;
+  phone: string | null;
+  role: string;
+  status: string;
+  avatar_url: string | null;
+}
+
+export interface ShiftAssignmentRow {
+  id: string;
+  org_id: string;
+  event_day_id: string;
+  personnel_id: string;
+  role: string;
+  starts_at: string;
+  ends_at: string;
+  status:
+    | 'scheduled'
+    | 'en_route'
+    | 'on_shift'
+    | 'break'
+    | 'off_shift'
+    | 'no_show';
+  geo_verified: boolean;
+}
+
+export interface DispatchLite {
+  id: string;
+  priority: string;
+  status: string;
+  description: string | null;
+  created_at: string;
+}
+
+export async function fetchPersonnel(): Promise<PersonnelLite[]> {
+  const supabase = eventsDb();
+  const { data } = await supabase
+    .from('profiles')
+    .select('id, full_name, email, phone, role, status, avatar_url')
+    .is('deleted_at', null)
+    .order('full_name', { ascending: true });
+  return (data as PersonnelLite[] | null) ?? [];
+}
+
+export async function fetchShiftAssignments(eventDayId: string): Promise<ShiftAssignmentRow[]> {
+  const supabase = eventsDb();
+  const { data } = await supabase
+    .from('shift_assignments')
+    .select('*')
+    .eq('event_day_id', eventDayId)
+    .is('deleted_at', null)
+    .order('starts_at', { ascending: true });
+  return (data as ShiftAssignmentRow[] | null) ?? [];
+}
+
+export async function fetchOpenDispatches(): Promise<DispatchLite[]> {
+  const supabase = eventsDb();
+  const { data } = await supabase
+    .from('dispatches')
+    .select('id, priority, status, description, created_at')
+    .is('deleted_at', null)
+    .order('created_at', { ascending: false })
+    .limit(20);
+  return (data as DispatchLite[] | null) ?? [];
+}
+
+/* ─── Will-call (reframed Visitors + tickets) ────── */
+
+export interface WillCallEntry {
+  ticket_id: string;
+  tier: string;
+  state: string;
+  pickup_required: boolean;
+  wristbanded_at_event_day_id: string | null;
+  customer_first_name: string | null;
+  customer_last_name: string | null;
+  customer_email: string | null;
+  external_id: string | null;
+}
+
+export async function fetchWillCall(eventId: string): Promise<WillCallEntry[]> {
+  const supabase = eventsDb();
+  const { data } = await supabase
+    .from('tickets')
+    .select(`
+      id, tier, state, pickup_required, wristbanded_at_event_day_id, external_id,
+      customers ( first_name, last_name, email )
+    `)
+    .eq('event_id', eventId)
+    .eq('pickup_required', true)
+    .is('deleted_at', null)
+    .order('created_at', { ascending: false })
+    .limit(100);
+
+  type Raw = {
+    id: string;
+    tier: string;
+    state: string;
+    pickup_required: boolean;
+    wristbanded_at_event_day_id: string | null;
+    external_id: string | null;
+    customers: { first_name: string | null; last_name: string | null; email: string | null } | null;
+  };
+  return ((data as Raw[] | null) ?? []).map((r) => ({
+    ticket_id: r.id,
+    tier: r.tier,
+    state: r.state,
+    pickup_required: r.pickup_required,
+    wristbanded_at_event_day_id: r.wristbanded_at_event_day_id,
+    external_id: r.external_id,
+    customer_first_name: r.customers?.first_name ?? null,
+    customer_last_name: r.customers?.last_name ?? null,
+    customer_email: r.customers?.email ?? null,
+  }));
+}
+
+export async function markWristbanded(ticketId: string, eventDayId: string): Promise<void> {
+  const supabase = eventsDb();
+  await supabase
+    .from('tickets')
+    .update({ wristbanded_at_event_day_id: eventDayId, state: 'used' })
+    .eq('id', ticketId);
+}
+
+/* ─── VIP / Deny (reframed Patrons) ──────────────── */
+
+export interface PatronRow {
+  id: string;
+  org_id: string;
+  first_name: string | null;
+  last_name: string | null;
+  email: string | null;
+  phone: string | null;
+  flag: string;
+  notes: string | null;
+  created_at: string;
+}
+
+export async function fetchPatrons(flagFilter?: string[]): Promise<PatronRow[]> {
+  const supabase = eventsDb();
+  let q = supabase
+    .from('patrons')
+    .select('id, org_id, first_name, last_name, email, phone, flag, notes, created_at')
+    .is('deleted_at', null)
+    .order('created_at', { ascending: false })
+    .limit(100);
+  if (flagFilter && flagFilter.length > 0) q = q.in('flag', flagFilter);
+  const { data } = await q;
+  return (data as PatronRow[] | null) ?? [];
+}
+
 export function slugify(input: string): string {
   return input
     .toLowerCase()
