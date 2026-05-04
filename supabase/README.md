@@ -21,7 +21,9 @@ supabase/
 │  ├─ 0037_wall_display_sessions.sql
 │  ├─ 0038_scan_webhooks.sql
 │  ├─ 0099_rls_events.sql
-│  └─ 0100_realtime_publication_events.sql
+│  ├─ 0100_realtime_publication_events.sql
+│  ├─ 0101_function_search_path.sql
+│  └─ 0102_wall_display_jwt_rls.sql
 └─ functions/
    ├─ _shared/
    │  ├─ supabase.ts          (service-role client for Edge Functions)
@@ -33,8 +35,10 @@ supabase/
    │  └─ index.ts             (receives `terminal.reader.action_succeeded`, `charge.refunded`)
    ├─ checkin-router/
    │  └─ index.ts             (canonical writer — fans in from webhooks, POS, manual-lookup, own-scanner)
-   └─ capacity-threshold-worker/
-      └─ index.ts             (raises Alerts rows from breached capacity snapshots)
+   ├─ capacity-threshold-worker/
+   │  └─ index.ts             (raises Alerts rows from breached capacity snapshots)
+   └─ wall-display-pairing/
+      └─ index.ts             (issues wall-display pairing codes + read-only JWTs)
 ```
 
 ## First-run order
@@ -53,6 +57,7 @@ supabase functions deploy eventbrite-webhook --no-verify-jwt
 supabase functions deploy stripe-webhook --no-verify-jwt
 supabase functions deploy checkin-router
 supabase functions deploy capacity-threshold-worker
+supabase functions deploy wall-display-pairing --no-verify-jwt
 
 # 4. Set webhook URLs in providers
 #    - Eventbrite:    POST https://<project>.supabase.co/functions/v1/eventbrite-webhook
@@ -69,6 +74,7 @@ EVENTBRITE_WEBHOOK_SECRET=<from Eventbrite app settings>
 EVENTBRITE_API_TOKEN=<optional; enables Eventbrite order/ticket enrichment>
 STRIPE_WEBHOOK_SECRET=<from stripe dashboard>
 CAPACITY_WORKER_SECRET=<optional; require this bearer/header on worker invocations>
+SUPABASE_JWT_SECRET=<project JWT secret; required by wall-display-pairing>
 SUPABASE_SERVICE_ROLE_KEY=<already set by Supabase>
 ```
 
