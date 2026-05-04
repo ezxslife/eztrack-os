@@ -44,6 +44,24 @@ export default function EventsModeTabsLayout() {
             ),
           }}
         />
+        <Tabs.Screen
+          name="staff"
+          options={{
+            title: 'Staff',
+            tabBarIcon: ({ color, size }) => (
+              <Ionicons name="people-outline" color={color} size={size} />
+            ),
+          }}
+        />
+        <Tabs.Screen
+          name="log-incident"
+          options={{
+            title: 'Incident',
+            tabBarIcon: ({ color, size }) => (
+              <Ionicons name="warning-outline" color={color} size={size} />
+            ),
+          }}
+        />
       </Tabs>
     </RequireAuth>
   );

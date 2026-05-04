@@ -139,6 +139,118 @@ export function tierDefinitionsFor(event: EventRow): PosTier[] {
   ];
 }
 
+/* ─── Staff Console ──────────────────────────────── */
+
+export interface PersonnelLite {
+  id: string;
+  full_name: string;
+  role: string;
+  status: string;
+}
+
+export interface ShiftAssignmentRow {
+  id: string;
+  event_day_id: string;
+  personnel_id: string;
+  role: string;
+  starts_at: string;
+  ends_at: string;
+  status: string;
+}
+
+export interface DispatchLite {
+  id: string;
+  priority: string;
+  status: string;
+  description: string | null;
+  created_at: string;
+}
+
+export async function fetchPersonnel(): Promise<PersonnelLite[]> {
+  const supabase = db();
+  const { data } = await supabase
+    .from('profiles')
+    .select('id, full_name, role, status')
+    .is('deleted_at', null)
+    .order('full_name', { ascending: true });
+  return (data as PersonnelLite[] | null) ?? [];
+}
+
+export async function fetchShiftAssignments(eventDayId: string): Promise<ShiftAssignmentRow[]> {
+  const supabase = db();
+  const { data } = await supabase
+    .from('shift_assignments')
+    .select('id, event_day_id, personnel_id, role, starts_at, ends_at, status')
+    .eq('event_day_id', eventDayId)
+    .is('deleted_at', null)
+    .order('starts_at', { ascending: true });
+  return (data as ShiftAssignmentRow[] | null) ?? [];
+}
+
+export async function fetchOpenDispatches(): Promise<DispatchLite[]> {
+  const supabase = db();
+  const { data } = await supabase
+    .from('dispatches')
+    .select('id, priority, status, description, created_at')
+    .is('deleted_at', null)
+    .order('created_at', { ascending: false })
+    .limit(20);
+  return (data as DispatchLite[] | null) ?? [];
+}
+
+/* ─── Incidents (mobile log-incident) ────────────── */
+
+export type IncidentSeverity = 'low' | 'medium' | 'high' | 'critical';
+
+export const INCIDENT_TYPES: Array<{ value: string; label: string }> = [
+  { value: 'medical', label: 'Medical' },
+  { value: 'security', label: 'Security' },
+  { value: 'facilities', label: 'Facilities' },
+  { value: 'operations', label: 'Operations' },
+  { value: 'patron_dispute', label: 'Patron dispute' },
+  { value: 'lost_found', label: 'Lost & found' },
+  { value: 'other', label: 'Other' },
+];
+
+export async function createEventIncident(args: {
+  org_id: string;
+  event_id: string;
+  event_day_id: string | null;
+  incident_type: string;
+  severity: IncidentSeverity;
+  synopsis: string;
+  description?: string;
+  reported_by?: string;
+}): Promise<{ ok: boolean; record_number?: string; error?: string }> {
+  const supabase = db();
+
+  const { data: rec, error: recErr } = await supabase.rpc('next_record_number', {
+    p_org_id: args.org_id,
+    p_prefix: 'INC',
+  });
+  if (recErr) return { ok: false, error: recErr.message };
+  const recordNumber = rec as unknown as string;
+
+  const { data, error } = await supabase
+    .from('incidents')
+    .insert({
+      org_id: args.org_id,
+      record_number: recordNumber,
+      incident_type: args.incident_type,
+      severity: args.severity,
+      status: 'open',
+      synopsis: args.synopsis,
+      description: args.description ?? null,
+      reported_by: args.reported_by ?? null,
+      event_id: args.event_id,
+      event_day_id: args.event_day_id,
+    })
+    .select('record_number')
+    .single();
+  if (error || !data) return { ok: false, error: error?.message ?? 'incident_insert_failed' };
+  return { ok: true, record_number: (data as { record_number: string }).record_number };
+}
+
 /** Mobile POS sale — same orchestration as web, calls the canonical checkin-router. */
 export async function createPosSale(args: {
   org_id: string;
