@@ -87,3 +87,12 @@
 - [ ] Festival pricing tier ($349 multi-day cap)
 - [ ] Audit log UI
 - [ ] Onboarding tour for events mode
+
+## m21 — Closing the Crescat-pivot loop (mobile RoS · Hold UI · /templates · members accept · receipts)
+- [x] Mobile RoS tab + queries (apps/mobile/app/(events-mode)/run-of-show.tsx + apps/mobile/src/lib/events-queries.ts) — day tabs, Show-Mode row-state machine (past/current/future), Advance button, checklist toggle, pull-to-refresh + 30s polling
+- [x] Hold Events UI on /events/[slug] + /events list (HoldDetails component: rank input + datetime picker + Save; events list shows hold rank/expires under capacity dl)
+- [x] /templates standalone CRUD page (filter chips, expandable rows w/ payload preview, rename + delete) + Templates nav item
+- [x] event_members accept flow (acceptEventMembership stamps accepted_at; PendingInvitesBanner mounted on (events-mode) layout — Accept stamps, Decline removes membership row)
+- [x] Receipt-email wiring (migration 0114_email_outbox + email-send Edge Function + createPosSale.enqueuePosReceipt + /pos completion banner now reflects queued/failed status)
+- [ ] Operator: set RESEND_API_KEY (or SENDGRID_API_KEY) + EMAIL_FROM secrets so the email-send worker switches from no-op to live delivery (`supabase secrets set ...`)
+- [ ] Operator: schedule email-send via cron every 1-5 min (Supabase Cron or pg_cron) for queue catch-up

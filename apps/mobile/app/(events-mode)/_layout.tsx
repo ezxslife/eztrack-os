@@ -45,6 +45,15 @@ export default function EventsModeTabsLayout() {
           }}
         />
         <Tabs.Screen
+          name="run-of-show"
+          options={{
+            title: 'RoS',
+            tabBarIcon: ({ color, size }) => (
+              <Ionicons name="list-outline" color={color} size={size} />
+            ),
+          }}
+        />
+        <Tabs.Screen
           name="staff"
           options={{
             title: 'Staff',

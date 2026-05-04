@@ -41,6 +41,7 @@ import {
   sourceLabel,
   tierDefinitionsFor,
   updateEventDay,
+  updateEventHoldDetails,
   updateEventLiveOpsConfig,
   updateEventMember,
   updateEventStatus,
@@ -289,6 +290,18 @@ export default function EventDetailPage({ params }: PageProps) {
         ) : null}
       </header>
 
+      {/* Hold banner (status='hold') */}
+      {event.status === 'hold' ? (
+        <HoldDetails
+          event={event}
+          busy={busy}
+          onSaved={async () => {
+            await refresh();
+            setToast('Hold details saved');
+          }}
+        />
+      ) : null}
+
       {/* Cancellation banner */}
       {event.cancelled_at ? (
         <section
@@ -506,6 +519,111 @@ export default function EventDetailPage({ params }: PageProps) {
 }
 
 /* ─── Subcomponents ──────────────────────────────── */
+
+function HoldDetails({
+  event,
+  busy,
+  onSaved,
+}: {
+  event: EventRow;
+  busy: boolean;
+  onSaved: () => void;
+}) {
+  const [rank, setRank] = useState(String(event.hold_rank ?? 1));
+  const [expires, setExpires] = useState(() => {
+    if (event.hold_expires_at) {
+      const d = new Date(event.hold_expires_at);
+      const pad = (n: number) => n.toString().padStart(2, '0');
+      return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+    }
+    // Default: 7 days from now
+    const d = new Date(Date.now() + 7 * 24 * 60 * 60_000);
+    const pad = (n: number) => n.toString().padStart(2, '0');
+    return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+  });
+  const [saving, setSaving] = useState(false);
+
+  async function handleSave() {
+    if (saving || busy) return;
+    const r = parseInt(rank, 10);
+    if (Number.isNaN(r) || r < 1) return;
+    setSaving(true);
+    try {
+      await updateEventHoldDetails({
+        event_id: event.id,
+        hold_rank: r,
+        hold_expires_at: new Date(expires).toISOString(),
+      });
+      onSaved();
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  const expiresLabel = event.hold_expires_at
+    ? new Date(event.hold_expires_at).toLocaleString(undefined, {
+        month: 'short',
+        day: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit',
+      })
+    : null;
+
+  return (
+    <section
+      className="rounded-2xl border-2 p-5"
+      style={{ borderColor: '#A855F7', background: 'rgba(168, 85, 247, 0.06)' }}
+    >
+      <div className="flex items-start gap-3">
+        <Clock size={18} className="flex-none text-[#A855F7]" />
+        <div className="flex-1">
+          <h2 className="text-[14px] font-bold uppercase tracking-wider text-[#A855F7]">
+            On Hold {event.hold_rank ? `· #${event.hold_rank}` : ''}
+            {expiresLabel ? ` · expires ${expiresLabel}` : ''}
+          </h2>
+          <p className="mt-0.5 text-[12px] text-[var(--ink-500)]">
+            Date held for a buyer pending confirmation. Multiple holds stack by rank
+            (1 = first refusal). Auto-releases at expiry (v1.5 worker).
+          </p>
+        </div>
+      </div>
+      <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-[100px_1fr_auto]">
+        <div>
+          <label className="mb-1 block text-[11px] font-semibold uppercase tracking-wider text-[var(--ink-400)]">
+            Rank
+          </label>
+          <input
+            type="number"
+            min={1}
+            value={rank}
+            onChange={(e) => setRank(e.target.value)}
+            className="h-10 w-full rounded-lg border border-[var(--border)] bg-[var(--bg)] px-3 text-[13px] tabular-nums text-[var(--ink-900)]"
+          />
+        </div>
+        <div>
+          <label className="mb-1 block text-[11px] font-semibold uppercase tracking-wider text-[var(--ink-400)]">
+            Expires at
+          </label>
+          <input
+            type="datetime-local"
+            value={expires}
+            onChange={(e) => setExpires(e.target.value)}
+            className="h-10 w-full rounded-lg border border-[var(--border)] bg-[var(--bg)] px-3 text-[13px] text-[var(--ink-900)]"
+          />
+        </div>
+        <button
+          type="button"
+          onClick={handleSave}
+          disabled={saving || busy}
+          className="mt-auto inline-flex h-10 items-center gap-1 rounded-lg bg-[#A855F7] px-3 text-[13px] font-semibold text-white disabled:opacity-50"
+        >
+          {saving ? <Loader2 size={12} className="animate-spin" /> : <Save size={12} />}
+          Save hold
+        </button>
+      </div>
+    </section>
+  );
+}
 
 function MembersSection({
   event,

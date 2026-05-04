@@ -29,6 +29,7 @@ interface CompletionState {
   price_cents: number;
   result: PosSaleResult['result'] | undefined;
   email?: string | null;
+  receipt_email_status?: PosSaleResult['receipt_email_status'];
 }
 
 /**
@@ -95,6 +96,7 @@ export default function PosPage() {
         price_cents: tier.price_cents,
         result: res.result,
         email: email.trim() || null,
+        receipt_email_status: res.receipt_email_status,
       });
       setEmail('');
     } finally {
@@ -168,8 +170,8 @@ export default function PosPage() {
           className="h-10 w-full rounded-lg border border-[var(--border)] bg-[var(--bg)] px-3 text-[14px] text-[var(--ink-900)] outline-none placeholder:text-[var(--ink-400)] focus:border-[var(--ink-700)]"
         />
         <p className="mt-1 text-[11px] text-[var(--ink-400)]">
-          When provided, creates a Customer row + attaches it to the order. Email send is
-          deferred to the existing Alerts hub.
+          When provided, creates a Customer row, attaches it to the order, and queues a receipt
+          via the email_outbox worker (Resend/SendGrid; graceful no-op until a provider key is set).
         </p>
       </section>
 
@@ -231,7 +233,13 @@ export default function PosPage() {
                     : completion.result === 'wrong_day'
                       ? 'Wrong day for ticket.'
                       : 'Check-in pending.'}
-                {completion.email ? ` Receipt queued for ${completion.email}.` : ''}
+                {completion.email
+                  ? completion.receipt_email_status === 'queued'
+                    ? ` Receipt queued for ${completion.email}.`
+                    : completion.receipt_email_status === 'failed'
+                      ? ` Receipt enqueue failed for ${completion.email} — retry from /events.`
+                      : ` Customer attached: ${completion.email}.`
+                  : ''}
               </p>
               <p className="mt-2 text-[11px] text-[var(--ink-400)]">
                 <TrendingUp size={11} className="mr-1 inline-block" />

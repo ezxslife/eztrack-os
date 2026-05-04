@@ -3,6 +3,7 @@
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import {
+  BookmarkPlus,
   CalendarDays,
   CalendarRange,
   ChevronLeft,
@@ -29,6 +30,7 @@ const ITEMS: NavItem[] = [
   { href: '/will-call', label: 'Will-call', icon: UserCheck, enabled: true },
   { href: '/vip-deny', label: 'VIP/Deny', icon: Crown, enabled: true },
   { href: '/events', label: 'Events', icon: CalendarDays, enabled: true },
+  { href: '/templates', label: 'Templates', icon: BookmarkPlus, enabled: true },
   { href: '/wall-display', label: 'Wall display', icon: Tv, enabled: true },
 ];
 

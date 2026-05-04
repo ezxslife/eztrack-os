@@ -86,6 +86,17 @@ export async function fetchActiveEvent(): Promise<EventRow | null> {
   return (inWindow.data as EventRow | null) ?? null;
 }
 
+export async function fetchEventDays(eventId: string): Promise<EventDayRow[]> {
+  const supabase = db();
+  const { data } = await supabase
+    .from('event_days')
+    .select('*')
+    .eq('event_id', eventId)
+    .is('deleted_at', null)
+    .order('day_index', { ascending: true });
+  return (data as EventDayRow[] | null) ?? [];
+}
+
 export async function fetchCurrentEventDay(eventId: string): Promise<EventDayRow | null> {
   const supabase = db();
   const rpc = await supabase.rpc('current_event_day', { p_event_id: eventId });
@@ -137,6 +148,139 @@ export function tierDefinitionsFor(event: EventRow): PosTier[] {
     { name: 'GA', price_cents: 2500 },
     { name: 'VIP', price_cents: 5000 },
   ];
+}
+
+/* ─── Run-of-show (mobile) ───────────────────────── */
+
+export interface RunOfShowRow {
+  id: string;
+  org_id: string;
+  event_id: string;
+  event_day_id: string;
+  published_to_staff_at: string | null;
+  notes: string | null;
+}
+
+export interface RosSlotRow {
+  id: string;
+  ros_id: string;
+  starts_at: string;
+  ends_at: string;
+  label: string;
+  description: string | null;
+  display_order: number;
+}
+
+export interface ChecklistItemRow {
+  id: string;
+  ros_id: string;
+  label: string;
+  display_order: number;
+  completed_at: string | null;
+}
+
+export type RosSlotState = 'past' | 'current' | 'future';
+
+export function classifyRosSlot(slot: RosSlotRow, now: Date = new Date()): RosSlotState {
+  const t = now.getTime();
+  const start = new Date(slot.starts_at).getTime();
+  const end = new Date(slot.ends_at).getTime();
+  if (end <= t) return 'past';
+  if (start <= t && t < end) return 'current';
+  return 'future';
+}
+
+export async function fetchOrCreateRunOfShow(
+  orgId: string,
+  eventId: string,
+  eventDayId: string,
+): Promise<RunOfShowRow> {
+  const supabase = db();
+  const { data: existing } = await supabase
+    .from('run_of_show')
+    .select('*')
+    .eq('event_day_id', eventDayId)
+    .is('deleted_at', null)
+    .maybeSingle();
+  if (existing) return existing as RunOfShowRow;
+
+  const { data: created, error } = await supabase
+    .from('run_of_show')
+    .insert({ org_id: orgId, event_id: eventId, event_day_id: eventDayId })
+    .select('*')
+    .single();
+  if (error || !created) throw new Error(error?.message ?? 'ros_create_failed');
+  return created as RunOfShowRow;
+}
+
+export async function fetchRosSlots(rosId: string): Promise<RosSlotRow[]> {
+  const supabase = db();
+  const { data } = await supabase
+    .from('ros_slots')
+    .select('*')
+    .eq('ros_id', rosId)
+    .order('starts_at', { ascending: true });
+  return (data as RosSlotRow[] | null) ?? [];
+}
+
+export async function fetchChecklistItems(rosId: string): Promise<ChecklistItemRow[]> {
+  const supabase = db();
+  const { data } = await supabase
+    .from('checklist_items')
+    .select('*')
+    .eq('ros_id', rosId)
+    .order('display_order', { ascending: true });
+  return (data as ChecklistItemRow[] | null) ?? [];
+}
+
+export async function toggleChecklistItem(
+  id: string,
+  complete: boolean,
+  userId: string | null,
+): Promise<void> {
+  const supabase = db();
+  await supabase
+    .from('checklist_items')
+    .update({
+      completed_at: complete ? new Date().toISOString() : null,
+      completed_by: complete ? userId : null,
+    })
+    .eq('id', id);
+}
+
+export async function advanceRosSlot(args: {
+  ros_id: string;
+  current_slot_id: string;
+}): Promise<{ ok: boolean; error?: string }> {
+  const supabase = db();
+  const slots = await fetchRosSlots(args.ros_id);
+  const current = slots.find((s) => s.id === args.current_slot_id);
+  if (!current) return { ok: false, error: 'current_slot_not_found' };
+
+  const now = new Date();
+  const oldEnd = new Date(current.ends_at).getTime();
+  const deltaMs = now.getTime() - oldEnd;
+
+  const { error: truncErr } = await supabase
+    .from('ros_slots')
+    .update({ ends_at: now.toISOString() })
+    .eq('id', args.current_slot_id);
+  if (truncErr) return { ok: false, error: truncErr.message };
+
+  if (deltaMs >= 0) return { ok: true };
+
+  const laterSlots = slots.filter(
+    (s) => new Date(s.starts_at).getTime() > oldEnd && s.id !== args.current_slot_id,
+  );
+  for (const s of laterSlots) {
+    const newStart = new Date(new Date(s.starts_at).getTime() + deltaMs).toISOString();
+    const newEnd = new Date(new Date(s.ends_at).getTime() + deltaMs).toISOString();
+    await supabase
+      .from('ros_slots')
+      .update({ starts_at: newStart, ends_at: newEnd })
+      .eq('id', s.id);
+  }
+  return { ok: true };
 }
 
 /* ─── Staff Console ──────────────────────────────── */

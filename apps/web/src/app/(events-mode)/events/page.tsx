@@ -180,6 +180,14 @@ function EventCard({ event }: { event: EventRow }) {
           <dd className="truncate font-mono text-[12px] text-[var(--ink-700)]">{event.slug}</dd>
         </div>
       </dl>
+      {event.status === 'hold' && (event.hold_rank || event.hold_expires_at) ? (
+        <p className="mt-2 inline-flex items-center gap-1 rounded-md bg-[#A855F7]/10 px-2 py-0.5 text-[11px] font-semibold text-[#A855F7]">
+          {event.hold_rank ? `Hold #${event.hold_rank}` : 'Hold'}
+          {event.hold_expires_at
+            ? ` · expires ${new Date(event.hold_expires_at).toLocaleString(undefined, { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}`
+            : ''}
+        </p>
+      ) : null}
       <div className="mt-3 flex items-center justify-end gap-2">
         {isLive ? (
           <span

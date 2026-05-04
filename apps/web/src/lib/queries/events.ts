@@ -704,6 +704,8 @@ export interface PosSaleResult {
     | 'expired'
     | 'wrong_day'
     | 'wrong_event';
+  receipt_email_id?: string;
+  receipt_email_status?: 'queued' | 'failed';
   error?: string;
 }
 
@@ -731,16 +733,19 @@ export async function createPosSale(args: {
 }): Promise<PosSaleResult> {
   const supabase = eventsDb();
 
-  // 1. Fetch event (for live_ops_config + auto-checkin flag)
+  // 1. Fetch event (for live_ops_config + auto-checkin flag + receipt subject)
   const evRes = await supabase
     .from('events')
-    .select('live_ops_config')
+    .select('name, starts_at, live_ops_config')
     .eq('id', args.event_id)
     .maybeSingle();
-  const liveOpsConfig = (evRes.data as { live_ops_config?: Record<string, unknown> } | null)
-    ?.live_ops_config ?? {};
+  const evRow = (evRes.data ?? null) as
+    | { name: string; starts_at: string | null; live_ops_config?: Record<string, unknown> }
+    | null;
+  const liveOpsConfig = (evRow?.live_ops_config ?? {}) as Record<string, unknown>;
   const autoCheckin =
     (liveOpsConfig as { auto_checkin_at_pos?: boolean }).auto_checkin_at_pos !== false;
+  const eventName = evRow?.name ?? 'Event';
 
   // 2. Optional customer (only if email provided)
   let customerId: string | null = null;
@@ -813,11 +818,29 @@ export async function createPosSale(args: {
     total_cents: args.price_cents,
   });
 
+  // 6a. Enqueue receipt email if requested (independent of auto-checkin path)
+  const receipt = args.email && args.email.includes('@')
+    ? await enqueuePosReceipt({
+        org_id: args.org_id,
+        order_id: orderId,
+        to_email: args.email.trim().toLowerCase(),
+        event_name: eventName,
+        tier: args.tier,
+        price_cents: args.price_cents,
+      })
+    : { id: null as string | null, status: null as 'queued' | 'failed' | null };
+
   if (!autoCheckin) {
-    return { ok: true, order_id: orderId, ticket_id: ticketId };
+    return {
+      ok: true,
+      order_id: orderId,
+      ticket_id: ticketId,
+      receipt_email_id: receipt.id ?? undefined,
+      receipt_email_status: receipt.status ?? undefined,
+    };
   }
 
-  // 6. Auto-checkin via canonical router
+  // 6b. Auto-checkin via canonical router
   const { data: routerRes, error: routerErr } = await supabase.functions.invoke('checkin-router', {
     body: {
       source: 'pos_auto_checkin',
@@ -833,6 +856,8 @@ export async function createPosSale(args: {
       ok: true,
       order_id: orderId,
       ticket_id: ticketId,
+      receipt_email_id: receipt.id ?? undefined,
+      receipt_email_status: receipt.status ?? undefined,
       error: `auto_checkin_failed: ${routerErr.message}`,
     };
   }
@@ -848,8 +873,87 @@ export async function createPosSale(args: {
     ticket_id: ticketId,
     check_in_id: r.check_in_id,
     result: r.result,
+    receipt_email_id: receipt.id ?? undefined,
+    receipt_email_status: receipt.status ?? undefined,
     error: r.error,
   };
+}
+
+/**
+ * Enqueue a POS receipt email and fire-and-forget invoke the email-send
+ * worker for low-latency delivery. The cron also drains the queue, so a
+ * thrown invoke isn't fatal — the row is durably queued either way.
+ */
+async function enqueuePosReceipt(args: {
+  org_id: string;
+  order_id: string;
+  to_email: string;
+  event_name: string;
+  tier: string;
+  price_cents: number;
+}): Promise<{ id: string | null; status: 'queued' | 'failed' }> {
+  const supabase = eventsDb();
+  const totalDollars = (args.price_cents / 100).toFixed(2);
+  const subject = `Receipt — ${args.event_name} (${args.tier})`;
+  const bodyText = [
+    `Thanks for your purchase!`,
+    ``,
+    `Event: ${args.event_name}`,
+    `Tier:  ${args.tier}`,
+    `Total: $${totalDollars}`,
+    `Order: ${args.order_id}`,
+    ``,
+    `Show this email at the door if needed; auto check-in already ran for walk-up sales.`,
+  ].join('\n');
+  const bodyHtml = `<!doctype html><html><body style="font-family:system-ui,-apple-system,sans-serif;background:#fafafa;padding:24px;color:#111">
+<div style="max-width:520px;margin:auto;background:#fff;border:1px solid #e5e7eb;border-radius:16px;padding:24px">
+  <h1 style="margin:0 0 8px;font-size:20px">Receipt</h1>
+  <p style="margin:0 0 16px;color:#6b7280;font-size:13px">Thanks for your purchase.</p>
+  <table style="width:100%;border-collapse:collapse;font-size:14px">
+    <tr><td style="padding:6px 0;color:#6b7280">Event</td><td style="padding:6px 0;text-align:right">${escapeHtmlClient(args.event_name)}</td></tr>
+    <tr><td style="padding:6px 0;color:#6b7280">Tier</td><td style="padding:6px 0;text-align:right">${escapeHtmlClient(args.tier)}</td></tr>
+    <tr><td style="padding:6px 0;color:#6b7280">Total</td><td style="padding:6px 0;text-align:right;font-weight:600">$${totalDollars}</td></tr>
+    <tr><td style="padding:6px 0;color:#6b7280">Order</td><td style="padding:6px 0;text-align:right;font-family:ui-monospace,monospace;font-size:12px">${escapeHtmlClient(args.order_id)}</td></tr>
+  </table>
+  <p style="margin:16px 0 0;font-size:12px;color:#9ca3af">Walk-up purchases are auto-checked-in at the door.</p>
+</div></body></html>`;
+
+  const { data, error } = await supabase
+    .from('email_outbox')
+    .insert({
+      org_id: args.org_id,
+      related_type: 'pos_receipt',
+      related_id: args.order_id,
+      to_email: args.to_email,
+      subject,
+      body_text: bodyText,
+      body_html: bodyHtml,
+      metadata: { tier: args.tier, price_cents: args.price_cents, event_name: args.event_name },
+    })
+    .select('id')
+    .single();
+
+  if (error || !data) {
+    return { id: null, status: 'failed' };
+  }
+
+  const id = (data as { id: string }).id;
+
+  // Fire-and-forget direct invocation for low p50; the cron is the safety net.
+  void supabase.functions.invoke('email-send', { body: { id } }).catch(() => {
+    // Swallow — the row is durably queued; cron will pick it up.
+  });
+
+  return { id, status: 'queued' };
+}
+
+function escapeHtmlClient(s: string): string {
+  return s
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#039;');
 }
 
 /* ─── Run-of-show ────────────────────────────────── */
@@ -1261,6 +1365,27 @@ interface RunningOrderTemplatePayload {
   checklist: Array<{ label: string; display_order: number }>;
 }
 
+export async function deleteTemplate(id: string): Promise<{ ok: boolean; error?: string }> {
+  const supabase = eventsDb();
+  const { error } = await supabase
+    .from('templates')
+    .update({ deleted_at: new Date().toISOString() })
+    .eq('id', id);
+  return error ? { ok: false, error: error.message } : { ok: true };
+}
+
+export async function renameTemplate(
+  id: string,
+  patch: { name?: string; description?: string | null },
+): Promise<{ ok: boolean; error?: string }> {
+  const supabase = eventsDb();
+  const { error } = await supabase
+    .from('templates')
+    .update(patch)
+    .eq('id', id);
+  return error ? { ok: false, error: error.message } : { ok: true };
+}
+
 export async function fetchTemplates(
   templateType?: TemplateType,
 ): Promise<TemplateRow[]> {
@@ -1457,6 +1582,65 @@ export async function removeEventMember(
   const supabase = eventsDb();
   const { error } = await supabase.from('event_members').delete().eq('id', memberId);
   return error ? { ok: false, error: error.message } : { ok: true };
+}
+
+/**
+ * Stamps event_members.accepted_at = now() on the row matching auth.uid().
+ * Members can only flip their own row per the event_members_self_read +
+ * the implicit RLS scope on event_members table (uses user_id = auth.uid()).
+ */
+export async function acceptEventMembership(
+  eventId: string,
+): Promise<{ ok: boolean; error?: string }> {
+  const supabase = eventsDb();
+  const { data: userData } = await supabase.auth.getUser();
+  const userId = userData?.user?.id;
+  if (!userId) return { ok: false, error: 'not_signed_in' };
+  const { error } = await supabase
+    .from('event_members')
+    .update({ accepted_at: new Date().toISOString() })
+    .eq('event_id', eventId)
+    .eq('user_id', userId)
+    .is('accepted_at', null);
+  return error ? { ok: false, error: error.message } : { ok: true };
+}
+
+/**
+ * Returns membership rows for the calling user across all events. Used to
+ * surface a "You're invited" banner on the dashboard / events list.
+ */
+export async function fetchMyPendingMemberships(): Promise<EventMemberRow[]> {
+  const supabase = eventsDb();
+  const { data: userData } = await supabase.auth.getUser();
+  const userId = userData?.user?.id;
+  if (!userId) return [];
+  const { data } = await supabase
+    .from('event_members')
+    .select(`
+      id, event_id, user_id, role, write_permission, in_timeline,
+      invited_by, invited_at, accepted_at,
+      profile:profiles!event_members_user_id_fkey ( full_name, email )
+    `)
+    .eq('user_id', userId)
+    .is('accepted_at', null)
+    .order('invited_at', { ascending: false });
+  return (data as EventMemberRow[] | null) ?? [];
+}
+
+/**
+ * Resolves event names + slugs for a list of event_member rows, so the banner
+ * can deep-link to /events/<slug>.
+ */
+export async function fetchEventsByIds(
+  eventIds: string[],
+): Promise<Array<Pick<EventRow, 'id' | 'name' | 'slug'>>> {
+  if (eventIds.length === 0) return [];
+  const supabase = eventsDb();
+  const { data } = await supabase
+    .from('events')
+    .select('id, name, slug')
+    .in('id', eventIds);
+  return (data as Array<Pick<EventRow, 'id' | 'name' | 'slug'>> | null) ?? [];
 }
 
 /* ─── Event detail (view + edit) ─────────────────── */
@@ -1664,6 +1848,27 @@ export async function reinstateEvent(args: {
       cancelled_at: null,
       cancellation_reason: null,
       cancelled_by_user_id: null,
+    })
+    .eq('id', args.event_id);
+  return error ? { ok: false, error: error.message } : { ok: true };
+}
+
+/**
+ * Update Hold-Events specifics. When the operator picks status='hold' (per
+ * 0111), they also need to set the hold_rank (1 = first refusal, 2 = backup,
+ * etc.) and the hold_expires_at deadline.
+ */
+export async function updateEventHoldDetails(args: {
+  event_id: string;
+  hold_rank: number | null;
+  hold_expires_at: string | null;
+}): Promise<{ ok: boolean; error?: string }> {
+  const supabase = eventsDb();
+  const { error } = await supabase
+    .from('events')
+    .update({
+      hold_rank: args.hold_rank,
+      hold_expires_at: args.hold_expires_at,
     })
     .eq('id', args.event_id);
   return error ? { ok: false, error: error.message } : { ok: true };

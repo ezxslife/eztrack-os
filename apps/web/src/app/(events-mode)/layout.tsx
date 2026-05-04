@@ -2,6 +2,7 @@
 
 import { useRequireAuth } from '@/lib/api/hooks';
 import { EventsModeNav } from './_components/EventsModeNav';
+import { PendingInvitesBanner } from './_components/PendingInvitesBanner';
 
 /**
  * Events-mode layout — settle is the canonical chrome + token source for this
@@ -39,6 +40,7 @@ export default function EventsModeLayout({
       className="flex min-h-screen flex-col bg-[var(--bg)] text-[var(--ink-900)]"
     >
       <EventsModeNav />
+      <PendingInvitesBanner />
       <main id="main-content" className="flex-1 overflow-y-auto">
         {children}
       </main>
