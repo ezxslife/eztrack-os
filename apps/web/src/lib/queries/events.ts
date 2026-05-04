@@ -938,6 +938,64 @@ export async function deleteRosSlot(id: string): Promise<void> {
   await supabase.from('ros_slots').delete().eq('id', id);
 }
 
+/**
+ * Manual auto-advance: truncate the current slot's ends_at to now(), then
+ * shift all subsequent slots in the same run_of_show by the same delta so
+ * the timeline compresses cleanly. Crescat's manual trigger semantics.
+ *
+ * The Show-Mode row-state machine considers a slot "current" when
+ * starts_at <= now() < ends_at. After advance, the slot AFTER the old
+ * current becomes current.
+ */
+export async function advanceRosSlot(args: {
+  ros_id: string;
+  current_slot_id: string;
+}): Promise<{ ok: boolean; error?: string }> {
+  const supabase = eventsDb();
+  const slots = await fetchRosSlots(args.ros_id);
+  const current = slots.find((s) => s.id === args.current_slot_id);
+  if (!current) return { ok: false, error: 'current_slot_not_found' };
+
+  const now = new Date();
+  const oldEnd = new Date(current.ends_at).getTime();
+  const deltaMs = now.getTime() - oldEnd;
+
+  // Truncate the current slot
+  const { error: truncErr } = await supabase
+    .from('ros_slots')
+    .update({ ends_at: now.toISOString() })
+    .eq('id', args.current_slot_id);
+  if (truncErr) return { ok: false, error: truncErr.message };
+
+  // Shift all later slots in the same ros by the delta. Skip when delta>=0
+  // (advance happened late, so subsequent slots stay where they were).
+  if (deltaMs >= 0) return { ok: true };
+
+  const laterSlots = slots.filter(
+    (s) => new Date(s.starts_at).getTime() > oldEnd && s.id !== args.current_slot_id,
+  );
+  for (const s of laterSlots) {
+    const newStart = new Date(new Date(s.starts_at).getTime() + deltaMs).toISOString();
+    const newEnd = new Date(new Date(s.ends_at).getTime() + deltaMs).toISOString();
+    await supabase
+      .from('ros_slots')
+      .update({ starts_at: newStart, ends_at: newEnd })
+      .eq('id', s.id);
+  }
+  return { ok: true };
+}
+
+export type RosSlotState = 'past' | 'current' | 'future';
+
+export function classifyRosSlot(slot: RosSlotRow, now: Date = new Date()): RosSlotState {
+  const t = now.getTime();
+  const start = new Date(slot.starts_at).getTime();
+  const end = new Date(slot.ends_at).getTime();
+  if (end <= t) return 'past';
+  if (start <= t && t < end) return 'current';
+  return 'future';
+}
+
 export async function fetchChecklistItems(rosId: string): Promise<ChecklistItemRow[]> {
   const supabase = eventsDb();
   const { data } = await supabase

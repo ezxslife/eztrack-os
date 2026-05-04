@@ -4,6 +4,7 @@ import { FormEvent, useCallback, useEffect, useMemo, useState } from 'react';
 import {
   BookmarkPlus,
   CheckSquare,
+  ChevronsRight,
   Clock,
   Copy,
   FileText,
@@ -16,7 +17,9 @@ import {
 import {
   addChecklistItem,
   addRosSlot,
+  advanceRosSlot,
   applyRunningOrderTemplate,
+  classifyRosSlot,
   cloneRunOfShowDay,
   deleteRosSlot,
   fetchActiveEvent,
@@ -34,6 +37,7 @@ import {
   type EventRow,
   type RosSlotRow,
   type RunOfShowRow,
+  type RosSlotState,
   type TemplateRow,
 } from '@/lib/queries/events';
 import { useAuth } from '@/lib/api/hooks';
@@ -49,6 +53,12 @@ export default function RunOfShowPage() {
   const [templates, setTemplates] = useState<TemplateRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
+  const [now, setNow] = useState<Date>(new Date());
+
+  useEffect(() => {
+    const t = setInterval(() => setNow(new Date()), 30_000);
+    return () => clearInterval(t);
+  }, []);
 
   const refresh = useCallback(async (eventId: string, eventDayId: string, orgId: string) => {
     const r = await fetchOrCreateRunOfShow(orgId, eventId, eventDayId);
@@ -150,6 +160,17 @@ export default function RunOfShowPage() {
     if (!ros) return;
     await deleteRosSlot(id);
     setSlots((prev) => prev.filter((s) => s.id !== id));
+  }
+
+  async function handleAdvance(slotId: string) {
+    if (!event || !day || !ros || busy) return;
+    setBusy(true);
+    try {
+      await advanceRosSlot({ ros_id: ros.id, current_slot_id: slotId });
+      await refresh(event.id, day.id, event.org_id);
+    } finally {
+      setBusy(false);
+    }
   }
 
   async function handleSwitchDay(targetDay: EventDayRow) {
@@ -357,33 +378,61 @@ export default function RunOfShowPage() {
           </p>
         ) : (
           <ul className="mt-3 divide-y divide-[var(--border)]">
-            {slots.map((s) => (
-              <li key={s.id} className="flex items-center gap-3 py-2.5">
-                <Clock size={14} className="flex-none text-[var(--ink-400)]" />
-                <span className="w-32 flex-none text-[12px] tabular-nums text-[var(--ink-500)]">
-                  {new Date(s.starts_at).toLocaleTimeString([], {
-                    hour: '2-digit',
-                    minute: '2-digit',
-                  })}{' '}
-                  –{' '}
-                  {new Date(s.ends_at).toLocaleTimeString([], {
-                    hour: '2-digit',
-                    minute: '2-digit',
-                  })}
-                </span>
-                <span className="flex-1 truncate text-[14px] font-medium text-[var(--ink-900)]">
-                  {s.label}
-                </span>
-                <button
-                  type="button"
-                  aria-label={`Delete ${s.label}`}
-                  onClick={() => handleDeleteSlot(s.id)}
-                  className="text-[var(--ink-400)] hover:text-[#EF4444]"
-                >
-                  <Trash2 size={14} />
-                </button>
-              </li>
-            ))}
+            {slots.map((s) => {
+              const state: RosSlotState = classifyRosSlot(s, now);
+              const tone =
+                state === 'past'
+                  ? 'opacity-50'
+                  : state === 'current'
+                    ? 'border-l-2 border-[#34C759] bg-[var(--surface-2)] pl-3 -ml-3'
+                    : '';
+              return (
+                <li key={s.id} className={`flex items-center gap-3 py-2.5 ${tone}`}>
+                  <Clock
+                    size={14}
+                    className={`flex-none ${state === 'current' ? 'text-[#34C759]' : 'text-[var(--ink-400)]'}`}
+                  />
+                  <span className="w-32 flex-none text-[12px] tabular-nums text-[var(--ink-500)]">
+                    {new Date(s.starts_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                    {' – '}
+                    {new Date(s.ends_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                  </span>
+                  <span className="flex-1 truncate text-[14px] font-medium text-[var(--ink-900)]">
+                    {s.label}
+                    {state === 'current' ? (
+                      <span className="ml-2 rounded-full bg-[#34C759] px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wider text-white">
+                        Now
+                      </span>
+                    ) : null}
+                    {state === 'past' ? (
+                      <span className="ml-2 text-[10px] uppercase tracking-wider text-[var(--ink-400)]">past</span>
+                    ) : null}
+                  </span>
+                  {state === 'current' ? (
+                    <button
+                      type="button"
+                      onClick={() => handleAdvance(s.id)}
+                      disabled={busy}
+                      className="inline-flex h-8 items-center gap-1 rounded-lg bg-[#34C759] px-3 text-[12px] font-semibold text-white hover:opacity-90 disabled:opacity-50"
+                      title="Advance to next row"
+                    >
+                      <ChevronsRight size={12} />
+                      Advance
+                    </button>
+                  ) : null}
+                  {state === 'future' ? (
+                    <button
+                      type="button"
+                      aria-label={`Delete ${s.label}`}
+                      onClick={() => handleDeleteSlot(s.id)}
+                      className="text-[var(--ink-400)] hover:text-[#EF4444]"
+                    >
+                      <Trash2 size={14} />
+                    </button>
+                  ) : null}
+                </li>
+              );
+            })}
           </ul>
         )}
 
