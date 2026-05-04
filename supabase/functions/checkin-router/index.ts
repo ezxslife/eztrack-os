@@ -38,6 +38,12 @@ type RouterPayload =
       source: 'qr_scanner' | 'manual_lookup' | 'pos_auto_checkin';
       org_id: string;
       event_id: string;
+      /**
+       * Optional override. When set, the router pins the check-in to this
+       * day instead of resolving via current_event_day / wall-clock. /pos
+       * passes this on multi-day events when selling a pinned single-day pass.
+       */
+      event_day_id?: string;
       ticket_id?: string;
       ticket_external_id?: string;
       ticket_external_source?: 'eventbrite' | 'dice' | 'posh' | 'stripe_checkout';
@@ -353,6 +359,7 @@ async function handleDirectScan(
     scanned_by: p.scanned_by,
     device: p.device,
     location: p.location,
+    event_day_id_override: p.event_day_id,
   });
 
   return json(scanResult, scanResult.ok ? 200 : 200);
@@ -434,6 +441,13 @@ interface TicketScanInput {
   location?: string;
   raw_payload?: JsonRecord;
   scanned_at?: string;
+  /**
+   * If provided, pin the resulting check-in to this event_day_id instead of
+   * letting resolveEventDay infer from the wall clock. Used by /pos when
+   * selling a single-day pass on a multi-day event so the auto-checkin lands
+   * on the day the customer actually came for.
+   */
+  event_day_id_override?: string;
 }
 
 async function writeTicketScan(
@@ -443,7 +457,12 @@ async function writeTicketScan(
   const ticket = input.ticket;
 
   if (ticket.state === 'refunded' || ticket.state === 'voided') {
-    const eventDay = await resolveEventDay(supabase, input.event_id, input.scanned_at);
+    const eventDay = await resolveEventDay(
+      supabase,
+      input.event_id,
+      input.scanned_at,
+      input.event_day_id_override,
+    );
     if (eventDay) {
       await insertCheckIn(supabase, {
         org_id: input.org_id,
@@ -463,7 +482,12 @@ async function writeTicketScan(
     return { ok: true, result: 'expired', ticket: shapeTicket(ticket), entry_number: 0 };
   }
 
-  const eventDay = await resolveEventDay(supabase, input.event_id, input.scanned_at);
+  const eventDay = await resolveEventDay(
+    supabase,
+    input.event_id,
+    input.scanned_at,
+    input.event_day_id_override,
+  );
   if (!eventDay) {
     return { ok: false, error: 'no_active_event_day' };
   }
@@ -565,7 +589,21 @@ async function resolveEventDay(
   supabase: ReturnType<typeof getServiceRoleClient>,
   eventId: string,
   scanTimeIso = new Date().toISOString(),
+  override?: string,
 ): Promise<{ id: string; reentry_policy: ReentryPolicy } | null> {
+  // Honor /pos pin first — operator picked the day at sale time.
+  if (override) {
+    const { data: pinned } = await supabase
+      .from('event_days')
+      .select('id, reentry_policy')
+      .eq('id', override)
+      .eq('event_id', eventId)
+      .is('deleted_at', null)
+      .maybeSingle();
+    if (pinned) return pinned as { id: string; reentry_policy: ReentryPolicy };
+    // Fallthrough: bad override silently degrades to time-resolution.
+  }
+
   const { data: currentDayId } = await supabase
     .rpc('current_event_day', { p_event_id: eventId });
 

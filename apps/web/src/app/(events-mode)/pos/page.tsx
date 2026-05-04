@@ -13,6 +13,7 @@ import {
 import {
   createPosSale,
   fetchActiveEvent,
+  fetchEventDays,
   fetchLatestCapacitySnapshot,
   fetchCurrentEventDay,
   tierDefinitionsFor,
@@ -30,7 +31,16 @@ interface CompletionState {
   result: PosSaleResult['result'] | undefined;
   email?: string | null;
   receipt_email_status?: PosSaleResult['receipt_email_status'];
+  pass_label?: string | null;
 }
+
+/**
+ * Day-pass picker option:
+ *   - { kind: 'all' }            → multi-day pass; valid_for_days = null
+ *   - { kind: 'single', day }    → single-day pass; valid_for_days = [day.id],
+ *                                   auto-checkin pinned to that day.
+ */
+type DayPick = { kind: 'all' } | { kind: 'single'; day: EventDayRow };
 
 /**
  * /pos — walk-up sales with auto check-in. Cash mode only in v1; Stripe
@@ -39,6 +49,8 @@ interface CompletionState {
 export default function PosPage() {
   const [event, setEvent] = useState<EventRow | null>(null);
   const [eventDay, setEventDay] = useState<EventDayRow | null>(null);
+  const [days, setDays] = useState<EventDayRow[]>([]);
+  const [dayPick, setDayPick] = useState<DayPick>({ kind: 'all' });
   const [snapshot, setSnapshot] = useState<CapacitySnapshotRow | null>(null);
   const [tiers, setTiers] = useState<PosTier[]>([]);
   const [submitting, setSubmitting] = useState<PosTier | null>(null);
@@ -55,8 +67,16 @@ export default function PosPage() {
       return;
     }
     setTiers(tierDefinitionsFor(ev));
-    const ed = await fetchCurrentEventDay(ev.id);
+    const [ed, allDays] = await Promise.all([
+      fetchCurrentEventDay(ev.id),
+      ev.is_multi_day ? fetchEventDays(ev.id) : Promise.resolve([]),
+    ]);
     setEventDay(ed);
+    setDays(allDays);
+    // Default the picker to the active day on multi-day events so a tap
+    // through still sells the right pass; operator can switch to "All days".
+    if (ev.is_multi_day && ed) setDayPick({ kind: 'single', day: ed });
+    else setDayPick({ kind: 'all' });
     if (ed) setSnapshot(await fetchLatestCapacitySnapshot(ed.id));
     setLoading(false);
   }, []);
@@ -79,6 +99,16 @@ export default function PosPage() {
     setCompletion(null);
     setSubmitting(tier);
     try {
+      const validForDays =
+        dayPick.kind === 'single' ? [dayPick.day.id] : null;
+      const autoCheckinDayId =
+        dayPick.kind === 'single' ? dayPick.day.id : null;
+      const passLabel =
+        dayPick.kind === 'single'
+          ? `Day ${dayPick.day.day_index} · ${dayPick.day.label}`
+          : event.is_multi_day
+            ? 'All days'
+            : null;
       const res = await createPosSale({
         org_id: event.org_id,
         event_id: event.id,
@@ -86,6 +116,8 @@ export default function PosPage() {
         price_cents: tier.price_cents,
         email: email.trim() || null,
         device: 'iPad-POS',
+        valid_for_days: validForDays,
+        auto_checkin_day_id: autoCheckinDayId,
       });
       if (!res.ok) {
         setError(res.error ?? 'Sale failed.');
@@ -97,6 +129,7 @@ export default function PosPage() {
         result: res.result,
         email: email.trim() || null,
         receipt_email_status: res.receipt_email_status,
+        pass_label: passLabel,
       });
       setEmail('');
     } finally {
@@ -150,6 +183,59 @@ export default function PosPage() {
           </p>
         </div>
       </header>
+
+      {/* Day-pass picker (multi-day events only) */}
+      {event.is_multi_day && days.length > 0 ? (
+        <section
+          aria-label="Day pass picker"
+          className="rounded-2xl border border-[var(--border)] bg-[var(--surface)] p-4"
+        >
+          <p className="mb-2 text-[11px] font-semibold uppercase tracking-wider text-[var(--ink-400)]">
+            Pass type
+          </p>
+          <div className="flex flex-wrap gap-2">
+            <button
+              type="button"
+              onClick={() => setDayPick({ kind: 'all' })}
+              aria-pressed={dayPick.kind === 'all'}
+              className={`inline-flex h-9 items-center gap-1.5 rounded-full border px-3 text-[13px] font-medium transition-colors ${
+                dayPick.kind === 'all'
+                  ? 'border-[var(--ink-700)] bg-[var(--surface-2)] text-[var(--ink-900)]'
+                  : 'border-[var(--border)] bg-[var(--surface)] text-[var(--ink-500)] hover:bg-[var(--hover)]'
+              }`}
+            >
+              All days
+              <span className="text-[11px] tabular-nums text-[var(--ink-400)]">
+                ({days.length})
+              </span>
+            </button>
+            {days.map((d) => {
+              const active = dayPick.kind === 'single' && dayPick.day.id === d.id;
+              return (
+                <button
+                  key={d.id}
+                  type="button"
+                  onClick={() => setDayPick({ kind: 'single', day: d })}
+                  aria-pressed={active}
+                  className={`inline-flex h-9 items-center gap-1.5 rounded-full border px-3 text-[13px] font-medium transition-colors ${
+                    active
+                      ? 'border-[var(--ink-700)] bg-[var(--surface-2)] text-[var(--ink-900)]'
+                      : 'border-[var(--border)] bg-[var(--surface)] text-[var(--ink-500)] hover:bg-[var(--hover)]'
+                  }`}
+                >
+                  Day {d.day_index}
+                  <span className="text-[11px] text-[var(--ink-400)]">· {d.label}</span>
+                </button>
+              );
+            })}
+          </div>
+          <p className="mt-2 text-[11px] text-[var(--ink-400)]">
+            {dayPick.kind === 'all'
+              ? 'Sells a multi-day pass valid for every day of the festival.'
+              : `Sells a single-day pass valid only for Day ${dayPick.day.day_index}; auto check-in pins to that day.`}
+          </p>
+        </section>
+      ) : null}
 
       {/* Email receipt (optional) */}
       <section className="rounded-2xl border border-[var(--border)] bg-[var(--surface)] p-4">
@@ -224,6 +310,11 @@ export default function PosPage() {
                 <span className="text-[var(--ink-500)]">
                   · ${(completion.price_cents / 100).toFixed(2)}
                 </span>
+                {completion.pass_label ? (
+                  <span className="ml-2 rounded-full bg-[var(--surface-2)] px-2 py-0.5 align-middle text-[11px] font-semibold text-[var(--ink-700)]">
+                    {completion.pass_label}
+                  </span>
+                ) : null}
               </h2>
               <p className="mt-0.5 text-[13px] text-[var(--ink-500)]">
                 {completion.result === 'success'

@@ -96,3 +96,11 @@
 - [x] Receipt-email wiring (migration 0114_email_outbox + email-send Edge Function + createPosSale.enqueuePosReceipt + /pos completion banner now reflects queued/failed status)
 - [ ] Operator: set RESEND_API_KEY (or SENDGRID_API_KEY) + EMAIL_FROM secrets so the email-send worker switches from no-op to live delivery (`supabase secrets set ...`)
 - [ ] Operator: schedule email-send via cron every 1-5 min (Supabase Cron or pg_cron) for queue catch-up
+
+## m22 — Multi-day POS · activity_log writes · /audit + /notifications
+- [x] L3 #3 multi-day pass mechanics on POS — day picker on /pos when event.is_multi_day; createPosSale threads valid_for_days[] + auto_checkin_day_id; checkin-router accepts event_day_id override and resolveEventDay honors it before falling back to wall-clock
+- [x] activity_log helper recordActivity() + writes from cancelEvent / reinstateEvent / updateEventHoldDetails / addEventDay / updateEventDay / deleteEventDay / inviteEventMember / removeEventMember / acceptEventMembership / advanceRosSlot / publishRunOfShow / deleteTemplate / renameTemplate / createPosSale / upsertNotificationRule / deleteNotificationRule
+- [x] v1.5 #19 Audit log UI — /audit page with entity_type + action filters, expandable rows showing actor + raw changes jsonb, action color codes, relative timestamps; nav item w/ ShieldCheck icon
+- [x] Notification rules editor — /notifications page with 6 events-mode event_types (capacity_threshold, ros_publish, incident_critical, eventbrite_webhook_failed, event_member_invited, pos_receipt_failed), per-type push/email/sms toggles + recipient picker (all_staff / managers_only / specific_emails); upsert via fetchNotificationRules/upsertNotificationRule/deleteNotificationRule; nav item w/ Bell icon
+- [ ] Operator: redeploy checkin-router via `supabase functions deploy checkin-router` to pick up the event_day_id override path (without redeploy multi-day POS Day-2-while-it's-Day-1 sales correctly mark check_ins.result='wrong_day' instead of falsely auto-checking-in to the current day)
+- [ ] Operator: configure Twilio + email provider so /notifications email_enabled / sms_enabled toggles actually fan out (currently push_enabled is the only channel that lands in-app via the existing notifications hub)

@@ -16,6 +16,248 @@ function eventsDb(): SupabaseClient<any, 'public', any> {
 }
 /* eslint-enable @typescript-eslint/no-explicit-any */
 
+/* ─── Activity log helper ────────────────────────── */
+
+/**
+ * Append a row to public.activity_log. Best-effort + fire-and-forget — every
+ * caller is fronted by RLS that scopes to the operator's org_id, and the
+ * mutation that triggered this already succeeded by the time we log. Failures
+ * are swallowed and logged to console; we never block the operator path on
+ * audit writes. Surfaced through /audit (m22).
+ *
+ * Convention:
+ *   - entity_type: snake_case noun matching the table or domain (events,
+ *     event_days, event_members, run_of_show, ros_slots, templates,
+ *     orders, tickets, ...).
+ *   - action:      snake_case verb in past tense ('created', 'updated',
+ *     'deleted', 'cancelled', 'reinstated', 'sold', 'advanced', 'published',
+ *     'cloned', 'invited', 'accepted', 'removed').
+ *   - changes:     jsonb diff or context payload. Keep it shallow.
+ */
+export async function recordActivity(args: {
+  org_id: string;
+  entity_type: string;
+  entity_id: string;
+  action: string;
+  changes?: Record<string, unknown> | null;
+}): Promise<void> {
+  try {
+    const supabase = eventsDb();
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+    await supabase.from('activity_log').insert({
+      org_id: args.org_id,
+      entity_type: args.entity_type,
+      entity_id: args.entity_id,
+      action: args.action,
+      actor_id: user?.id ?? null,
+      changes: args.changes ?? null,
+    });
+  } catch (e) {
+    console.warn('[recordActivity] swallowed', e);
+  }
+}
+
+/* ─── Notification rules ─────────────────────────── */
+
+/**
+ * Event types operators can subscribe to. Each gets its own row in
+ * public.notification_rules. The list is exhaustive for the events-mode
+ * surface area; eztrack-os security-mode types are in a parallel registry
+ * and not editable from /notifications.
+ */
+export const EVENTS_MODE_NOTIFICATION_TYPES: Array<{
+  event_type: string;
+  label: string;
+  description: string;
+}> = [
+  {
+    event_type: 'capacity_threshold',
+    label: 'Capacity threshold hit',
+    description: 'Fired when capacity_threshold_worker crosses a configured percentage of capacity.',
+  },
+  {
+    event_type: 'ros_publish',
+    label: 'Run-of-show published',
+    description: 'Fired when run_of_show_publisher auto-publishes the timeline at T-2hr.',
+  },
+  {
+    event_type: 'incident_critical',
+    label: 'Critical incident',
+    description: 'Fired when an incident is logged with severity=critical from /log-incident.',
+  },
+  {
+    event_type: 'eventbrite_webhook_failed',
+    label: 'Eventbrite webhook failed',
+    description: 'Fired when a scan_webhook row sticks in failed state after retries.',
+  },
+  {
+    event_type: 'event_member_invited',
+    label: 'Event member invited',
+    description: 'Fired when an operator adds another user to an event_members row.',
+  },
+  {
+    event_type: 'pos_receipt_failed',
+    label: 'POS receipt enqueue failed',
+    description: 'Fired when /pos sale completes but email_outbox insert errored.',
+  },
+];
+
+export type NotificationRecipientChoice =
+  | 'all_staff'
+  | 'managers_only'
+  | 'specific_emails';
+
+export interface NotificationRulePayload {
+  event_type: string;
+  description: string | null;
+  push_enabled: boolean;
+  email_enabled: boolean;
+  sms_enabled: boolean;
+  recipients: NotificationRecipientChoice | { emails: string[] };
+}
+
+export interface NotificationRuleRow extends NotificationRulePayload {
+  id: string;
+  org_id: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export async function fetchNotificationRules(): Promise<NotificationRuleRow[]> {
+  const supabase = eventsDb();
+  const { data } = await supabase
+    .from('notification_rules')
+    .select('*')
+    .order('event_type', { ascending: true });
+  return (data as NotificationRuleRow[] | null) ?? [];
+}
+
+export async function upsertNotificationRule(args: {
+  org_id: string;
+  event_type: string;
+  description?: string | null;
+  push_enabled: boolean;
+  email_enabled: boolean;
+  sms_enabled: boolean;
+  recipients: NotificationRecipientChoice | { emails: string[] };
+}): Promise<{ ok: boolean; error?: string }> {
+  const supabase = eventsDb();
+  const { data: existing } = await supabase
+    .from('notification_rules')
+    .select('id')
+    .eq('org_id', args.org_id)
+    .eq('event_type', args.event_type)
+    .maybeSingle();
+  const payload = {
+    org_id: args.org_id,
+    event_type: args.event_type,
+    description: args.description ?? null,
+    push_enabled: args.push_enabled,
+    email_enabled: args.email_enabled,
+    sms_enabled: args.sms_enabled,
+    recipients: args.recipients,
+    updated_at: new Date().toISOString(),
+  };
+  if ((existing as { id: string } | null)?.id) {
+    const { error } = await supabase
+      .from('notification_rules')
+      .update(payload)
+      .eq('id', (existing as { id: string }).id);
+    if (error) return { ok: false, error: error.message };
+    void recordActivity({
+      org_id: args.org_id,
+      entity_type: 'notification_rules',
+      entity_id: (existing as { id: string }).id,
+      action: 'updated',
+      changes: payload as unknown as Record<string, unknown>,
+    });
+    return { ok: true };
+  }
+  const { data, error } = await supabase
+    .from('notification_rules')
+    .insert(payload)
+    .select('id')
+    .single();
+  if (error || !data) return { ok: false, error: error?.message ?? 'insert_failed' };
+  void recordActivity({
+    org_id: args.org_id,
+    entity_type: 'notification_rules',
+    entity_id: (data as { id: string }).id,
+    action: 'created',
+    changes: payload as unknown as Record<string, unknown>,
+  });
+  return { ok: true };
+}
+
+export async function deleteNotificationRule(
+  ruleId: string,
+): Promise<{ ok: boolean; error?: string }> {
+  const supabase = eventsDb();
+  const { data: prior } = await supabase
+    .from('notification_rules')
+    .select('org_id, event_type')
+    .eq('id', ruleId)
+    .maybeSingle();
+  const { error } = await supabase.from('notification_rules').delete().eq('id', ruleId);
+  if (error) return { ok: false, error: error.message };
+  const priorRow = prior as { org_id: string; event_type: string } | null;
+  if (priorRow) {
+    void recordActivity({
+      org_id: priorRow.org_id,
+      entity_type: 'notification_rules',
+      entity_id: ruleId,
+      action: 'deleted',
+      changes: { event_type: priorRow.event_type },
+    });
+  }
+  return { ok: true };
+}
+
+/* ─── Activity log read API ──────────────────────── */
+
+export interface ActivityLogRow {
+  id: string;
+  org_id: string;
+  entity_type: string;
+  entity_id: string;
+  action: string;
+  actor_id: string | null;
+  changes: Record<string, unknown> | null;
+  created_at: string;
+  actor?: { full_name: string | null; email: string | null } | null;
+}
+
+/**
+ * Read the activity log, newest first. Server-side filters supported:
+ *   - entity_type: only rows for that domain (events, event_days, ...)
+ *   - action:      only rows with that verb (cancelled, sold, ...)
+ *   - since:       ISO timestamp lower bound on created_at
+ * The return is capped at `limit` (default 200).
+ */
+export async function fetchActivityLog(args: {
+  entity_type?: string;
+  action?: string;
+  since?: string;
+  limit?: number;
+} = {}): Promise<ActivityLogRow[]> {
+  const supabase = eventsDb();
+  let q = supabase
+    .from('activity_log')
+    .select(`
+      id, org_id, entity_type, entity_id, action, actor_id, changes, created_at,
+      actor:profiles!activity_log_actor_id_fkey ( full_name, email )
+    `)
+    .order('created_at', { ascending: false })
+    .limit(args.limit ?? 200);
+  if (args.entity_type) q = q.eq('entity_type', args.entity_type);
+  if (args.action) q = q.eq('action', args.action);
+  if (args.since) q = q.gte('created_at', args.since);
+  const { data } = await q;
+  return (data as ActivityLogRow[] | null) ?? [];
+}
+
 /* ─── Types ──────────────────────────────────────── */
 
 export interface EventRow {
@@ -730,6 +972,21 @@ export async function createPosSale(args: {
   price_cents: number;
   email?: string | null;
   device?: string | null;
+  /**
+   * Multi-day events: array of event_day_ids the ticket is valid for.
+   * - undefined / null / empty = multi-day pass (all days, the legacy default
+   *   that single-day events use too).
+   * - [day_id] = single-day pass; checkin-router enforces day match via
+   *   tickets.valid_for_days the existing 0033 trigger checks.
+   */
+  valid_for_days?: string[] | null;
+  /**
+   * Optional day to drive the auto-checkin against. Only meaningful when
+   * `valid_for_days` is set; ignored otherwise. When omitted on a multi-day
+   * event, auto-checkin pins to the day the ticket is valid for if there
+   * is exactly one, else falls back to checkin-router's default day resolution.
+   */
+  auto_checkin_day_id?: string | null;
 }): Promise<PosSaleResult> {
   const supabase = eventsDb();
 
@@ -768,7 +1025,11 @@ export async function createPosSale(args: {
     }
   }
 
-  // 3. Ticket
+  // 3. Ticket — empty/undefined valid_for_days = multi-day pass (all days).
+  const validForDays =
+    Array.isArray(args.valid_for_days) && args.valid_for_days.length > 0
+      ? args.valid_for_days
+      : null;
   const ticketExternalId = `pos-${Date.now()}-${Math.floor(Math.random() * 1_000_000)}`;
   const { data: ticket, error: ticketErr } = await supabase
     .from('tickets')
@@ -781,6 +1042,7 @@ export async function createPosSale(args: {
       state: 'valid',
       external_id: ticketExternalId,
       price_cents: args.price_cents,
+      valid_for_days: validForDays,
     })
     .select('id')
     .single();
@@ -818,6 +1080,22 @@ export async function createPosSale(args: {
     total_cents: args.price_cents,
   });
 
+  // 5b. Audit trail: every POS sale leaves a row.
+  void recordActivity({
+    org_id: args.org_id,
+    entity_type: 'orders',
+    entity_id: orderId,
+    action: 'sold',
+    changes: {
+      ticket_id: ticketId,
+      tier: args.tier,
+      price_cents: args.price_cents,
+      valid_for_days: validForDays,
+      auto_checkin: autoCheckin,
+      device: args.device ?? null,
+    },
+  });
+
   // 6a. Enqueue receipt email if requested (independent of auto-checkin path)
   const receipt = args.email && args.email.includes('@')
     ? await enqueuePosReceipt({
@@ -840,7 +1118,11 @@ export async function createPosSale(args: {
     };
   }
 
-  // 6b. Auto-checkin via canonical router
+  // 6b. Auto-checkin via canonical router. Pin to the requested day, or to
+  // the sole valid day on a single-day pass; otherwise let the router pick.
+  const checkinDayId =
+    args.auto_checkin_day_id ??
+    (validForDays && validForDays.length === 1 ? validForDays[0] : null);
   const { data: routerRes, error: routerErr } = await supabase.functions.invoke('checkin-router', {
     body: {
       source: 'pos_auto_checkin',
@@ -849,6 +1131,7 @@ export async function createPosSale(args: {
       ticket_id: ticketId,
       device: args.device ?? 'POS',
       location: 'POS auto check-in',
+      ...(checkinDayId ? { event_day_id: checkinDayId } : {}),
     },
   });
   if (routerErr) {
@@ -1060,6 +1343,13 @@ export async function advanceRosSlot(args: {
   const current = slots.find((s) => s.id === args.current_slot_id);
   if (!current) return { ok: false, error: 'current_slot_not_found' };
 
+  const { data: parent } = await supabase
+    .from('run_of_show')
+    .select('org_id')
+    .eq('id', args.ros_id)
+    .maybeSingle();
+  const orgId = (parent as { org_id: string } | null)?.org_id ?? null;
+
   const now = new Date();
   const oldEnd = new Date(current.ends_at).getTime();
   const deltaMs = now.getTime() - oldEnd;
@@ -1070,6 +1360,22 @@ export async function advanceRosSlot(args: {
     .update({ ends_at: now.toISOString() })
     .eq('id', args.current_slot_id);
   if (truncErr) return { ok: false, error: truncErr.message };
+
+  if (orgId) {
+    void recordActivity({
+      org_id: orgId,
+      entity_type: 'ros_slots',
+      entity_id: args.current_slot_id,
+      action: 'advanced',
+      changes: {
+        ros_id: args.ros_id,
+        slot_label: current.label,
+        prior_ends_at: current.ends_at,
+        new_ends_at: now.toISOString(),
+        delta_ms: deltaMs,
+      },
+    });
+  }
 
   // Shift all later slots in the same ros by the delta. Skip when delta>=0
   // (advance happened late, so subsequent slots stay where they were).
@@ -1138,10 +1444,30 @@ export async function toggleChecklistItem(
 
 export async function publishRunOfShow(rosId: string): Promise<void> {
   const supabase = eventsDb();
+  const { data: parent } = await supabase
+    .from('run_of_show')
+    .select('org_id, event_id, event_day_id')
+    .eq('id', rosId)
+    .maybeSingle();
   await supabase
     .from('run_of_show')
     .update({ published_to_staff_at: new Date().toISOString() })
     .eq('id', rosId);
+  const parentRow = parent as
+    | { org_id: string; event_id: string; event_day_id: string }
+    | null;
+  if (parentRow) {
+    void recordActivity({
+      org_id: parentRow.org_id,
+      entity_type: 'run_of_show',
+      entity_id: rosId,
+      action: 'published',
+      changes: {
+        event_id: parentRow.event_id,
+        event_day_id: parentRow.event_day_id,
+      },
+    });
+  }
 }
 
 /* ─── Staff Console ──────────────────────────────── */
@@ -1367,11 +1693,29 @@ interface RunningOrderTemplatePayload {
 
 export async function deleteTemplate(id: string): Promise<{ ok: boolean; error?: string }> {
   const supabase = eventsDb();
+  const { data: prior } = await supabase
+    .from('templates')
+    .select('org_id, name, template_type')
+    .eq('id', id)
+    .maybeSingle();
   const { error } = await supabase
     .from('templates')
     .update({ deleted_at: new Date().toISOString() })
     .eq('id', id);
-  return error ? { ok: false, error: error.message } : { ok: true };
+  if (error) return { ok: false, error: error.message };
+  const priorRow = prior as
+    | { org_id: string; name: string; template_type: TemplateType }
+    | null;
+  if (priorRow) {
+    void recordActivity({
+      org_id: priorRow.org_id,
+      entity_type: 'templates',
+      entity_id: id,
+      action: 'deleted',
+      changes: { name: priorRow.name, template_type: priorRow.template_type },
+    });
+  }
+  return { ok: true };
 }
 
 export async function renameTemplate(
@@ -1379,11 +1723,32 @@ export async function renameTemplate(
   patch: { name?: string; description?: string | null },
 ): Promise<{ ok: boolean; error?: string }> {
   const supabase = eventsDb();
+  const { data: prior } = await supabase
+    .from('templates')
+    .select('org_id, name, description')
+    .eq('id', id)
+    .maybeSingle();
   const { error } = await supabase
     .from('templates')
     .update(patch)
     .eq('id', id);
-  return error ? { ok: false, error: error.message } : { ok: true };
+  if (error) return { ok: false, error: error.message };
+  const priorRow = prior as
+    | { org_id: string; name: string; description: string | null }
+    | null;
+  if (priorRow) {
+    void recordActivity({
+      org_id: priorRow.org_id,
+      entity_type: 'templates',
+      entity_id: id,
+      action: 'renamed',
+      changes: {
+        from: { name: priorRow.name, description: priorRow.description },
+        to: patch,
+      },
+    });
+  }
+  return { ok: true };
 }
 
 export async function fetchTemplates(
@@ -1553,15 +1918,41 @@ export async function inviteEventMember(args: {
 }): Promise<{ ok: boolean; error?: string }> {
   const supabase = eventsDb();
   const { data: userData } = await supabase.auth.getUser();
-  const { error } = await supabase.from('event_members').insert({
-    event_id: args.event_id,
-    user_id: args.user_id,
-    role: args.role ?? 'producer',
-    write_permission: args.write_permission ?? false,
-    in_timeline: args.in_timeline ?? false,
-    invited_by: userData?.user?.id ?? null,
-  });
-  return error ? { ok: false, error: error.message } : { ok: true };
+  const { data: parent } = await supabase
+    .from('events')
+    .select('org_id')
+    .eq('id', args.event_id)
+    .maybeSingle();
+  const { data, error } = await supabase
+    .from('event_members')
+    .insert({
+      event_id: args.event_id,
+      user_id: args.user_id,
+      role: args.role ?? 'producer',
+      write_permission: args.write_permission ?? false,
+      in_timeline: args.in_timeline ?? false,
+      invited_by: userData?.user?.id ?? null,
+    })
+    .select('id')
+    .single();
+  if (error) return { ok: false, error: error.message };
+  const orgId = (parent as { org_id: string } | null)?.org_id;
+  const memberId = (data as { id: string } | null)?.id;
+  if (orgId && memberId) {
+    void recordActivity({
+      org_id: orgId,
+      entity_type: 'event_members',
+      entity_id: memberId,
+      action: 'invited',
+      changes: {
+        event_id: args.event_id,
+        user_id: args.user_id,
+        role: args.role ?? 'producer',
+        write_permission: args.write_permission ?? false,
+      },
+    });
+  }
+  return { ok: true };
 }
 
 export async function updateEventMember(
@@ -1580,8 +1971,31 @@ export async function removeEventMember(
   memberId: string,
 ): Promise<{ ok: boolean; error?: string }> {
   const supabase = eventsDb();
+  const { data: prior } = await supabase
+    .from('event_members')
+    .select('event_id, user_id, role, events ( org_id )')
+    .eq('id', memberId)
+    .maybeSingle();
   const { error } = await supabase.from('event_members').delete().eq('id', memberId);
-  return error ? { ok: false, error: error.message } : { ok: true };
+  if (error) return { ok: false, error: error.message };
+  const priorRow = prior as
+    | { event_id: string; user_id: string; role: string; events: { org_id: string } | null }
+    | null;
+  const orgId = priorRow?.events?.org_id;
+  if (orgId) {
+    void recordActivity({
+      org_id: orgId,
+      entity_type: 'event_members',
+      entity_id: memberId,
+      action: 'removed',
+      changes: {
+        event_id: priorRow?.event_id ?? null,
+        user_id: priorRow?.user_id ?? null,
+        role: priorRow?.role ?? null,
+      },
+    });
+  }
+  return { ok: true };
 }
 
 /**
@@ -1596,13 +2010,32 @@ export async function acceptEventMembership(
   const { data: userData } = await supabase.auth.getUser();
   const userId = userData?.user?.id;
   if (!userId) return { ok: false, error: 'not_signed_in' };
-  const { error } = await supabase
+  const { data: parent } = await supabase
+    .from('events')
+    .select('org_id')
+    .eq('id', eventId)
+    .maybeSingle();
+  const { data: updated, error } = await supabase
     .from('event_members')
     .update({ accepted_at: new Date().toISOString() })
     .eq('event_id', eventId)
     .eq('user_id', userId)
-    .is('accepted_at', null);
-  return error ? { ok: false, error: error.message } : { ok: true };
+    .is('accepted_at', null)
+    .select('id')
+    .maybeSingle();
+  if (error) return { ok: false, error: error.message };
+  const orgId = (parent as { org_id: string } | null)?.org_id;
+  const memberId = (updated as { id: string } | null)?.id;
+  if (orgId && memberId) {
+    void recordActivity({
+      org_id: orgId,
+      entity_type: 'event_members',
+      entity_id: memberId,
+      action: 'accepted',
+      changes: { event_id: eventId, user_id: userId },
+    });
+  }
+  return { ok: true };
 }
 
 /**
@@ -1687,6 +2120,11 @@ export async function cancelEvent(args: {
 }): Promise<{ ok: boolean; error?: string }> {
   const supabase = eventsDb();
   const { data: userData } = await supabase.auth.getUser();
+  const { data: priorRow } = await supabase
+    .from('events')
+    .select('org_id, status')
+    .eq('id', args.event_id)
+    .maybeSingle();
   const { error } = await supabase
     .from('events')
     .update({
@@ -1696,7 +2134,18 @@ export async function cancelEvent(args: {
       cancelled_by_user_id: userData?.user?.id ?? null,
     })
     .eq('id', args.event_id);
-  return error ? { ok: false, error: error.message } : { ok: true };
+  if (error) return { ok: false, error: error.message };
+  const prior = priorRow as { org_id: string; status: string } | null;
+  if (prior) {
+    void recordActivity({
+      org_id: prior.org_id,
+      entity_type: 'events',
+      entity_id: args.event_id,
+      action: 'cancelled',
+      changes: { from_status: prior.status, reason: args.reason },
+    });
+  }
+  return { ok: true };
 }
 
 /* ─── Duplicate Event with selective inheritance ─── */
@@ -1841,16 +2290,33 @@ export async function reinstateEvent(args: {
   next_status?: EventRow['status'];
 }): Promise<{ ok: boolean; error?: string }> {
   const supabase = eventsDb();
+  const { data: priorRow } = await supabase
+    .from('events')
+    .select('org_id')
+    .eq('id', args.event_id)
+    .maybeSingle();
+  const next = args.next_status ?? 'draft';
   const { error } = await supabase
     .from('events')
     .update({
-      status: args.next_status ?? 'draft',
+      status: next,
       cancelled_at: null,
       cancellation_reason: null,
       cancelled_by_user_id: null,
     })
     .eq('id', args.event_id);
-  return error ? { ok: false, error: error.message } : { ok: true };
+  if (error) return { ok: false, error: error.message };
+  const prior = priorRow as { org_id: string } | null;
+  if (prior) {
+    void recordActivity({
+      org_id: prior.org_id,
+      entity_type: 'events',
+      entity_id: args.event_id,
+      action: 'reinstated',
+      changes: { to_status: next },
+    });
+  }
+  return { ok: true };
 }
 
 /**
@@ -1864,6 +2330,11 @@ export async function updateEventHoldDetails(args: {
   hold_expires_at: string | null;
 }): Promise<{ ok: boolean; error?: string }> {
   const supabase = eventsDb();
+  const { data: priorRow } = await supabase
+    .from('events')
+    .select('org_id, hold_rank, hold_expires_at')
+    .eq('id', args.event_id)
+    .maybeSingle();
   const { error } = await supabase
     .from('events')
     .update({
@@ -1871,7 +2342,23 @@ export async function updateEventHoldDetails(args: {
       hold_expires_at: args.hold_expires_at,
     })
     .eq('id', args.event_id);
-  return error ? { ok: false, error: error.message } : { ok: true };
+  if (error) return { ok: false, error: error.message };
+  const prior = priorRow as
+    | { org_id: string; hold_rank: number | null; hold_expires_at: string | null }
+    | null;
+  if (prior) {
+    void recordActivity({
+      org_id: prior.org_id,
+      entity_type: 'events',
+      entity_id: args.event_id,
+      action: 'hold_updated',
+      changes: {
+        from: { hold_rank: prior.hold_rank, hold_expires_at: prior.hold_expires_at },
+        to: { hold_rank: args.hold_rank, hold_expires_at: args.hold_expires_at },
+      },
+    });
+  }
+  return { ok: true };
 }
 
 export async function updateEventStatus(
@@ -1895,6 +2382,11 @@ export async function addEventDay(args: {
   const supabase = eventsDb();
   const existing = await fetchEventDays(args.event_id);
   const nextIndex = existing.length === 0 ? 1 : Math.max(...existing.map((d) => d.day_index)) + 1;
+  const { data: parent } = await supabase
+    .from('events')
+    .select('org_id')
+    .eq('id', args.event_id)
+    .maybeSingle();
   const { data, error } = await supabase
     .from('event_days')
     .insert({
@@ -1910,7 +2402,24 @@ export async function addEventDay(args: {
     .select('*')
     .single();
   if (error || !data) return { ok: false, error: error?.message ?? 'day_insert_failed' };
-  return { ok: true, day: data as EventDayRow };
+  const day = data as EventDayRow;
+  const orgId = (parent as { org_id: string } | null)?.org_id;
+  if (orgId) {
+    void recordActivity({
+      org_id: orgId,
+      entity_type: 'event_days',
+      entity_id: day.id,
+      action: 'created',
+      changes: {
+        event_id: args.event_id,
+        day_index: nextIndex,
+        label: args.label,
+        capacity: args.capacity,
+        reentry_policy: day.reentry_policy,
+      },
+    });
+  }
+  return { ok: true, day };
 }
 
 export async function updateEventDay(
@@ -1918,19 +2427,64 @@ export async function updateEventDay(
   patch: Partial<Pick<EventDayRow, 'label' | 'capacity' | 'starts_at' | 'ends_at' | 'reentry_policy'>>,
 ): Promise<{ ok: boolean; error?: string }> {
   const supabase = eventsDb();
+  const { data: prior } = await supabase
+    .from('event_days')
+    .select('event_id, label, capacity, starts_at, ends_at, reentry_policy, events ( org_id )')
+    .eq('id', dayId)
+    .maybeSingle();
   const { error } = await supabase.from('event_days').update(patch).eq('id', dayId);
-  return error ? { ok: false, error: error.message } : { ok: true };
+  if (error) return { ok: false, error: error.message };
+  const priorRow = prior as
+    | (Pick<EventDayRow, 'label' | 'capacity' | 'starts_at' | 'ends_at' | 'reentry_policy'> & {
+        event_id: string;
+        events: { org_id: string } | null;
+      })
+    | null;
+  const orgId = priorRow?.events?.org_id;
+  if (orgId) {
+    void recordActivity({
+      org_id: orgId,
+      entity_type: 'event_days',
+      entity_id: dayId,
+      action: 'updated',
+      changes: { patch, prior: priorRow },
+    });
+  }
+  return { ok: true };
 }
 
 export async function deleteEventDay(
   dayId: string,
 ): Promise<{ ok: boolean; error?: string }> {
   const supabase = eventsDb();
+  const { data: prior } = await supabase
+    .from('event_days')
+    .select('event_id, day_index, label, events ( org_id )')
+    .eq('id', dayId)
+    .maybeSingle();
   const { error } = await supabase
     .from('event_days')
     .update({ deleted_at: new Date().toISOString() })
     .eq('id', dayId);
-  return error ? { ok: false, error: error.message } : { ok: true };
+  if (error) return { ok: false, error: error.message };
+  const priorRow = prior as
+    | { event_id: string; day_index: number; label: string; events: { org_id: string } | null }
+    | null;
+  const orgId = priorRow?.events?.org_id;
+  if (orgId) {
+    void recordActivity({
+      org_id: orgId,
+      entity_type: 'event_days',
+      entity_id: dayId,
+      action: 'deleted',
+      changes: {
+        event_id: priorRow?.event_id ?? null,
+        day_index: priorRow?.day_index ?? null,
+        label: priorRow?.label ?? null,
+      },
+    });
+  }
+  return { ok: true };
 }
 
 /* ─── Incidents (events-mode quick create) ───────── */

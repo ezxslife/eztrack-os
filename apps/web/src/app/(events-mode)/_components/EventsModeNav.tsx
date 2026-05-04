@@ -3,12 +3,14 @@
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import {
+  Bell,
   BookmarkPlus,
   CalendarDays,
   CalendarRange,
   ChevronLeft,
   Crown,
   Radio,
+  ShieldCheck,
   Ticket,
   Tv,
   UserCheck,
@@ -31,6 +33,8 @@ const ITEMS: NavItem[] = [
   { href: '/vip-deny', label: 'VIP/Deny', icon: Crown, enabled: true },
   { href: '/events', label: 'Events', icon: CalendarDays, enabled: true },
   { href: '/templates', label: 'Templates', icon: BookmarkPlus, enabled: true },
+  { href: '/notifications', label: 'Notifications', icon: Bell, enabled: true },
+  { href: '/audit', label: 'Audit', icon: ShieldCheck, enabled: true },
   { href: '/wall-display', label: 'Wall display', icon: Tv, enabled: true },
 ];
 
