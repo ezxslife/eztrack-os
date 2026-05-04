@@ -1228,6 +1228,143 @@ export async function cancelEvent(args: {
   return error ? { ok: false, error: error.message } : { ok: true };
 }
 
+/* ─── Duplicate Event with selective inheritance ─── */
+
+export interface DuplicateEventOptions {
+  source_event_id: string;
+  new_name: string;
+  new_slug: string;
+  /** Date the operator wants the duplicate's first day to start. All other
+   * dates are shifted by the delta from the source's earliest event_day. */
+  new_first_day_starts_at: string;
+  copy_running_order: boolean;
+  copy_shifts: boolean;
+  copy_tier_definitions: boolean;
+}
+
+export async function duplicateEvent(opts: DuplicateEventOptions): Promise<{
+  ok: boolean;
+  event_id?: string;
+  slug?: string;
+  error?: string;
+}> {
+  const supabase = eventsDb();
+
+  // 1. Source event + days + (conditionally) ros + slots + checklist + shifts
+  const { data: srcEvent } = await supabase
+    .from('events')
+    .select('*')
+    .eq('id', opts.source_event_id)
+    .maybeSingle();
+  if (!srcEvent) return { ok: false, error: 'source_event_not_found' };
+  const src = srcEvent as EventRow;
+
+  const srcDays = await fetchEventDays(opts.source_event_id);
+  if (srcDays.length === 0) return { ok: false, error: 'source_event_has_no_days' };
+
+  const earliestSrcStart = new Date(srcDays[0].starts_at).getTime();
+  const newFirstStart = new Date(opts.new_first_day_starts_at).getTime();
+  if (Number.isNaN(newFirstStart)) return { ok: false, error: 'invalid_new_start' };
+  const deltaMs = newFirstStart - earliestSrcStart;
+
+  // 2. Insert new event (status=draft, new slug, recompute window after days)
+  const newDays = srcDays.map((d) => ({
+    label: d.label,
+    date: new Date(new Date(d.date + 'T00:00:00').getTime() + deltaMs)
+      .toISOString()
+      .slice(0, 10),
+    starts_at: new Date(new Date(d.starts_at).getTime() + deltaMs).toISOString(),
+    ends_at: new Date(new Date(d.ends_at).getTime() + deltaMs).toISOString(),
+    capacity: d.capacity,
+    reentry_policy: d.reentry_policy,
+    day_index: d.day_index,
+  }));
+
+  const liveOpsConfig: Record<string, unknown> = { ...(src.live_ops_config ?? {}) };
+  if (!opts.copy_tier_definitions) {
+    delete liveOpsConfig.pos_tiers;
+  }
+
+  const { data: newEvent, error: evErr } = await supabase
+    .from('events')
+    .insert({
+      org_id: src.org_id,
+      name: opts.new_name,
+      slug: opts.new_slug,
+      starts_at: newDays[0].starts_at,
+      ends_at: newDays[newDays.length - 1].ends_at,
+      capacity: src.capacity ?? newDays.reduce((sum, d) => sum + d.capacity, 0),
+      status: 'draft',
+      is_multi_day: srcDays.length > 1,
+      live_ops_config: liveOpsConfig,
+    })
+    .select('*')
+    .single();
+  if (evErr || !newEvent) return { ok: false, error: evErr?.message ?? 'event_insert_failed' };
+  const newId = (newEvent as EventRow).id;
+
+  // 3. Insert event_days
+  const dayRows = newDays.map((d) => ({
+    event_id: newId,
+    day_index: d.day_index,
+    label: d.label,
+    date: d.date,
+    starts_at: d.starts_at,
+    ends_at: d.ends_at,
+    capacity: d.capacity,
+    reentry_policy: d.reentry_policy,
+  }));
+  const { data: insertedDays, error: dayErr } = await supabase
+    .from('event_days')
+    .insert(dayRows)
+    .select('id, day_index');
+  if (dayErr || !insertedDays) return { ok: false, error: dayErr?.message ?? 'days_insert_failed' };
+  const dayIdByIndex = new Map<number, string>();
+  for (const r of insertedDays as Array<{ id: string; day_index: number }>) {
+    dayIdByIndex.set(r.day_index, r.id);
+  }
+
+  // 4. (Optional) Run-of-show: ros + slots + checklist per day
+  if (opts.copy_running_order) {
+    for (const srcDay of srcDays) {
+      const newDayId = dayIdByIndex.get(srcDay.day_index);
+      if (!newDayId) continue;
+      const sourceRos = await fetchOrCreateRunOfShow(src.org_id, src.id, srcDay.id);
+      await cloneRunOfShowDay({
+        source_ros_id: sourceRos.id,
+        source_event_day_id: srcDay.id,
+        target_event_day_id: newDayId,
+        target_event_id: newId,
+        org_id: src.org_id,
+      });
+    }
+  }
+
+  // 5. (Optional) Shift assignments per day
+  if (opts.copy_shifts) {
+    for (const srcDay of srcDays) {
+      const newDayId = dayIdByIndex.get(srcDay.day_index);
+      if (!newDayId) continue;
+      const shifts = await fetchShiftAssignments(srcDay.id);
+      if (shifts.length === 0) continue;
+      const shiftRows = shifts.map((s) => ({
+        org_id: s.org_id,
+        event_day_id: newDayId,
+        personnel_id: s.personnel_id,
+        role: s.role,
+        starts_at: new Date(new Date(s.starts_at).getTime() + deltaMs).toISOString(),
+        ends_at: new Date(new Date(s.ends_at).getTime() + deltaMs).toISOString(),
+        // Reset runtime + approval state on duplicate
+        status: 'scheduled' as const,
+        approval_status: 'pending' as const,
+      }));
+      await supabase.from('shift_assignments').insert(shiftRows);
+    }
+  }
+
+  return { ok: true, event_id: newId, slug: opts.new_slug };
+}
+
 export async function reinstateEvent(args: {
   event_id: string;
   next_status?: EventRow['status'];

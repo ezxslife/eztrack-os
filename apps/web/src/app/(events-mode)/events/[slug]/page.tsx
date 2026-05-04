@@ -2,12 +2,14 @@
 
 import { use, useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import {
   AlertTriangle,
   ArrowLeft,
   Ban,
   CalendarDays,
   Clock,
+  Copy,
   DollarSign,
   Loader2,
   Plus,
@@ -23,11 +25,13 @@ import {
   addEventDay,
   cancelEvent,
   deleteEventDay,
+  duplicateEvent,
   fetchEventBySlug,
   fetchEventDays,
   fetchEventIncidents,
   fetchEventReport,
   reinstateEvent,
+  slugify,
   sourceLabel,
   tierDefinitionsFor,
   updateEventDay,
@@ -46,6 +50,7 @@ interface PageProps {
 
 export default function EventDetailPage({ params }: PageProps) {
   const { slug } = use(params);
+  const router = useRouter();
 
   const [event, setEvent] = useState<EventRow | null>(null);
   const [days, setDays] = useState<EventDayRow[]>([]);
@@ -355,6 +360,14 @@ export default function EventDetailPage({ params }: PageProps) {
         </div>
       </section>
 
+      {/* Duplicate event */}
+      <DuplicateSection
+        event={event}
+        days={days}
+        busy={busy}
+        onDuplicated={(newSlug) => router.push(`/events/${newSlug}`)}
+      />
+
       {/* Post-event / live report */}
       {report ? <ReportSection report={report} /> : null}
 
@@ -466,6 +479,204 @@ export default function EventDetailPage({ params }: PageProps) {
 }
 
 /* ─── Subcomponents ──────────────────────────────── */
+
+function DuplicateSection({
+  event,
+  days,
+  busy,
+  onDuplicated,
+}: {
+  event: EventRow;
+  days: EventDayRow[];
+  busy: boolean;
+  onDuplicated: (newSlug: string) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const [name, setName] = useState(`${event.name} (copy)`);
+  const [slug, setSlug] = useState(`${event.slug}-copy`);
+  const [slugDirty, setSlugDirty] = useState(false);
+  const defaultStart = days[0]
+    ? new Date(new Date(days[0].starts_at).getTime() + 7 * 24 * 60 * 60_000)
+    : new Date();
+  defaultStart.setSeconds(0, 0);
+  const pad = (n: number) => n.toString().padStart(2, '0');
+  const initialIso = `${defaultStart.getFullYear()}-${pad(defaultStart.getMonth() + 1)}-${pad(defaultStart.getDate())}T${pad(defaultStart.getHours())}:${pad(defaultStart.getMinutes())}`;
+  const [newStart, setNewStart] = useState(initialIso);
+  const [copyRos, setCopyRos] = useState(true);
+  const [copyShifts, setCopyShifts] = useState(true);
+  const [copyTiers, setCopyTiers] = useState(true);
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!slugDirty) setSlug(slugify(name));
+  }, [name, slugDirty]);
+
+  async function handleSubmit() {
+    setError(null);
+    if (!name.trim() || !slug.trim()) {
+      setError('Name and slug are required.');
+      return;
+    }
+    if (Number.isNaN(new Date(newStart).getTime())) {
+      setError('First-day start time is invalid.');
+      return;
+    }
+    setSubmitting(true);
+    try {
+      const res = await duplicateEvent({
+        source_event_id: event.id,
+        new_name: name.trim(),
+        new_slug: slug.trim(),
+        new_first_day_starts_at: new Date(newStart).toISOString(),
+        copy_running_order: copyRos,
+        copy_shifts: copyShifts,
+        copy_tier_definitions: copyTiers,
+      });
+      if (!res.ok || !res.slug) {
+        setError(res.error ?? 'Could not duplicate.');
+        return;
+      }
+      onDuplicated(res.slug);
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  return (
+    <section className="rounded-2xl border border-[var(--border)] bg-[var(--surface)] p-5">
+      <div className="flex items-center justify-between">
+        <h2 className="text-[14px] font-semibold uppercase tracking-wider text-[var(--ink-500)]">
+          Duplicate event
+        </h2>
+        {!open ? (
+          <button
+            type="button"
+            onClick={() => setOpen(true)}
+            disabled={busy}
+            className="inline-flex h-9 items-center gap-1 rounded-lg bg-[var(--surface-2)] px-3 text-[13px] font-medium text-[var(--ink-900)] hover:bg-[var(--hover)] disabled:opacity-50"
+          >
+            <Copy size={12} /> Duplicate…
+          </button>
+        ) : null}
+      </div>
+      {open ? (
+        <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2">
+          <div>
+            <label className="mb-1 block text-[11px] font-semibold uppercase tracking-wider text-[var(--ink-400)]">
+              New name
+            </label>
+            <input
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              className="h-10 w-full rounded-lg border border-[var(--border)] bg-[var(--bg)] px-3 text-[13px] text-[var(--ink-900)]"
+            />
+          </div>
+          <div>
+            <label className="mb-1 block text-[11px] font-semibold uppercase tracking-wider text-[var(--ink-400)]">
+              New slug
+            </label>
+            <input
+              value={slug}
+              onChange={(e) => {
+                setSlugDirty(true);
+                setSlug(e.target.value);
+              }}
+              className="h-10 w-full rounded-lg border border-[var(--border)] bg-[var(--bg)] px-3 font-mono text-[13px] text-[var(--ink-900)]"
+            />
+          </div>
+          <div className="sm:col-span-2">
+            <label className="mb-1 block text-[11px] font-semibold uppercase tracking-wider text-[var(--ink-400)]">
+              First-day doors open
+            </label>
+            <input
+              type="datetime-local"
+              value={newStart}
+              onChange={(e) => setNewStart(e.target.value)}
+              className="h-10 w-full rounded-lg border border-[var(--border)] bg-[var(--bg)] px-3 text-[13px] text-[var(--ink-900)]"
+            />
+            <p className="mt-1 text-[11px] text-[var(--ink-400)]">
+              All other dates (multi-day, RoS, shifts) shift by the same delta.
+            </p>
+          </div>
+          <fieldset className="sm:col-span-2">
+            <legend className="mb-1.5 text-[11px] font-semibold uppercase tracking-wider text-[var(--ink-400)]">
+              Carry over
+            </legend>
+            <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
+              <CopyCheckbox
+                label="Run-of-show timeline + checklist"
+                checked={copyRos}
+                onChange={setCopyRos}
+              />
+              <CopyCheckbox
+                label="Shift assignments (reset to pending)"
+                checked={copyShifts}
+                onChange={setCopyShifts}
+              />
+              <CopyCheckbox
+                label="POS tier definitions"
+                checked={copyTiers}
+                onChange={setCopyTiers}
+              />
+            </div>
+          </fieldset>
+          {error ? (
+            <p className="text-[13px] text-[#EF4444] sm:col-span-2" role="alert">
+              {error}
+            </p>
+          ) : null}
+          <div className="flex justify-end gap-2 sm:col-span-2">
+            <button
+              type="button"
+              onClick={() => setOpen(false)}
+              className="text-[12px] text-[var(--ink-500)] hover:text-[var(--ink-900)]"
+            >
+              Cancel
+            </button>
+            <button
+              type="button"
+              onClick={handleSubmit}
+              disabled={submitting || busy}
+              className="inline-flex min-h-[36px] items-center gap-1.5 rounded-xl px-4 py-2 text-[14px] font-semibold text-white hover:opacity-90 disabled:opacity-50"
+              style={{ background: 'var(--ezxs-gradient-money)' }}
+            >
+              {submitting ? <Loader2 size={14} className="animate-spin" /> : <Copy size={14} />}
+              {submitting ? 'Duplicating…' : 'Create duplicate'}
+            </button>
+          </div>
+        </div>
+      ) : (
+        <p className="mt-2 text-[12px] text-[var(--ink-500)]">
+          Creates a new draft event with copied days. Choose what carries over —
+          tickets / customers / scans / orders never copy across.
+        </p>
+      )}
+    </section>
+  );
+}
+
+function CopyCheckbox({
+  label,
+  checked,
+  onChange,
+}: {
+  label: string;
+  checked: boolean;
+  onChange: (next: boolean) => void;
+}) {
+  return (
+    <label className="flex cursor-pointer items-start gap-2 rounded-xl border border-[var(--border)] bg-[var(--surface-2)] p-2.5">
+      <input
+        type="checkbox"
+        checked={checked}
+        onChange={(e) => onChange(e.target.checked)}
+        className="mt-0.5 h-4 w-4 flex-none accent-[#34C759]"
+      />
+      <span className="text-[12px] text-[var(--ink-900)]">{label}</span>
+    </label>
+  );
+}
 
 function ReportSection({ report }: { report: EventReport }) {
   const t = report.totals;
