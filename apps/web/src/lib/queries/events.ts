@@ -1172,6 +1172,76 @@ export async function fetchPatrons(flagFilter?: string[]): Promise<PatronRow[]> 
   return (data as PatronRow[] | null) ?? [];
 }
 
+/* ─── Event members (per-event invite + write permission) ─── */
+
+export interface EventMemberRow {
+  id: string;
+  event_id: string;
+  user_id: string;
+  role: string;
+  write_permission: boolean;
+  in_timeline: boolean;
+  invited_by: string | null;
+  invited_at: string;
+  accepted_at: string | null;
+  // joined from profiles
+  profile?: { full_name: string; email: string | null } | null;
+}
+
+export async function fetchEventMembers(eventId: string): Promise<EventMemberRow[]> {
+  const supabase = eventsDb();
+  const { data } = await supabase
+    .from('event_members')
+    .select(`
+      id, event_id, user_id, role, write_permission, in_timeline,
+      invited_by, invited_at, accepted_at,
+      profile:profiles!event_members_user_id_fkey ( full_name, email )
+    `)
+    .eq('event_id', eventId)
+    .order('invited_at', { ascending: false });
+  return (data as EventMemberRow[] | null) ?? [];
+}
+
+export async function inviteEventMember(args: {
+  event_id: string;
+  user_id: string;
+  role?: string;
+  write_permission?: boolean;
+  in_timeline?: boolean;
+}): Promise<{ ok: boolean; error?: string }> {
+  const supabase = eventsDb();
+  const { data: userData } = await supabase.auth.getUser();
+  const { error } = await supabase.from('event_members').insert({
+    event_id: args.event_id,
+    user_id: args.user_id,
+    role: args.role ?? 'producer',
+    write_permission: args.write_permission ?? false,
+    in_timeline: args.in_timeline ?? false,
+    invited_by: userData?.user?.id ?? null,
+  });
+  return error ? { ok: false, error: error.message } : { ok: true };
+}
+
+export async function updateEventMember(
+  memberId: string,
+  patch: Partial<Pick<EventMemberRow, 'role' | 'write_permission' | 'in_timeline'>>,
+): Promise<{ ok: boolean; error?: string }> {
+  const supabase = eventsDb();
+  const { error } = await supabase
+    .from('event_members')
+    .update(patch)
+    .eq('id', memberId);
+  return error ? { ok: false, error: error.message } : { ok: true };
+}
+
+export async function removeEventMember(
+  memberId: string,
+): Promise<{ ok: boolean; error?: string }> {
+  const supabase = eventsDb();
+  const { error } = await supabase.from('event_members').delete().eq('id', memberId);
+  return error ? { ok: false, error: error.message } : { ok: true };
+}
+
 /* ─── Event detail (view + edit) ─────────────────── */
 
 export async function fetchEventBySlug(slug: string): Promise<EventRow | null> {

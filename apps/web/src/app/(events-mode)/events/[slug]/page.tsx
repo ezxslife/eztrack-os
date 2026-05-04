@@ -19,7 +19,9 @@ import {
   Ticket,
   Trash2,
   TrendingUp,
+  UserPlus,
   Users,
+  X,
 } from 'lucide-react';
 import {
   addEventDay,
@@ -29,18 +31,25 @@ import {
   fetchEventBySlug,
   fetchEventDays,
   fetchEventIncidents,
+  fetchEventMembers,
   fetchEventReport,
+  fetchPersonnel,
+  inviteEventMember,
   reinstateEvent,
+  removeEventMember,
   slugify,
   sourceLabel,
   tierDefinitionsFor,
   updateEventDay,
   updateEventLiveOpsConfig,
+  updateEventMember,
   updateEventStatus,
   type EventDayRow,
+  type EventMemberRow,
   type EventReport,
   type EventRow,
   type IncidentRow,
+  type PersonnelLite,
   type PosTier,
 } from '@/lib/queries/events';
 
@@ -56,6 +65,8 @@ export default function EventDetailPage({ params }: PageProps) {
   const [days, setDays] = useState<EventDayRow[]>([]);
   const [incidents, setIncidents] = useState<IncidentRow[]>([]);
   const [report, setReport] = useState<EventReport | null>(null);
+  const [members, setMembers] = useState<EventMemberRow[]>([]);
+  const [orgPersonnel, setOrgPersonnel] = useState<PersonnelLite[]>([]);
   const [tiers, setTiers] = useState<PosTier[]>([]);
   const [autoCheckin, setAutoCheckin] = useState(true);
   const [busy, setBusy] = useState(false);
@@ -72,14 +83,18 @@ export default function EventDetailPage({ params }: PageProps) {
     const cfg = ev.live_ops_config as { auto_checkin_at_pos?: boolean };
     setAutoCheckin(cfg.auto_checkin_at_pos !== false);
     setTiers(tierDefinitionsFor(ev));
-    const [d, inc, rep] = await Promise.all([
+    const [d, inc, rep, mem, allPersonnel] = await Promise.all([
       fetchEventDays(ev.id),
       fetchEventIncidents(ev.id),
       fetchEventReport(ev.id),
+      fetchEventMembers(ev.id),
+      fetchPersonnel(),
     ]);
     setDays(d);
     setIncidents(inc);
     setReport(rep);
+    setMembers(mem);
+    setOrgPersonnel(allPersonnel);
     setLoading(false);
   }, [slug]);
 
@@ -360,6 +375,18 @@ export default function EventDetailPage({ params }: PageProps) {
         </div>
       </section>
 
+      {/* Members (per-event scoped access) */}
+      <MembersSection
+        event={event}
+        members={members}
+        orgPersonnel={orgPersonnel}
+        busy={busy}
+        onChange={async () => {
+          await refresh();
+          setToast('Members updated');
+        }}
+      />
+
       {/* Duplicate event */}
       <DuplicateSection
         event={event}
@@ -479,6 +506,181 @@ export default function EventDetailPage({ params }: PageProps) {
 }
 
 /* ─── Subcomponents ──────────────────────────────── */
+
+function MembersSection({
+  event,
+  members,
+  orgPersonnel,
+  busy,
+  onChange,
+}: {
+  event: EventRow;
+  members: EventMemberRow[];
+  orgPersonnel: PersonnelLite[];
+  busy: boolean;
+  onChange: () => void;
+}) {
+  const [invitee, setInvitee] = useState('');
+  const [role, setRole] = useState('producer');
+  const [writePerm, setWritePerm] = useState(false);
+  const [inTimeline, setInTimeline] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
+
+  const memberUserIds = new Set(members.map((m) => m.user_id));
+  const candidates = orgPersonnel.filter((p) => !memberUserIds.has(p.id));
+
+  async function handleInvite() {
+    if (!invitee || submitting) return;
+    setSubmitting(true);
+    try {
+      const res = await inviteEventMember({
+        event_id: event.id,
+        user_id: invitee,
+        role,
+        write_permission: writePerm,
+        in_timeline: inTimeline,
+      });
+      if (res.ok) {
+        setInvitee('');
+        setRole('producer');
+        setWritePerm(false);
+        setInTimeline(false);
+        onChange();
+      } else {
+        // surface error
+        console.error(res.error);
+      }
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  async function handleToggleWrite(memberId: string, current: boolean) {
+    await updateEventMember(memberId, { write_permission: !current });
+    onChange();
+  }
+
+  async function handleToggleTimeline(memberId: string, current: boolean) {
+    await updateEventMember(memberId, { in_timeline: !current });
+    onChange();
+  }
+
+  async function handleRemove(memberId: string) {
+    if (!window.confirm('Remove this member? They lose access to this event.')) return;
+    await removeEventMember(memberId);
+    onChange();
+  }
+
+  return (
+    <section className="rounded-2xl border border-[var(--border)] bg-[var(--surface)] p-5">
+      <div className="flex items-center justify-between">
+        <h2 className="text-[14px] font-semibold uppercase tracking-wider text-[var(--ink-500)]">
+          Event members · {members.length}
+        </h2>
+        <span className="text-[11px] text-[var(--ink-400)]">
+          per-event scoped access
+        </span>
+      </div>
+
+      {members.length === 0 ? (
+        <p className="mt-3 text-[13px] text-[var(--ink-400)]">
+          No outside producers / freelancers yet. Org members already have access via
+          regular RLS.
+        </p>
+      ) : (
+        <ul className="mt-3 divide-y divide-[var(--border)]">
+          {members.map((m) => (
+            <li key={m.id} className="flex items-center gap-3 py-2.5">
+              <Users size={14} className="flex-none text-[var(--ink-400)]" />
+              <div className="min-w-0 flex-1">
+                <p className="truncate text-[13px] font-medium text-[var(--ink-900)]">
+                  {m.profile?.full_name ?? 'Unknown'}{' '}
+                  <span className="text-[var(--ink-500)]">· {m.role}</span>
+                </p>
+                <p className="truncate text-[11px] text-[var(--ink-400)]">
+                  {m.profile?.email ?? '—'}
+                  {m.accepted_at ? ` · accepted ${new Date(m.accepted_at).toLocaleDateString()}` : ' · invited'}
+                </p>
+              </div>
+              <Toggle
+                on={m.write_permission}
+                onChange={() => handleToggleWrite(m.id, m.write_permission)}
+                disabled={busy}
+              />
+              <span className="text-[10px] uppercase tracking-wider text-[var(--ink-400)]">
+                Write
+              </span>
+              <Toggle
+                on={m.in_timeline}
+                onChange={() => handleToggleTimeline(m.id, m.in_timeline)}
+                disabled={busy}
+              />
+              <span className="text-[10px] uppercase tracking-wider text-[var(--ink-400)]">
+                In RoS
+              </span>
+              <button
+                type="button"
+                onClick={() => handleRemove(m.id)}
+                disabled={busy}
+                className="text-[var(--ink-400)] hover:text-[#EF4444]"
+                aria-label="Remove member"
+              >
+                <X size={14} />
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
+
+      {/* Invite form */}
+      <div className="mt-4 grid grid-cols-1 gap-2 sm:grid-cols-[1fr_auto_auto_auto]">
+        <select
+          value={invitee}
+          onChange={(e) => setInvitee(e.target.value)}
+          disabled={candidates.length === 0 || submitting}
+          className="h-9 rounded-lg border border-[var(--border)] bg-[var(--bg)] px-3 text-[13px] text-[var(--ink-900)]"
+        >
+          <option value="">
+            {candidates.length === 0 ? 'No candidates left' : 'Pick from org…'}
+          </option>
+          {candidates.map((p) => (
+            <option key={p.id} value={p.id}>
+              {p.full_name} ({p.role})
+            </option>
+          ))}
+        </select>
+        <select
+          value={role}
+          onChange={(e) => setRole(e.target.value)}
+          className="h-9 rounded-lg border border-[var(--border)] bg-[var(--bg)] px-3 text-[13px] text-[var(--ink-900)]"
+        >
+          <option value="producer">Producer</option>
+          <option value="freelancer">Freelancer</option>
+          <option value="guest">Guest</option>
+          <option value="vendor">Vendor</option>
+        </select>
+        <label className="inline-flex h-9 items-center gap-1.5 rounded-lg border border-[var(--border)] bg-[var(--bg)] px-3 text-[12px] text-[var(--ink-700)]">
+          <input
+            type="checkbox"
+            checked={writePerm}
+            onChange={(e) => setWritePerm(e.target.checked)}
+            className="h-3.5 w-3.5 accent-[#34C759]"
+          />
+          Can write
+        </label>
+        <button
+          type="button"
+          onClick={handleInvite}
+          disabled={!invitee || submitting}
+          className="inline-flex h-9 items-center gap-1 rounded-lg bg-[var(--ink-700)] px-3 text-[13px] font-medium text-white disabled:opacity-50"
+        >
+          {submitting ? <Loader2 size={12} className="animate-spin" /> : <UserPlus size={12} />}
+          Invite
+        </button>
+      </div>
+    </section>
+  );
+}
 
 function DuplicateSection({
   event,
