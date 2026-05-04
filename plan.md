@@ -668,6 +668,63 @@ Context inheritance — assistant on `/live` auto-includes event + current day +
 
 ---
 
+## 19a. Crescat-style add list (locked, with sequencing)
+
+The product gap analysis against Crescat surfaced 26 candidate features. Decisions are locked here so future Claude Code sessions inherit the same triage. Schema reservations land in L1 even when UI ships later — paying the namespace cost up-front avoids destructive migrations.
+
+### L1 schema adds (current sprint, additive only — APPLIED to eztrack-prod)
+
+| # | Schema delta | Migration | Why |
+|---|---|---|---|
+| 1 | `run_of_show.show_caller_user_id` FK to auth.users | 0104 | Single source-of-truth row-advancer in Show Mode. Multi-operator events resolve ambiguity through this column. |
+| 2 | `ros_slots.trigger_type` enum (`manual` \| `time` \| `cue`), default `manual` | 0105 | Reserves the trigger state machine. `manual` ships at L2; `time` is v1.5; `cue` lands when a customer asks. |
+| 3 | `events.production_starts_at`, `events.production_ends_at` | 0106 | Load-in/load-out window separate from doors. Settle's revenue rec wants production-period boundaries. |
+| 4 | `event_members` table (`event_id`, `user_id`, `role`, `write_permission`, `in_timeline`) + RLS | 0107 | Per-event scoped access for outside producers/freelancers without giving them org-wide read. Layers on top of `org_id`. |
+| 5 | `events.project_leader_user_id` FK nullable | 0108 | One accountable owner per event. Cheap, high coordination value. |
+| 6 | `events.cancelled_at`, `cancellation_reason`, `cancelled_by_user_id` | 0109 | Cancel ≠ Delete. Preserves data, removes from operational surface, allows reinstatement, gives audit trail. |
+| 7 | `events.performance_id` nullable, no FK target | 0110 | Reserves the namespace for v2's Performances entity. One column, zero logic, avoids a destructive migration. |
+| 8 | `events.status` enum gains `hold` value, `events.hold_rank` int, `events.hold_expires_at` timestamptz | 0111 | Reserve the Hold Events shape now. UI ships v1.5 but the schema lands once. |
+
+### L2 deliverables (alongside Run-of-show + Staff Console reframe)
+
+| # | Feature | Sequencing notes |
+|---|---|---|
+| 9 | Show Mode edit-on-the-fly | Past rows immutable, current row's duration immutable (only its description/cue text editable), only future rows fully editable. Crescat's row-state rules verbatim. |
+| 10 | Manual auto-advance UI | The `trigger_type` column from #2 now has an actual operator surface. Time/cue paths stubbed, hidden behind a feature flag. |
+| 11 | `shift_assignments.approval_status` 3-state workflow + UI | Pending (yellow) → approved-but-pending-acceptance (blue) → approved-and-accepted (green). Drives the Staff Console color logic. **Distinct from existing `status` (runtime: scheduled/en_route/on_shift/etc).** |
+| 12 | Polymorphic `templates` table (running_order type at launch) | Build the polymorphic shape now even if only one type ships. Subsequent template types (event-type, timeline, board, checklist) do not require a fork. |
+| 13 | Duplicate Event with selective inheritance | Pop-up asks which fields carry over (running order? assignments? shifts? guest list?). Templates and Duplicate solve overlapping problems and ship together. |
+| 14 | Per-event Write Permission UI | Invite-to-event flow with `write_permission` toggle, surfaced from `event_members` (#4). |
+| 15 | Cancel/Reinstate flow + "show cancelled" dashboard filter | Right-click event → Cancel → optional notification email. Reinstate clears `cancelled_at`. Dashboard filter to surface cancelled events. |
+
+### v1.5 fast-follow
+
+| # | Feature | Why fast-follow |
+|---|---|---|
+| 16 | Hold Events with rank | Killer pre-confirmation feature for venues holding dates while a buyer negotiates. Schema reserved at #8; UI build is v1.5. |
+| 17 | Accreditation Levels + Office (`accreditations` + `accreditation_levels`) | Press/vendor/crew/talent/sponsor passes are not tickets. Festivals need this; some venues do too. |
+| 18 | Volunteer Shift Market in Staff Console | Open-shift list staff can self-claim → admin approval → 3-state lifecycle from #11 takes over. Festival ICPs require this. |
+| 19 | Time-based auto-advance trigger | Power users (touring crews, multi-stage festivals) want auto-advance when row's duration elapses. Trigger column from #2 already supports it. |
+| 20 | Shift Reminders | Automated push/SMS to staff before shift start. Twilio is already in scope, so the cost is low. |
+
+### Defer to v2 (namespace reservations only)
+
+| # | Feature | Reservation cost paid now |
+|---|---|---|
+| 21 | Performances (Artists as first-class) | `events.performance_id` reserved at #7. Full subsystem (Contacts, Travels, Accommodations, Tasks, Documents, Guest Lists) ships v2. |
+| 22 | Advances (artist self-serve portal) | Depends on #21. Reserve `advances` namespace in plan.md. |
+| 23 | Soft Access Lists / Public Booking Calendar | Cross-product seam with promote. Promote hosts the public surface; track owns the underlying calendar. |
+| 24 | Festival Sections (multi-event grouping with reusable accreditation + scheduling) | Scope only opens up after #21–23. |
+
+### Rejected
+
+| # | Feature | Reason |
+|---|---|---|
+| 25 | Event Boards (kanban) | Operators have Trello/Notion. Project-management scope creep dilutes "event-day live ops" positioning. Composite WTP score 2.8. Revisit only if customers ask. |
+| 26 | Event Documents (file storage) | Operators have Drive/Dropbox. File hosting is infra cost with low WTP. Composite 2.0. Hard pass. |
+
+---
+
 ## 20. TL;DR
 
 - **Pivot.** Lead with the layer above the scanner. Live capacity board + POS + reframed Personnel/Dispatch/Briefings/Visitors/Patrons. Scanner becomes opt-in v1.5.
