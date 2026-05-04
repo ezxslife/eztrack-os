@@ -12,6 +12,7 @@ const settingsLinks = [
   { href: '/settings/form-templates', label: 'Form Templates' },
   { href: '/settings/notification-rules', label: 'Notification Rules' },
   { href: '/settings/integrations', label: 'Integrations' },
+  { href: '/settings/wall-display', label: 'Wall Display' },
 ];
 
 export default function SettingsPage() {

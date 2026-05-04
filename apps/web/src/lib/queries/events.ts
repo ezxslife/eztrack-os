@@ -489,6 +489,73 @@ export async function triggerManualCheckIn(args: {
   };
 }
 
+/* ─── Wall display pairing (operator side) ──────── */
+
+export interface WallDisplaySessionRow {
+  id: string;
+  org_id: string;
+  event_id: string;
+  pairing_code: string;
+  paired_at: string | null;
+  paired_device_label: string | null;
+  jwt_id: string | null;
+  expires_at: string;
+  revoked_at: string | null;
+  created_by: string;
+  created_at: string;
+}
+
+export async function fetchWallDisplaySessions(
+  eventId?: string,
+): Promise<WallDisplaySessionRow[]> {
+  const supabase = eventsDb();
+  let q = supabase
+    .from('wall_display_sessions')
+    .select('*')
+    .is('revoked_at', null)
+    .order('created_at', { ascending: false })
+    .limit(50);
+  if (eventId) q = q.eq('event_id', eventId);
+  const { data } = await q;
+  return (data as WallDisplaySessionRow[] | null) ?? [];
+}
+
+export async function createWallDisplayCode(args: {
+  event_id: string;
+  device_label?: string;
+  code_ttl_minutes?: number;
+}): Promise<{
+  ok: boolean;
+  pairing_code?: string;
+  expires_at?: string;
+  event?: { id: string; name: string; status: string };
+  error?: string;
+}> {
+  const supabase = eventsDb();
+  const { data, error } = await supabase.functions.invoke('wall-display-pairing', {
+    body: { action: 'create', ...args },
+  });
+  if (error) return { ok: false, error: error.message };
+  return (data ?? { ok: false, error: 'no_response' }) as {
+    ok: boolean;
+    pairing_code?: string;
+    expires_at?: string;
+    event?: { id: string; name: string; status: string };
+    error?: string;
+  };
+}
+
+export async function revokeWallDisplaySession(
+  sessionId: string,
+): Promise<{ ok: boolean; error?: string }> {
+  const supabase = eventsDb();
+  const { data, error } = await supabase.functions.invoke('wall-display-pairing', {
+    body: { action: 'revoke', session_id: sessionId },
+  });
+  if (error) return { ok: false, error: error.message };
+  return (data ?? { ok: false, error: 'no_response' }) as { ok: boolean; error?: string };
+}
+
 export function slugify(input: string): string {
   return input
     .toLowerCase()

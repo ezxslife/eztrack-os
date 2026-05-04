@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { CalendarDays, ChevronLeft, Radio, Ticket } from 'lucide-react';
+import { CalendarDays, ChevronLeft, Radio, Ticket, Tv } from 'lucide-react';
 
 interface NavItem {
   href: string;
@@ -16,6 +16,7 @@ interface NavItem {
 const ITEMS: NavItem[] = [
   { href: '/live', label: 'Live', icon: Radio, enabled: true },
   { href: '/events', label: 'Events', icon: CalendarDays, enabled: true },
+  { href: '/wall-display', label: 'Wall display', icon: Tv, enabled: true },
   { href: '/pos', label: 'POS', icon: Ticket, enabled: false },
 ];
 
